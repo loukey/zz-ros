@@ -1,0 +1,58 @@
+-- The C compiler identification is GNU 13.3.0
+-- The CXX compiler identification is GNU 13.3.0
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Check for working C compiler: /usr/bin/cc - skipped
+-- Detecting C compile features
+-- Detecting C compile features - done
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /usr/bin/c++ - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Found ament_cmake: 2.5.3 (/opt/ros/jazzy/share/ament_cmake/cmake)
+-- Found Python3: /home/za/anaconda3/envs/ros/bin/python3 (found version "3.12.0") found components: Interpreter 
+-- Found ament_lint_auto: 0.17.1 (/opt/ros/jazzy/share/ament_lint_auto/cmake)
+-- Added test 'flake8' to check Python code syntax and style conventions
+-- Configured 'flake8' exclude dirs and/or files: 
+-- Added test 'lint_cmake' to check CMake code style
+-- Added test 'pep257' to check Python code against some of the docstring style conventions in PEP 257
+-- Added test 'xmllint' to check XML markup files
+-- Configuring done (0.4s)
+-- Generating done (0.0s)
+-- Build files have been written to: /home/za/Codes/zzros/build/model_config
+-- Install configuration: ""
+-- Installing: /home/za/Codes/zzros/install/model_config/share/model_config/urdf
+-- Installing: /home/za/Codes/zzros/install/model_config/share/model_config/urdf/robot.xacro
+-- Installing: /home/za/Codes/zzros/install/model_config/share/model_config/urdf/robot_temp.urdf
+-- Installing: /home/za/Codes/zzros/install/model_config/share/model_config/urdf/ros2_control.xacro
+-- Installing: /home/za/Codes/zzros/install/model_config/share/model_config/meshes
+-- Installing: /home/za/Codes/zzros/install/model_config/share/model_config/meshes/Link6.STL
+-- Installing: /home/za/Codes/zzros/install/model_config/share/model_config/meshes/Link4.STL
+-- Installing: /home/za/Codes/zzros/install/model_config/share/model_config/meshes/Link7.STL
+-- Installing: /home/za/Codes/zzros/install/model_config/share/model_config/meshes/Link5.STL
+-- Installing: /home/za/Codes/zzros/install/model_config/share/model_config/meshes/Link8.STL
+-- Installing: /home/za/Codes/zzros/install/model_config/share/model_config/meshes/Link2.STL
+-- Installing: /home/za/Codes/zzros/install/model_config/share/model_config/meshes/Link1.STL
+-- Installing: /home/za/Codes/zzros/install/model_config/share/model_config/meshes/base_link.STL
+-- Installing: /home/za/Codes/zzros/install/model_config/share/model_config/meshes/Link3.STL
+-- Installing: /home/za/Codes/zzros/install/model_config/share/model_config/launch
+-- Installing: /home/za/Codes/zzros/install/model_config/share/model_config/launch/display.model.launch.py
+-- Installing: /home/za/Codes/zzros/install/model_config/share/model_config/configs
+-- Installing: /home/za/Codes/zzros/install/model_config/share/model_config/configs/robot_rviz_config.rviz
+-- Installing: /home/za/Codes/zzros/install/model_config/share/model_config/configs/ros2_controller.yaml
+-- Installing: /home/za/Codes/zzros/install/model_config/share/ament_index/resource_index/package_run_dependencies/model_config
+-- Installing: /home/za/Codes/zzros/install/model_config/share/ament_index/resource_index/parent_prefix_path/model_config
+-- Installing: /home/za/Codes/zzros/install/model_config/share/model_config/environment/ament_prefix_path.sh
+-- Installing: /home/za/Codes/zzros/install/model_config/share/model_config/environment/ament_prefix_path.dsv
+-- Installing: /home/za/Codes/zzros/install/model_config/share/model_config/environment/path.sh
+-- Installing: /home/za/Codes/zzros/install/model_config/share/model_config/environment/path.dsv
+-- Installing: /home/za/Codes/zzros/install/model_config/share/model_config/local_setup.bash
+-- Installing: /home/za/Codes/zzros/install/model_config/share/model_config/local_setup.sh
+-- Installing: /home/za/Codes/zzros/install/model_config/share/model_config/local_setup.zsh
+-- Installing: /home/za/Codes/zzros/install/model_config/share/model_config/local_setup.dsv
+-- Installing: /home/za/Codes/zzros/install/model_config/share/model_config/package.dsv
+-- Installing: /home/za/Codes/zzros/install/model_config/share/ament_index/resource_index/packages/model_config
+-- Installing: /home/za/Codes/zzros/install/model_config/share/model_config/cmake/model_configConfig.cmake
+-- Installing: /home/za/Codes/zzros/install/model_config/share/model_config/cmake/model_configConfig-version.cmake
+-- Installing: /home/za/Codes/zzros/install/model_config/share/model_config/package.xml

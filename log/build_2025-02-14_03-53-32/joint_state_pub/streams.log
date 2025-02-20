@@ -1,0 +1,38 @@
+[0.486s] Invoking command in '/home/za/Codes/zzros/src/state_transformer/joint_state_pub': CONDA_PROMPT_MODIFIER=(ros) DEBUGINFOD_URLS=https://debuginfod.ubuntu.com PYTHONPATH=/home/za/Codes/zzros/build/joint_state_pub/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/za/Codes/zzros/install/joint_state_pub/lib/python3.12/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../../../build/joint_state_pub build --build-base /home/za/Codes/zzros/build/joint_state_pub/build install --record /home/za/Codes/zzros/build/joint_state_pub/install.log --single-version-externally-managed install_data
+[0.623s] running egg_info
+[0.623s] creating ../../../build/joint_state_pub/joint_state_pub.egg-info
+[0.631s] writing ../../../build/joint_state_pub/joint_state_pub.egg-info/PKG-INFO
+[0.632s] writing dependency_links to ../../../build/joint_state_pub/joint_state_pub.egg-info/dependency_links.txt
+[0.632s] writing entry points to ../../../build/joint_state_pub/joint_state_pub.egg-info/entry_points.txt
+[0.632s] writing requirements to ../../../build/joint_state_pub/joint_state_pub.egg-info/requires.txt
+[0.632s] writing top-level names to ../../../build/joint_state_pub/joint_state_pub.egg-info/top_level.txt
+[0.632s] writing manifest file '../../../build/joint_state_pub/joint_state_pub.egg-info/SOURCES.txt'
+[0.651s] reading manifest file '../../../build/joint_state_pub/joint_state_pub.egg-info/SOURCES.txt'
+[0.651s] adding license file 'LICENSE'
+[0.651s] writing manifest file '../../../build/joint_state_pub/joint_state_pub.egg-info/SOURCES.txt'
+[0.651s] running build
+[0.651s] running build_py
+[0.651s] creating /home/za/Codes/zzros/build/joint_state_pub/build
+[0.651s] creating /home/za/Codes/zzros/build/joint_state_pub/build/lib
+[0.651s] creating /home/za/Codes/zzros/build/joint_state_pub/build/lib/joint_state_pub
+[0.651s] copying joint_state_pub/joint_state_pub.py -> /home/za/Codes/zzros/build/joint_state_pub/build/lib/joint_state_pub
+[0.651s] copying joint_state_pub/__init__.py -> /home/za/Codes/zzros/build/joint_state_pub/build/lib/joint_state_pub
+[0.651s] running install
+[0.655s] running install_lib
+[0.664s] creating /home/za/Codes/zzros/install/joint_state_pub/lib/python3.12/site-packages/joint_state_pub
+[0.664s] copying /home/za/Codes/zzros/build/joint_state_pub/build/lib/joint_state_pub/joint_state_pub.py -> /home/za/Codes/zzros/install/joint_state_pub/lib/python3.12/site-packages/joint_state_pub
+[0.664s] copying /home/za/Codes/zzros/build/joint_state_pub/build/lib/joint_state_pub/__init__.py -> /home/za/Codes/zzros/install/joint_state_pub/lib/python3.12/site-packages/joint_state_pub
+[0.664s] byte-compiling /home/za/Codes/zzros/install/joint_state_pub/lib/python3.12/site-packages/joint_state_pub/joint_state_pub.py to joint_state_pub.cpython-312.pyc
+[0.664s] byte-compiling /home/za/Codes/zzros/install/joint_state_pub/lib/python3.12/site-packages/joint_state_pub/__init__.py to __init__.cpython-312.pyc
+[0.664s] running install_data
+[0.665s] creating /home/za/Codes/zzros/install/joint_state_pub/share/ament_index
+[0.665s] creating /home/za/Codes/zzros/install/joint_state_pub/share/ament_index/resource_index
+[0.665s] creating /home/za/Codes/zzros/install/joint_state_pub/share/ament_index/resource_index/packages
+[0.665s] copying resource/joint_state_pub -> /home/za/Codes/zzros/install/joint_state_pub/share/ament_index/resource_index/packages
+[0.665s] copying package.xml -> /home/za/Codes/zzros/install/joint_state_pub/share/joint_state_pub
+[0.665s] running install_egg_info
+[0.676s] Copying ../../../build/joint_state_pub/joint_state_pub.egg-info to /home/za/Codes/zzros/install/joint_state_pub/lib/python3.12/site-packages/joint_state_pub-0.0.0-py3.12.egg-info
+[0.677s] running install_scripts
+[0.742s] Installing joint_state_pub script to /home/za/Codes/zzros/install/joint_state_pub/lib/joint_state_pub
+[0.742s] writing list of installed files to '/home/za/Codes/zzros/build/joint_state_pub/install.log'
+[0.757s] Invoked command in '/home/za/Codes/zzros/src/state_transformer/joint_state_pub' returned '0': CONDA_PROMPT_MODIFIER=(ros) DEBUGINFOD_URLS=https://debuginfod.ubuntu.com PYTHONPATH=/home/za/Codes/zzros/build/joint_state_pub/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/za/Codes/zzros/install/joint_state_pub/lib/python3.12/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../../../build/joint_state_pub build --build-base /home/za/Codes/zzros/build/joint_state_pub/build install --record /home/za/Codes/zzros/build/joint_state_pub/install.log --single-version-externally-managed install_data

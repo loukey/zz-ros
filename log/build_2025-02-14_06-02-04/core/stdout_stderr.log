@@ -1,0 +1,50 @@
+running egg_info
+creating ../../build/core/core.egg-info
+writing ../../build/core/core.egg-info/PKG-INFO
+writing dependency_links to ../../build/core/core.egg-info/dependency_links.txt
+writing requirements to ../../build/core/core.egg-info/requires.txt
+writing top-level names to ../../build/core/core.egg-info/top_level.txt
+writing manifest file '../../build/core/core.egg-info/SOURCES.txt'
+reading manifest file '../../build/core/core.egg-info/SOURCES.txt'
+adding license file 'LICENSE'
+writing manifest file '../../build/core/core.egg-info/SOURCES.txt'
+running build
+running build_py
+creating /home/za/Codes/zzros/build/core/build
+creating /home/za/Codes/zzros/build/core/build/lib
+creating /home/za/Codes/zzros/build/core/build/lib/core
+copying core/__init__.py -> /home/za/Codes/zzros/build/core/build/lib/core
+creating /home/za/Codes/zzros/build/core/build/lib/core/kinematic
+copying core/kinematic/base.py -> /home/za/Codes/zzros/build/core/build/lib/core/kinematic
+copying core/kinematic/__init__.py -> /home/za/Codes/zzros/build/core/build/lib/core/kinematic
+copying core/kinematic/kinematic_6dof.py -> /home/za/Codes/zzros/build/core/build/lib/core/kinematic
+creating /home/za/Codes/zzros/build/core/build/lib/core/vis
+copying core/vis/dh_vis.py -> /home/za/Codes/zzros/build/core/build/lib/core/vis
+copying core/vis/__init__.py -> /home/za/Codes/zzros/build/core/build/lib/core/vis
+running install
+running install_lib
+creating /home/za/Codes/zzros/install/core/lib/python3.12/site-packages/core
+creating /home/za/Codes/zzros/install/core/lib/python3.12/site-packages/core/kinematic
+copying /home/za/Codes/zzros/build/core/build/lib/core/kinematic/base.py -> /home/za/Codes/zzros/install/core/lib/python3.12/site-packages/core/kinematic
+copying /home/za/Codes/zzros/build/core/build/lib/core/kinematic/__init__.py -> /home/za/Codes/zzros/install/core/lib/python3.12/site-packages/core/kinematic
+copying /home/za/Codes/zzros/build/core/build/lib/core/kinematic/kinematic_6dof.py -> /home/za/Codes/zzros/install/core/lib/python3.12/site-packages/core/kinematic
+creating /home/za/Codes/zzros/install/core/lib/python3.12/site-packages/core/vis
+copying /home/za/Codes/zzros/build/core/build/lib/core/vis/dh_vis.py -> /home/za/Codes/zzros/install/core/lib/python3.12/site-packages/core/vis
+copying /home/za/Codes/zzros/build/core/build/lib/core/vis/__init__.py -> /home/za/Codes/zzros/install/core/lib/python3.12/site-packages/core/vis
+copying /home/za/Codes/zzros/build/core/build/lib/core/__init__.py -> /home/za/Codes/zzros/install/core/lib/python3.12/site-packages/core
+byte-compiling /home/za/Codes/zzros/install/core/lib/python3.12/site-packages/core/kinematic/base.py to base.cpython-312.pyc
+byte-compiling /home/za/Codes/zzros/install/core/lib/python3.12/site-packages/core/kinematic/__init__.py to __init__.cpython-312.pyc
+byte-compiling /home/za/Codes/zzros/install/core/lib/python3.12/site-packages/core/kinematic/kinematic_6dof.py to kinematic_6dof.cpython-312.pyc
+byte-compiling /home/za/Codes/zzros/install/core/lib/python3.12/site-packages/core/vis/dh_vis.py to dh_vis.cpython-312.pyc
+byte-compiling /home/za/Codes/zzros/install/core/lib/python3.12/site-packages/core/vis/__init__.py to __init__.cpython-312.pyc
+byte-compiling /home/za/Codes/zzros/install/core/lib/python3.12/site-packages/core/__init__.py to __init__.cpython-312.pyc
+running install_data
+creating /home/za/Codes/zzros/install/core/share/ament_index
+creating /home/za/Codes/zzros/install/core/share/ament_index/resource_index
+creating /home/za/Codes/zzros/install/core/share/ament_index/resource_index/packages
+copying resource/core -> /home/za/Codes/zzros/install/core/share/ament_index/resource_index/packages
+copying package.xml -> /home/za/Codes/zzros/install/core/share/core
+running install_egg_info
+Copying ../../build/core/core.egg-info to /home/za/Codes/zzros/install/core/lib/python3.12/site-packages/core-0.0.0-py3.12.egg-info
+running install_scripts
+writing list of installed files to '/home/za/Codes/zzros/build/core/install.log'

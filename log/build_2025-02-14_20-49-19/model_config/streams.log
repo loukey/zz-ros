@@ -1,0 +1,40 @@
+[0.240s] Invoking command in '/home/za/Codes/zzros/build/model_config': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/home/za/Codes/zzros/install/core:/home/za/Codes/zzros/install/joint_state_pub:/opt/ros/jazzy CONDA_PROMPT_MODIFIER=(ros) DEBUGINFOD_URLS=https://debuginfod.ubuntu.com /usr/bin/cmake --build /home/za/Codes/zzros/build/model_config -- -j8 -l8
+[0.263s] Invoked command in '/home/za/Codes/zzros/build/model_config' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/home/za/Codes/zzros/install/core:/home/za/Codes/zzros/install/joint_state_pub:/opt/ros/jazzy CONDA_PROMPT_MODIFIER=(ros) DEBUGINFOD_URLS=https://debuginfod.ubuntu.com /usr/bin/cmake --build /home/za/Codes/zzros/build/model_config -- -j8 -l8
+[0.269s] Invoking command in '/home/za/Codes/zzros/build/model_config': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/home/za/Codes/zzros/install/core:/home/za/Codes/zzros/install/joint_state_pub:/opt/ros/jazzy CONDA_PROMPT_MODIFIER=(ros) DEBUGINFOD_URLS=https://debuginfod.ubuntu.com /usr/bin/cmake --install /home/za/Codes/zzros/build/model_config
+[0.273s] -- Install configuration: ""
+[0.274s] -- Up-to-date: /home/za/Codes/zzros/install/model_config/share/model_config/urdf
+[0.274s] -- Up-to-date: /home/za/Codes/zzros/install/model_config/share/model_config/urdf/robot.xacro
+[0.274s] -- Up-to-date: /home/za/Codes/zzros/install/model_config/share/model_config/urdf/robot.urdf
+[0.274s] -- Up-to-date: /home/za/Codes/zzros/install/model_config/share/model_config/urdf/ros2_control.xacro
+[0.274s] -- Up-to-date: /home/za/Codes/zzros/install/model_config/share/model_config/meshes
+[0.274s] -- Up-to-date: /home/za/Codes/zzros/install/model_config/share/model_config/meshes/Link6.STL
+[0.274s] -- Up-to-date: /home/za/Codes/zzros/install/model_config/share/model_config/meshes/Link4.STL
+[0.274s] -- Up-to-date: /home/za/Codes/zzros/install/model_config/share/model_config/meshes/Link7.STL
+[0.274s] -- Up-to-date: /home/za/Codes/zzros/install/model_config/share/model_config/meshes/Link5.STL
+[0.274s] -- Up-to-date: /home/za/Codes/zzros/install/model_config/share/model_config/meshes/Link8.STL
+[0.274s] -- Up-to-date: /home/za/Codes/zzros/install/model_config/share/model_config/meshes/Link2.STL
+[0.274s] -- Up-to-date: /home/za/Codes/zzros/install/model_config/share/model_config/meshes/Link1.STL
+[0.274s] -- Up-to-date: /home/za/Codes/zzros/install/model_config/share/model_config/meshes/base_link.STL
+[0.274s] -- Up-to-date: /home/za/Codes/zzros/install/model_config/share/model_config/meshes/Link3.STL
+[0.274s] -- Up-to-date: /home/za/Codes/zzros/install/model_config/share/model_config/launch
+[0.275s] -- Up-to-date: /home/za/Codes/zzros/install/model_config/share/model_config/launch/display.model.launch.py
+[0.275s] -- Up-to-date: /home/za/Codes/zzros/install/model_config/share/model_config/configs
+[0.275s] -- Up-to-date: /home/za/Codes/zzros/install/model_config/share/model_config/configs/robot.rviz
+[0.275s] -- Up-to-date: /home/za/Codes/zzros/install/model_config/share/model_config/configs/robot_rviz_config.rviz
+[0.276s] -- Up-to-date: /home/za/Codes/zzros/install/model_config/share/model_config/configs/ros2_controller.yaml
+[0.276s] -- Up-to-date: /home/za/Codes/zzros/install/model_config/share/ament_index/resource_index/package_run_dependencies/model_config
+[0.276s] -- Up-to-date: /home/za/Codes/zzros/install/model_config/share/ament_index/resource_index/parent_prefix_path/model_config
+[0.276s] -- Up-to-date: /home/za/Codes/zzros/install/model_config/share/model_config/environment/ament_prefix_path.sh
+[0.276s] -- Up-to-date: /home/za/Codes/zzros/install/model_config/share/model_config/environment/ament_prefix_path.dsv
+[0.276s] -- Up-to-date: /home/za/Codes/zzros/install/model_config/share/model_config/environment/path.sh
+[0.276s] -- Up-to-date: /home/za/Codes/zzros/install/model_config/share/model_config/environment/path.dsv
+[0.276s] -- Up-to-date: /home/za/Codes/zzros/install/model_config/share/model_config/local_setup.bash
+[0.276s] -- Up-to-date: /home/za/Codes/zzros/install/model_config/share/model_config/local_setup.sh
+[0.277s] -- Up-to-date: /home/za/Codes/zzros/install/model_config/share/model_config/local_setup.zsh
+[0.277s] -- Up-to-date: /home/za/Codes/zzros/install/model_config/share/model_config/local_setup.dsv
+[0.277s] -- Installing: /home/za/Codes/zzros/install/model_config/share/model_config/package.dsv
+[0.277s] -- Up-to-date: /home/za/Codes/zzros/install/model_config/share/ament_index/resource_index/packages/model_config
+[0.277s] -- Up-to-date: /home/za/Codes/zzros/install/model_config/share/model_config/cmake/model_configConfig.cmake
+[0.278s] -- Up-to-date: /home/za/Codes/zzros/install/model_config/share/model_config/cmake/model_configConfig-version.cmake
+[0.278s] -- Up-to-date: /home/za/Codes/zzros/install/model_config/share/model_config/package.xml
+[0.278s] Invoked command in '/home/za/Codes/zzros/build/model_config' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/home/za/Codes/zzros/install/core:/home/za/Codes/zzros/install/joint_state_pub:/opt/ros/jazzy CONDA_PROMPT_MODIFIER=(ros) DEBUGINFOD_URLS=https://debuginfod.ubuntu.com /usr/bin/cmake --install /home/za/Codes/zzros/build/model_config

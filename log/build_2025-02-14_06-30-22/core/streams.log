@@ -1,0 +1,20 @@
+[0.531s] Invoking command in '/home/za/Codes/zzros/src/core': CONDA_PROMPT_MODIFIER=(ros) DEBUGINFOD_URLS=https://debuginfod.ubuntu.com PYTHONPATH=/home/za/Codes/zzros/build/core/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/za/Codes/zzros/install/core/lib/python3.12/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../../build/core build --build-base /home/za/Codes/zzros/build/core/build install --record /home/za/Codes/zzros/build/core/install.log --single-version-externally-managed install_data
+[0.673s] running egg_info
+[0.681s] writing ../../build/core/core.egg-info/PKG-INFO
+[0.682s] writing dependency_links to ../../build/core/core.egg-info/dependency_links.txt
+[0.682s] writing requirements to ../../build/core/core.egg-info/requires.txt
+[0.682s] writing top-level names to ../../build/core/core.egg-info/top_level.txt
+[0.700s] reading manifest file '../../build/core/core.egg-info/SOURCES.txt'
+[0.700s] adding license file 'LICENSE'
+[0.700s] writing manifest file '../../build/core/core.egg-info/SOURCES.txt'
+[0.700s] running build
+[0.700s] running build_py
+[0.700s] running install
+[0.704s] running install_lib
+[0.714s] running install_data
+[0.714s] running install_egg_info
+[0.723s] removing '/home/za/Codes/zzros/install/core/lib/python3.12/site-packages/core-0.0.0-py3.12.egg-info' (and everything under it)
+[0.723s] Copying ../../build/core/core.egg-info to /home/za/Codes/zzros/install/core/lib/python3.12/site-packages/core-0.0.0-py3.12.egg-info
+[0.723s] running install_scripts
+[0.784s] writing list of installed files to '/home/za/Codes/zzros/build/core/install.log'
+[0.800s] Invoked command in '/home/za/Codes/zzros/src/core' returned '0': CONDA_PROMPT_MODIFIER=(ros) DEBUGINFOD_URLS=https://debuginfod.ubuntu.com PYTHONPATH=/home/za/Codes/zzros/build/core/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/za/Codes/zzros/install/core/lib/python3.12/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../../build/core build --build-base /home/za/Codes/zzros/build/core/build install --record /home/za/Codes/zzros/build/core/install.log --single-version-externally-managed install_data
