@@ -1,6 +1,0 @@
-source;share/model_config/hook/cmake_prefix_path.dsv
-source;share/model_config/hook/cmake_prefix_path.sh
-source;share/model_config/local_setup.bash
-source;share/model_config/local_setup.dsv
-source;share/model_config/local_setup.sh
-source;share/model_config/local_setup.zsh
