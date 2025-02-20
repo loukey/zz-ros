@@ -1,0 +1,24 @@
+running egg_info
+writing ../../build/core/core.egg-info/PKG-INFO
+writing dependency_links to ../../build/core/core.egg-info/dependency_links.txt
+writing requirements to ../../build/core/core.egg-info/requires.txt
+writing top-level names to ../../build/core/core.egg-info/top_level.txt
+reading manifest file '../../build/core/core.egg-info/SOURCES.txt'
+adding license file 'LICENSE'
+writing manifest file '../../build/core/core.egg-info/SOURCES.txt'
+running build
+running build_py
+copying core/kinematic/base.py -> /home/za/Codes/zzros/build/core/build/lib/core/kinematic
+copying core/kinematic/kinematic_6dof.py -> /home/za/Codes/zzros/build/core/build/lib/core/kinematic
+running install
+running install_lib
+copying /home/za/Codes/zzros/build/core/build/lib/core/kinematic/base.py -> /home/za/Codes/zzros/install/core/lib/python3.12/site-packages/core/kinematic
+copying /home/za/Codes/zzros/build/core/build/lib/core/kinematic/kinematic_6dof.py -> /home/za/Codes/zzros/install/core/lib/python3.12/site-packages/core/kinematic
+byte-compiling /home/za/Codes/zzros/install/core/lib/python3.12/site-packages/core/kinematic/base.py to base.cpython-312.pyc
+byte-compiling /home/za/Codes/zzros/install/core/lib/python3.12/site-packages/core/kinematic/kinematic_6dof.py to kinematic_6dof.cpython-312.pyc
+running install_data
+running install_egg_info
+removing '/home/za/Codes/zzros/install/core/lib/python3.12/site-packages/core-0.0.0-py3.12.egg-info' (and everything under it)
+Copying ../../build/core/core.egg-info to /home/za/Codes/zzros/install/core/lib/python3.12/site-packages/core-0.0.0-py3.12.egg-info
+running install_scripts
+writing list of installed files to '/home/za/Codes/zzros/build/core/install.log'

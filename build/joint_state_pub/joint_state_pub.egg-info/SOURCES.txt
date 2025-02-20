@@ -1,0 +1,17 @@
+LICENSE
+package.xml
+setup.cfg
+setup.py
+../../../build/joint_state_pub/joint_state_pub.egg-info/PKG-INFO
+../../../build/joint_state_pub/joint_state_pub.egg-info/SOURCES.txt
+../../../build/joint_state_pub/joint_state_pub.egg-info/dependency_links.txt
+../../../build/joint_state_pub/joint_state_pub.egg-info/entry_points.txt
+../../../build/joint_state_pub/joint_state_pub.egg-info/requires.txt
+../../../build/joint_state_pub/joint_state_pub.egg-info/top_level.txt
+../../../build/joint_state_pub/joint_state_pub.egg-info/zip-safe
+joint_state_pub/__init__.py
+joint_state_pub/joint_state_pub.py
+resource/joint_state_pub
+test/test_copyright.py
+test/test_flake8.py
+test/test_pep257.py

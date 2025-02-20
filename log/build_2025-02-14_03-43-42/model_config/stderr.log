@@ -1,0 +1,6 @@
+[31mCMake Error at cmake_install.cmake:55 (file):
+  file INSTALL cannot find
+  "/home/za/Codes/zzros/src/model_config/src/joint_state_publisher.py": No
+  such file or directory.
+
+[0m
