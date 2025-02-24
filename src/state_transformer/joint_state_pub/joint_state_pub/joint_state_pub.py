@@ -1,9 +1,9 @@
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import JointState
-from geometry_msgs.msg import Pose
+from interface.msg import Pose
 import time
-from core.kinematic import Kinematic6DOF, euler_from_quaternion
+from core.kinematic import Kinematic6DOF
 
 
 class JointStatePublisher(Node):
@@ -16,7 +16,7 @@ class JointStatePublisher(Node):
         self.joint_state.name = ['Joint1', 'Joint2', 'Joint3', 'Joint4', 'Joint5', 'Joint6']
 
         self.initial_angles = [0.0] * 6
-        self.target_angles  = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        self.target_angles  = [0.0] * 6
         self.update_angles = self.target_angles
         self.interval = 0.1
         self.transition_duration = 5.0
@@ -26,15 +26,9 @@ class JointStatePublisher(Node):
         self.kinematics = Kinematic6DOF()
 
     def pose_callback(self, msg):
-        x = msg.position.x
-        y = msg.position.y
-        z = msg.position.z
-        quaternion = [msg.orientation.x, msg.orientation.y, msg.orientation.z, msg.orientation.w]
-        roll, pitch, yaw = euler_from_quaternion(quaternion)
-        try:
-            self.update_angles = self.kinematics.inverse_kinematic(roll, pitch, yaw, x, y, z)
-        except Exception as e:
-            self.get_logger().error("Error in inverse kinematic: {}".format(e))
+        self.update_angles = msg.angles
+        self.get_logger().info("update_angles: {}".format(self.update_angles))
+
             
     def timer_callback(self):
         if self.update_angles != self.target_angles:

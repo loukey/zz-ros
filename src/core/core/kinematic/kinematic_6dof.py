@@ -54,7 +54,6 @@ class Kinematic6DOF:
     逆运动学求解关节角度
     """
     def inverse_kinematic(self, A, B, C, px, py, pz, initial_theta=None):
-        print("A: {}, B: {}, C: {}, px: {}, py: {}, pz: {}".format(A, B, C, px, py, pz))
         valid_solutions = []
         # rotation matrix
         rm = XYZ_euler_angles_to_rotation_matrix(A, B, C)
@@ -132,6 +131,7 @@ class Kinematic6DOF:
         if not valid_solutions:
             raise ValueError("No valid solutions found")
         final_solution = min(valid_solutions, key=lambda sol: np.linalg.norm(np.array(sol) - np.array(self.theta_list)))
+        final_solution[2:6] = [-x for x in final_solution[2:6]]
         print("最终解:", final_solution)
         return final_solution
         
