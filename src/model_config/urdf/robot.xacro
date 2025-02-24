@@ -39,7 +39,7 @@
   </xacro:macro>
 
   <xacro:link_template name="base_link"
-  intertial_xyz="-0.00139951535596307 -0.000115543065105189 0.0216761359378849"
+  intertial_xyz="0 0 0"
   intertial_rpy="0 0 0"
   mass_value="0.230625387437769"
   ixx="0.000397638701759869"
@@ -54,7 +54,7 @@
   />
 
   <xacro:link_template name="Link1"
-  intertial_xyz="1.50784939704832E-05 0.00589355602458163 -0.00742072785825368"
+  intertial_xyz="0 0 0"
   intertial_rpy="0 0 0"
   mass_value="1.0672662124327"
   ixx="0.00213823053280256"
@@ -70,8 +70,8 @@
 
   <xacro:joint_template name="Joint1"
   type="revolute"
-  xyz="0 0 0.1123"
-  rpy="0 0 -3.1416"
+  xyz="0 0 0.1125"
+  rpy="0 0 0"
   parent_link="base_link"
   child_link="Link1"
   axis_xyz="0 0 1"
@@ -82,7 +82,7 @@
   />
 
   <xacro:link_template name="Link2"
-  intertial_xyz="0.22533540270956 -1.31661100304076E-06 0.0380381442934632"
+  intertial_xyz="0 0 -0.048"
   intertial_rpy="0 0 0"
   mass_value="2.85311721697769"
   ixx="0.00522538010252365"
@@ -91,15 +91,15 @@
   iyy="0.00998453368426239"
   iyz="1.41752496270541E-07"
   izz="0.00994260642816178"
-  visual_xyz="0 0 0"
+  visual_xyz="0 0 -0.048"
   visual_rpy="0 0 0"
   mesh_filename="package://model_config/meshes/Link2.STL"
   />
 
   <xacro:joint_template name="Joint2"
   type="revolute"
-  xyz="0 0.0856 0"
-  rpy="1.5708 -1.5708 0"
+  xyz="0 0.134 0"
+  rpy="1.5708 -1.5708 3.1416"
   parent_link="Link1"
   child_link="Link2"
   axis_xyz="0 0 1"

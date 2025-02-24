@@ -1,0 +1,7 @@
+float64[6] initial_angles
+float64[6] target_position
+---
+bool finish
+float64[6] final_position
+---
+float64[6] real_time_position

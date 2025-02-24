@@ -1,5 +1,5 @@
 import numpy as np
-from math import sin, cos, pi, atan2, sqrt
+from math import sin, cos, pi, atan2, sqrt, asin
 
 
 #XYZ/ZYX Euler Angles(rotation metrix to euler angles)
@@ -58,3 +58,51 @@ def dh_to_rotation_matrix(a, alpha, d, theta):
         [s_theta * s_alpha, c_theta * s_alpha, c_alpha, c_alpha * d],
         [0, 0, 0, 1]
     ], dtype=float)
+
+def euler_from_quaternion(quaternion):
+    """
+    Convert a quaternion into Euler angles (roll, pitch, yaw)
+    Quaternion should be in the format [x, y, z, w].
+    """
+    x, y, z, w = quaternion
+
+    # 计算 roll (x-axis rotation)
+    t0 = 2.0 * (w * x + y * z)
+    t1 = 1.0 - 2.0 * (x * x + y * y)
+    roll = atan2(t0, t1)
+
+    # 计算 pitch (y-axis rotation)
+    t2 = 2.0 * (w * y - z * x)
+    # 防止由于数值误差导致 t2 超出[-1, 1]范围
+    t2 = max(min(t2, 1.0), -1.0)
+    pitch = asin(t2)
+
+    # 计算 yaw (z-axis rotation)
+    t3 = 2.0 * (w * z + x * y)
+    t4 = 1.0 - 2.0 * (y * y + z * z)
+    yaw = atan2(t3, t4)
+
+    return roll, pitch, yaw
+
+def quaternion_from_euler(ai, aj, ak):
+    ai /= 2.0
+    aj /= 2.0
+    ak /= 2.0
+    ci = cos(ai)
+    si = sin(ai)
+    cj = cos(aj)
+    sj = sin(aj)
+    ck = cos(ak)
+    sk = sin(ak)
+    cc = ci*ck
+    cs = ci*sk
+    sc = si*ck
+    ss = si*sk
+
+    q = np.empty((4, ))
+    q[0] = cj*sc - sj*cs
+    q[1] = cj*ss + sj*cc
+    q[2] = cj*cs - sj*sc
+    q[3] = cj*cc + sj*ss
+
+    return q
