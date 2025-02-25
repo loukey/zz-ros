@@ -1,7 +1,6 @@
 from .base import *
 from functools import reduce
 from math import acos, degrees
-import math
 
 
 class Kinematic6DOF:
