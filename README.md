@@ -143,11 +143,3 @@ The joint state publisher implements smooth transitions between positions by lin
 Communication between components uses ROS 2 topics:
 - `/joint_states` - Current joint positions
 - `/target_pose` - Target joint angles
-
-## License
-
-[Add your license information here]
-
-## Contributing
-
-[Add contribution guidelines here]
