@@ -27,15 +27,16 @@ matplotlib.use('Agg')
 # 添加项目根目录到Python路径，以便导入kinematic模块
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from kinematic.velocity_planning import trapezoidal_velocity_planning, s_curve_velocity_planning
+from kinematic.kinematic_6dof import Kinematic6DOF
 
 from .serial_manager import SerialManager
-from .ui_components import PortSelectionFrame, SerialConfigFrame, ControlButtonsFrame, AngleControlFrame, DataDisplayFrame, CurvePlotFrame
+from .ui_components import PortSelectionFrame, SerialConfigFrame, ControlButtonsFrame, AngleControlFrame, DataDisplayFrame, CurvePlotFrame, InverseKinematicFrame
 
 
 class USBSerialApp:
     """USB串口通信应用程序类"""
     
-    def __init__(self, root, title="镇中科技串口测试", version="v0.0.2"):
+    def __init__(self, root, title="镇中科技串口测试", version="v1.0"):
         """
         初始化应用程序
         
@@ -46,10 +47,29 @@ class USBSerialApp:
         """
         self.root = root
         self.root.title(f"{title}{version}")
-        self.root.geometry("800x1200")  # 增加窗口大小以适应曲线显示
+        self.root.geometry("800x750")  # 调整窗口大小，更紧凑
         
         # 创建串口管理器
         self.serial_manager = SerialManager(message_callback=self.handle_message)
+        
+        # 创建运动学求解器
+        self.kinematic_solver = Kinematic6DOF()
+        
+        # 创建主标签页控件
+        self.main_notebook = ttk.Notebook(self.root)
+        self.main_notebook.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        # 创建主界面标签页
+        self.main_tab = ttk.Frame(self.main_notebook)
+        self.main_notebook.add(self.main_tab, text="串口控制")
+        
+        # 创建曲线显示标签页
+        self.curve_tab = ttk.Frame(self.main_notebook)
+        self.main_notebook.add(self.curve_tab, text="曲线显示")
+        
+        # 创建逆运动学计算标签页
+        self.ik_tab = ttk.Frame(self.main_notebook)
+        self.main_notebook.add(self.ik_tab, text="逆运动学计算")
         
         # 创建UI组件
         self.create_ui_components()
@@ -62,9 +82,47 @@ class USBSerialApp:
     
     def create_ui_components(self):
         """创建所有UI组件"""
+        # ===== 主界面标签页 =====
+        # 创建滚动条容器
+        main_canvas = tk.Canvas(self.main_tab)
+        main_scrollbar = ttk.Scrollbar(self.main_tab, orient="vertical", command=main_canvas.yview)
+        scrollable_frame = ttk.Frame(main_canvas)
+        
+        # 配置滚动区域
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: main_canvas.configure(scrollregion=main_canvas.bbox("all"))
+        )
+        
+        # 在画布上创建窗口，显示滚动框架
+        main_canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        main_canvas.configure(yscrollcommand=main_scrollbar.set)
+        
+        # 放置画布和滚动条
+        main_canvas.pack(side="left", fill="both", expand=True)
+        main_scrollbar.pack(side="right", fill="y")
+        
+        # 绑定鼠标滚轮事件
+        def _on_main_mousewheel(event):
+            # Windows系统
+            if platform.system() == "Windows":
+                main_canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+            # macOS系统
+            elif platform.system() == "Darwin":
+                main_canvas.yview_scroll(int(-1*event.delta), "units")
+            # Linux系统
+            else:
+                if event.num == 4:
+                    main_canvas.yview_scroll(-1, "units")
+                elif event.num == 5:
+                    main_canvas.yview_scroll(1, "units")
+        
+        # 存储主界面滚轮事件处理函数，以便后续绑定和解绑
+        self.main_mousewheel_handler = _on_main_mousewheel
+        
         # 创建控制面板框架
-        control_panel = ttk.Frame(self.root)
-        control_panel.pack(side=tk.TOP, fill=tk.X)
+        control_panel = ttk.Frame(scrollable_frame)
+        control_panel.pack(side=tk.TOP, fill=tk.X)  # 只在水平方向填充
         
         # 创建串口选择框架
         self.port_frame = PortSelectionFrame(control_panel, self.refresh_ports)
@@ -75,7 +133,7 @@ class USBSerialApp:
         # 创建控制按钮框架
         self.control_frame = ControlButtonsFrame(control_panel, self.send_command)
         
-        # 创建角度控制框架
+        # 创建角度控制框架 - 现在只放置角度控制，不再包含逆运动学
         self.angle_frame = AngleControlFrame(
             control_panel, 
             self.send_angles, 
@@ -83,28 +141,174 @@ class USBSerialApp:
             self.set_angles_to_zero
         )
         
-        # 创建标签页控件
-        self.notebook = ttk.Notebook(self.root)
-        self.notebook.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-        
-        # 创建数据显示标签页
-        data_tab = ttk.Frame(self.notebook)
-        self.notebook.add(data_tab, text="数据显示")
-        
-        # 创建曲线显示标签页
-        curve_tab = ttk.Frame(self.notebook)
-        self.notebook.add(curve_tab, text="曲线显示")
-        
-        # 在数据显示标签页中创建数据显示框架
+        # 创建数据显示框架
         self.data_frame = DataDisplayFrame(
-            data_tab,
+            scrollable_frame,
             lambda: self.clear_display("send"),
             lambda: self.clear_display("receive"),
             lambda: self.clear_display("all")
         )
         
-        # 在曲线显示标签页中创建曲线绘制框架
-        self.curve_frame = CurvePlotFrame(curve_tab)
+        # ===== 曲线显示标签页 =====
+        # 创建滚动条容器
+        curve_canvas = tk.Canvas(self.curve_tab)
+        curve_scrollbar = ttk.Scrollbar(self.curve_tab, orient="vertical", command=curve_canvas.yview)
+        curve_scrollable_frame = ttk.Frame(curve_canvas)
+        
+        # 配置滚动区域
+        curve_scrollable_frame.bind(
+            "<Configure>",
+            lambda e: curve_canvas.configure(scrollregion=curve_canvas.bbox("all"))
+        )
+        
+        # 在画布上创建窗口，显示滚动框架
+        curve_canvas.create_window((0, 0), window=curve_scrollable_frame, anchor="nw")
+        curve_canvas.configure(yscrollcommand=curve_scrollbar.set)
+        
+        # 放置画布和滚动条
+        curve_canvas.pack(side="left", fill="both", expand=True)
+        curve_scrollbar.pack(side="right", fill="y")
+        
+        # 绑定鼠标滚轮事件
+        def _on_curve_mousewheel(event):
+            # Windows系统
+            if platform.system() == "Windows":
+                curve_canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+            # macOS系统
+            elif platform.system() == "Darwin":
+                curve_canvas.yview_scroll(int(-1*event.delta), "units")
+            # Linux系统
+            else:
+                if event.num == 4:
+                    curve_canvas.yview_scroll(-1, "units")
+                elif event.num == 5:
+                    curve_canvas.yview_scroll(1, "units")
+        
+        # 存储曲线界面滚轮事件处理函数，以便后续绑定和解绑
+        self.curve_mousewheel_handler = _on_curve_mousewheel
+        
+        # 创建曲线绘制框架
+        self.curve_frame = CurvePlotFrame(curve_scrollable_frame)
+        
+        # ===== 逆运动学计算标签页 =====
+        # 创建滚动条容器
+        ik_canvas = tk.Canvas(self.ik_tab)
+        ik_scrollbar = ttk.Scrollbar(self.ik_tab, orient="vertical", command=ik_canvas.yview)
+        ik_scrollable_frame = ttk.Frame(ik_canvas)
+        
+        # 配置滚动区域
+        ik_scrollable_frame.bind(
+            "<Configure>",
+            lambda e: ik_canvas.configure(scrollregion=ik_canvas.bbox("all"))
+        )
+        
+        # 在画布上创建窗口，显示滚动框架
+        ik_canvas.create_window((0, 0), window=ik_scrollable_frame, anchor="nw")
+        ik_canvas.configure(yscrollcommand=ik_scrollbar.set)
+        
+        # 放置画布和滚动条
+        ik_canvas.pack(side="left", fill="both", expand=True)
+        ik_scrollbar.pack(side="right", fill="y")
+        
+        # 绑定鼠标滚轮事件
+        def _on_ik_mousewheel(event):
+            # Windows系统
+            if platform.system() == "Windows":
+                ik_canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+            # macOS系统
+            elif platform.system() == "Darwin":
+                ik_canvas.yview_scroll(int(-1*event.delta), "units")
+            # Linux系统
+            else:
+                if event.num == 4:
+                    ik_canvas.yview_scroll(-1, "units")
+                elif event.num == 5:
+                    ik_canvas.yview_scroll(1, "units")
+        
+        # 存储逆运动学界面滚轮事件处理函数，以便后续绑定和解绑
+        self.ik_mousewheel_handler = _on_ik_mousewheel
+        
+        # 创建逆运动学框架 - 放在逆运动学标签页中
+        self.ik_frame = InverseKinematicFrame(
+            ik_scrollable_frame,
+            self.calculate_inverse_kinematics
+        )
+        # 使用pack布局，占据整个标签页
+        self.ik_frame.frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        
+        # 设置应用按钮回调
+        self.ik_frame.set_apply_callback(self.apply_ik_result_to_angles)
+        
+        # 存储Canvas对象，以便后续操作
+        self.main_canvas = main_canvas
+        self.curve_canvas = curve_canvas
+        self.ik_canvas = ik_canvas
+        
+        # 设置标签页切换事件，用于处理滚轮事件的绑定
+        self.main_notebook.bind("<<NotebookTabChanged>>", self._on_tab_changed)
+        
+        # 初始绑定主界面的滚轮事件
+        self._bind_mousewheel_to_active_tab()
+    
+    def _on_tab_changed(self, event):
+        """处理标签页切换事件"""
+        self._bind_mousewheel_to_active_tab()
+    
+    def _bind_mousewheel_to_active_tab(self):
+        """根据当前活动标签页绑定滚轮事件"""
+        # 解绑所有滚轮事件
+        self._unbind_all_mousewheel()
+        
+        # 获取当前选中的标签页索引
+        current_tab = self.main_notebook.index("current")
+        
+        # 根据当前标签页绑定相应的滚轮事件
+        if current_tab == 0:  # 主界面标签页
+            self._bind_main_mousewheel()
+        elif current_tab == 1:  # 曲线显示标签页
+            self._bind_curve_mousewheel()
+        elif current_tab == 2:  # 逆运动学计算标签页
+            self._bind_ik_mousewheel()
+    
+    def _unbind_all_mousewheel(self):
+        """解绑所有滚轮事件"""
+        # Windows和macOS
+        if platform.system() == "Windows" or platform.system() == "Darwin":
+            self.root.unbind_all("<MouseWheel>")
+        # Linux
+        else:
+            self.root.unbind_all("<Button-4>")
+            self.root.unbind_all("<Button-5>")
+    
+    def _bind_main_mousewheel(self):
+        """绑定主界面的滚轮事件"""
+        # Windows和macOS
+        if platform.system() == "Windows" or platform.system() == "Darwin":
+            self.root.bind_all("<MouseWheel>", self.main_mousewheel_handler)
+        # Linux
+        else:
+            self.root.bind_all("<Button-4>", self.main_mousewheel_handler)
+            self.root.bind_all("<Button-5>", self.main_mousewheel_handler)
+    
+    def _bind_curve_mousewheel(self):
+        """绑定曲线界面的滚轮事件"""
+        # Windows和macOS
+        if platform.system() == "Windows" or platform.system() == "Darwin":
+            self.root.bind_all("<MouseWheel>", self.curve_mousewheel_handler)
+        # Linux
+        else:
+            self.root.bind_all("<Button-4>", self.curve_mousewheel_handler)
+            self.root.bind_all("<Button-5>", self.curve_mousewheel_handler)
+    
+    def _bind_ik_mousewheel(self):
+        """绑定逆运动学界面的滚轮事件"""
+        # Windows和macOS
+        if platform.system() == "Windows" or platform.system() == "Darwin":
+            self.root.bind_all("<MouseWheel>", self.ik_mousewheel_handler)
+        # Linux
+        else:
+            self.root.bind_all("<Button-4>", self.ik_mousewheel_handler)
+            self.root.bind_all("<Button-5>", self.ik_mousewheel_handler)
     
     def refresh_ports(self):
         """刷新可用串口列表"""
@@ -174,11 +378,29 @@ class USBSerialApp:
             messagebox.showerror("错误", "请先连接串口")
             return
         
-        # 发送命令
-        success, message = self.serial_manager.send_data(command + "\n")
+        # 根据命令字符串获取对应的命令代码
+        command_codes = {
+            "ENABLE": 0x01,    # 使能
+            "DISABLE": 0x02,   # 取消使能
+            "RELEASE": 0x03,   # 释放刹车
+            "LOCK": 0x04,      # 锁止刹车
+            "STOP": 0x05,      # 立刻停止
+            "MOTION": 0x06     # 运动状态
+        }
+        
+        command_code = command_codes.get(command)
+        if command_code is None:
+            self.handle_message(f"未知命令: {command}", "错误")
+            messagebox.showerror("发送错误", f"未知命令: {command}")
+            return
+        
+        # 发送命令，使用全零角度
+        angles = [0.0] * 6
+        success, message = self.serial_manager.send_formatted_angles(angles, command_code)
         
         if success:
-            self.handle_message(f"命令: {command}", "发送")
+            self.handle_message(f"命令: {command} (0x{command_code:02X})", "发送")
+            self.handle_message(f"发送的十六进制数据: {message}", "发送")
         else:
             self.handle_message(message, "错误")
             messagebox.showerror("发送错误", message)
@@ -190,21 +412,29 @@ class USBSerialApp:
         # 获取选择的加减速曲线类型
         curve_type = self.angle_frame.get_curve_type()
         
-        # 构建发送数据，包含曲线类型
-        data = f"{curve_type}:" + ",".join([f"{angle:.6f}" for angle in angles])
+        # 使用MOTION命令代码(0x06)发送角度数据
+        command_code = 0x06  # 运动状态
         
-        # 发送数据
-        success, message = self.serial_manager.send_data(data + "\n")
+        # 发送格式化的角度数据
+        success, message = self.serial_manager.send_formatted_angles(angles, command_code)
         
         if success:
             # 记录发送的内容
-            self.handle_message(f"曲线类型: {curve_type}, 角度: {','.join([f'{angle:.6f}' for angle in angles])}", "发送")
+            hex_values = []
+            for angle in angles:
+                value = int((angle / (2 * math.pi)) * (2 ** 19))
+                hex_values.append(f"0x{value:08X}")
+            
+            self.handle_message(f"曲线类型: {curve_type}, 命令: MOTION (0x06)", "发送")
+            self.handle_message(f"角度(弧度): {','.join([f'{angle:.6f}' for angle in angles])}", "发送")
+            self.handle_message(f"角度(十六进制): {', '.join(hex_values)}", "发送")
+            self.handle_message(f"发送的十六进制数据: {message}", "发送")
             
             # 生成并显示曲线
             self.generate_and_plot_curves(angles, curve_type)
             
             # 切换到曲线显示标签页
-            self.notebook.select(1)  # 索引1是曲线显示标签页
+            self.main_notebook.select(1)  # 索引1是曲线显示标签页
         else:
             self.handle_message(message, "错误")
             messagebox.showerror("发送错误", message)
@@ -296,4 +526,54 @@ class USBSerialApp:
         """运行应用程序"""
         # 注册退出处理函数
         atexit.register(plt.close, 'all')
-        self.root.mainloop() 
+        self.root.mainloop()
+    
+    def calculate_inverse_kinematics(self):
+        """计算逆运动学"""
+        try:
+            # 获取位置和欧拉角输入
+            position, euler = self.ik_frame.get_position_and_euler()
+            
+            # 解包位置和欧拉角
+            px, py, pz = position
+            A, B, C = euler
+            
+            # 记录计算信息
+            self.handle_message(f"逆运动学计算 - 位置: [{px}, {py}, {pz}], 欧拉角: [{A}, {B}, {C}]", "信息")
+            
+            # 调用逆运动学求解
+            try:
+                angles = self.kinematic_solver.inverse_kinematic(A, B, C, px, py, pz)
+                
+                # 设置计算结果
+                self.ik_frame.set_result(angles, success=True)
+                
+                # 记录计算结果
+                self.handle_message(f"逆运动学计算成功 - 关节角度: {[round(angle, 6) for angle in angles]}", "信息")
+                
+            except Exception as e:
+                self.ik_frame.set_result([], success=False)
+                error_msg = f"逆运动学计算失败: {str(e)}"
+                self.handle_message(error_msg, "错误")
+                messagebox.showerror("计算错误", error_msg)
+        
+        except Exception as e:
+            error_msg = f"逆运动学计算过程中出错: {str(e)}"
+            self.handle_message(error_msg, "错误")
+            messagebox.showerror("计算错误", error_msg)
+    
+    def apply_ik_result_to_angles(self, angles):
+        """将逆运动学计算结果应用到角度控制"""
+        try:
+            # 设置角度控制框架中的角度值
+            self.angle_frame.set_angles(angles)
+            
+            # 记录应用信息
+            self.handle_message(f"已将逆运动学计算结果应用到角度控制: {[round(angle, 6) for angle in angles]}", "信息")
+            
+            messagebox.showinfo("应用成功", "已将逆运动学计算结果应用到角度控制")
+        
+        except Exception as e:
+            error_msg = f"应用逆运动学结果时出错: {str(e)}"
+            self.handle_message(error_msg, "错误")
+            messagebox.showerror("应用错误", error_msg) 

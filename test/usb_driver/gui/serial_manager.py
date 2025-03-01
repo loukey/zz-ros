@@ -7,6 +7,7 @@ import serial
 import serial.tools.list_ports
 import threading
 import time
+import math
 
 
 class SerialManager:
@@ -180,6 +181,80 @@ class SerialManager:
         except Exception as e:
             return False, f"发送角度数据时出错: {str(e)}"
     
+    def send_formatted_angles(self, angles, command_code):
+        """
+        按照指定的报文格式发送角度数据
+        
+        报文格式:
+        帧头: 0xAA 0x55  
+        地址: 0x01  
+        命令: 根据command_code设置
+        数据长度: 0x18（24字节）  
+        数据域: 6个关节位置，每个4字节
+        校验: CRC16(0x12 0x34)  
+        帧尾: 0x0D 0x0A
+        
+        参数:
+            angles: 角度列表（弧度值）
+            command_code: 命令代码（0x01-0x06）
+            
+        返回:
+            success: 是否成功发送
+            message: 发送结果消息或十六进制数据字符串（如果成功）
+        """
+        try:
+            # 构建二进制数据
+            data = bytearray()
+            
+            # 帧头: 0xAA 0x55
+            data.extend([0xAA, 0x55])
+            
+            # 地址: 0x01
+            data.append(0x01)
+            
+            # 命令: 根据command_code设置
+            data.append(command_code)
+            
+            # 数据长度: 0x18（24字节）
+            data.append(0x18)
+            
+            # 确保有6个角度值
+            angle_values = list(angles)  # 创建副本，避免修改原始列表
+            if len(angle_values) < 6:
+                angle_values.extend([0.0] * (6 - len(angle_values)))
+            
+            # 数据域: 6个关节位置，每个4字节
+            # 将弧度值转换为指定格式: 弧度值 / (2*pi) * 2^19，然后转为4字节整数
+            for angle in angle_values[:6]:  # 只处理前6个角度
+                # 转换公式: 弧度值 / (2*pi) * 2^19
+                value = int((angle / (2 * math.pi)) * (2 ** 19))
+                
+                # 将32位整数转换为4个字节（大端序）
+                data.append((value >> 24) & 0xFF)
+                data.append((value >> 16) & 0xFF)
+                data.append((value >> 8) & 0xFF)
+                data.append(value & 0xFF)
+            
+            # 校验: CRC16(0x12 0x34)
+            data.extend([0x12, 0x34])
+            
+            # 帧尾: 0x0D 0x0A
+            data.extend([0x0D, 0x0A])
+            
+            # 创建十六进制数据字符串用于调试
+            hex_data = ' '.join([f"{b:02X}" for b in data])
+            
+            # 发送二进制数据
+            success, _ = self.send_data(data, is_binary=True)
+            
+            if success:
+                return True, hex_data
+            else:
+                return False, "发送数据失败"
+            
+        except Exception as e:
+            return False, f"发送格式化角度数据时出错: {str(e)}"
+    
     def test_communication(self):
         """
         测试串口通信
@@ -290,3 +365,4 @@ class SerialManager:
                 if self.message_callback:
                     self.message_callback(f"接收错误: {str(e)}", "错误")
                 time.sleep(1)  # 出错后等待一段时间再继续 
+                
