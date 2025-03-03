@@ -25,6 +25,10 @@ class SerialManager:
         self.receiver_thread = None
         self.receiving = False
         self.message_callback = message_callback
+        self.monitor_thread = None  # 状态监测线程
+        self.monitoring = False  # 是否正在监测
+        self.current_port = None  # 当前连接的串口名称
+        self.current_config = None  # 当前的配置参数
     
     def get_available_ports(self):
         """
@@ -57,6 +61,16 @@ class SerialManager:
             success: 是否成功连接
             message: 连接结果消息
         """
+        # 保存当前配置
+        self.current_port = port
+        self.current_config = {
+            'baud_rate': baud_rate,
+            'data_bits': data_bits,
+            'parity': parity,
+            'stop_bits': stop_bits,
+            'flow_control': flow_control
+        }
+        
         # 如果已经连接，先断开
         if self.is_connected and self.serial:
             self.disconnect()
@@ -98,6 +112,9 @@ class SerialManager:
                 # 启动接收线程
                 self.start_receiver()
                 
+                # 启动状态监测线程
+                self.start_monitor()
+                
                 # 进行简单的通信测试
                 self.test_communication()
                 
@@ -122,6 +139,9 @@ class SerialManager:
             return True, "当前未连接任何串口"
         
         try:
+            # 停止监测线程
+            self.stop_monitor()
+            
             # 停止接收线程
             self.stop_receiver()
             
@@ -365,4 +385,122 @@ class SerialManager:
                 if self.message_callback:
                     self.message_callback(f"接收错误: {str(e)}", "错误")
                 time.sleep(1)  # 出错后等待一段时间再继续 
+                
+    def start_monitor(self):
+        """启动串口状态监测线程"""
+        if self.monitoring:
+            return
+            
+        self.monitoring = True
+        self.monitor_thread = threading.Thread(target=self._monitor_port, daemon=True)
+        self.monitor_thread.start()
+        
+        if self.message_callback:
+            self.message_callback("已启动串口状态监测", "信息")
+    
+    def stop_monitor(self):
+        """停止串口状态监测线程"""
+        self.monitoring = False
+        if self.monitor_thread:
+            # 等待线程结束，最多等待1秒
+            if self.monitor_thread.is_alive():
+                self.monitor_thread.join(1.0)
+            self.monitor_thread = None
+            
+        if self.message_callback:
+            self.message_callback("已停止串口状态监测", "信息")
+    
+    def _monitor_port(self):
+        """串口状态监测线程函数"""
+        consecutive_errors = 0  # 连续错误计数
+        
+        while self.monitoring and self.is_connected and self.serial:
+            try:
+                # 检查串口是否仍然可用
+                if not self.serial.is_open or not self._check_port_available():
+                    consecutive_errors += 1
+                    
+                    # 如果连续3次检测到错误，认为连接确实断开
+                    if consecutive_errors >= 3:
+                        # 串口已断开
+                        if self.message_callback:
+                            self.message_callback("检测到串口已断开", "错误")
+                        
+                        # 尝试重置连接
+                        success, message = self.reset_connection()
+                        if success:
+                            if self.message_callback:
+                                self.message_callback("串口连接已重置", "信息")
+                            consecutive_errors = 0  # 重置错误计数
+                        else:
+                            if self.message_callback:
+                                self.message_callback(f"重置连接失败: {message}", "错误")
+                            # 标记为未连接
+                            self.is_connected = False
+                            # 退出监测循环
+                            break
+                else:
+                    consecutive_errors = 0  # 重置错误计数
+                
+                # 每秒检查一次
+                time.sleep(1)
+                
+            except Exception as e:
+                if self.message_callback:
+                    self.message_callback(f"串口状态监测出错: {str(e)}", "错误")
+                time.sleep(1)  # 出错后等待一段时间再继续
+    
+    def _check_port_available(self):
+        """检查串口是否可用"""
+        try:
+            # 尝试获取串口状态
+            if not self.serial.is_open:
+                return False
+                
+            # 尝试读取缓冲区状态
+            self.serial.in_waiting
+            return True
+        except:
+            return False
+    
+    def reset_connection(self):
+        """
+        重置串口连接
+        用于处理设备重启等情况
+        
+        返回:
+            success: 是否成功重置
+            message: 重置结果消息
+        """
+        if not self.current_port or not self.current_config:
+            return False, "没有可用的连接配置"
+            
+        try:
+            # 完全关闭当前连接
+            if self.serial and self.serial.is_open:
+                self.serial.close()
+            
+            # 停止所有线程
+            self.stop_monitor()
+            self.stop_receiver()
+            
+            # 重置状态
+            self.is_connected = False
+            self.serial = None
+            
+            # 等待一小段时间让设备完成重置
+            time.sleep(0.5)
+            
+            # 重新连接
+            return self.connect(
+                self.current_port,
+                self.current_config['baud_rate'],
+                self.current_config['data_bits'],
+                self.current_config['parity'],
+                self.current_config['stop_bits'],
+                self.current_config['flow_control']
+            )
+            
+        except Exception as e:
+            return False, f"重置连接时出错: {str(e)}"
                 

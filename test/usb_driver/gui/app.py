@@ -36,7 +36,7 @@ from .ui_components import PortSelectionFrame, SerialConfigFrame, ControlButtons
 class USBSerialApp:
     """USB串口通信应用程序类"""
     
-    def __init__(self, root, title="镇中科技串口测试", version="v1.0"):
+    def __init__(self, root, title="镇中科技串口测试", version="v0.0.5"):
         """
         初始化应用程序
         
@@ -340,15 +340,19 @@ class USBSerialApp:
             # 获取配置参数
             config = self.config_frame.get_config()
             
-            # 连接串口
-            success, message = self.serial_manager.connect(
-                port=port,
-                baud_rate=config['baud_rate'],
-                data_bits=config['data_bits'],
-                parity=config['parity'],
-                stop_bits=config['stop_bits'],
-                flow_control=config['flow_control']
-            )
+            # 尝试重置连接
+            if self.serial_manager.current_port == port:
+                success, message = self.serial_manager.reset_connection()
+            else:
+                # 新的连接
+                success, message = self.serial_manager.connect(
+                    port=port,
+                    baud_rate=config['baud_rate'],
+                    data_bits=config['data_bits'],
+                    parity=config['parity'],
+                    stop_bits=config['stop_bits'],
+                    flow_control=config['flow_control']
+                )
             
             if success:
                 info, details = message
@@ -495,6 +499,35 @@ class USBSerialApp:
         """处理消息回调"""
         # 在UI线程中安全地更新显示
         self.root.after(0, lambda: self.data_frame.append_message(message, message_type))
+        
+        # 处理串口状态变化
+        if "检测到串口已断开" in message:
+            self.root.after(0, lambda: self.update_ui_state(False))
+        elif "串口连接已重置" in message:
+            self.root.after(0, lambda: self.update_ui_state(True))
+            messagebox.showinfo("连接已重置", "串口连接已自动重置")
+    
+    def update_ui_state(self, is_connected):
+        """
+        更新UI状态
+        
+        参数:
+            is_connected: 是否已连接
+        """
+        # 更新连接按钮状态
+        self.config_frame.set_connect_button_state(is_connected)
+        
+        # 更新发送按钮状态
+        self.angle_frame.set_send_button_state(is_connected)
+        
+        # 更新控制按钮状态
+        self.control_frame.set_buttons_state(is_connected)
+        
+        # 如果状态发生变化且断开连接，显示提示消息
+        if not is_connected:
+            # 检查是否是因为设备重启导致的断开
+            if not self.serial_manager.is_connected:
+                messagebox.showinfo("连接断开", "串口已断开连接，请手动重新连接或等待自动重置")
     
     def on_closing(self):
         """处理窗口关闭事件"""
@@ -526,6 +559,7 @@ class USBSerialApp:
         """运行应用程序"""
         # 注册退出处理函数
         atexit.register(plt.close, 'all')
+        
         self.root.mainloop()
     
     def calculate_inverse_kinematics(self):
@@ -577,3 +611,4 @@ class USBSerialApp:
             error_msg = f"应用逆运动学结果时出错: {str(e)}"
             self.handle_message(error_msg, "错误")
             messagebox.showerror("应用错误", error_msg) 
+            
