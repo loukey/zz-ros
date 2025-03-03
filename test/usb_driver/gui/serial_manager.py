@@ -46,6 +46,7 @@ class SerialManager:
         return port_list
     
     def connect(self, port, baud_rate, data_bits, parity, stop_bits, flow_control):
+        time.sleep(2)
         """
         连接到指定串口
         
@@ -74,7 +75,7 @@ class SerialManager:
         # 如果已经连接，先断开
         if self.is_connected and self.serial:
             self.disconnect()
-        
+            time.sleep(2)
         # 设置流控制参数
         xonxoff = False
         rtscts = False
