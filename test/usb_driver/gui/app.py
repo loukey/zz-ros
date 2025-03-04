@@ -36,7 +36,7 @@ from .ui_components import PortSelectionFrame, SerialConfigFrame, ControlButtons
 class USBSerialApp:
     """USB串口通信应用程序类"""
     
-    def __init__(self, root, title="镇中科技串口测试", version="v0.0.5"):
+    def __init__(self, root, title="镇中科技串口测试", version="v0.0.7"):
         """
         初始化应用程序
         
@@ -370,12 +370,13 @@ class USBSerialApp:
                 self.handle_message(message, "错误")
                 messagebox.showerror("连接错误", message)
     
-    def send_command(self, command):
+    def send_command(self, command, encoding_type='hex'):
         """
         发送控制命令
         
         参数:
             command: 要发送的命令字符串
+            encoding_type: 编码类型，'hex' 或 'string'
         """
         if not self.serial_manager.is_connected:
             self.handle_message("请先连接串口", "错误")
@@ -400,12 +401,21 @@ class USBSerialApp:
         
         # 发送命令，使用全零角度
         angles = [0.0] * 6
-        success, message = self.serial_manager.send_formatted_angles(angles, command_code)
         
-        if success:
-            self.handle_message(f"命令: {command} (0x{command_code:02X})", "发送")
-            self.handle_message(f"发送的十六进制数据: {message}", "发送")
+        if encoding_type == 'hex':
+            # 使用二进制格式发送
+            success, message = self.serial_manager.send_formatted_angles(angles, command_code)
+            if success:
+                self.handle_message(f"命令: {command} (0x{command_code:02X})", "参数")
+                self.handle_message(f"发送的十六进制数据: {message}", "发送")
         else:
+            # 使用字符串格式发送
+            success, message = self.serial_manager.send_formatted_string(angles, command_code)
+            if success:
+                self.handle_message(f"命令: {command} (编码: 字符串)", "参数")
+                self.handle_message(f"发送的字符串数据: {message}", "发送")
+        
+        if not success:
             self.handle_message(message, "错误")
             messagebox.showerror("发送错误", message)
     
@@ -416,29 +426,43 @@ class USBSerialApp:
         # 获取选择的加减速曲线类型
         curve_type = self.angle_frame.get_curve_type()
         
+        # 获取编码类型
+        encoding_type = self.control_frame.get_encoding_type()
+        
         # 使用MOTION命令代码(0x06)发送角度数据
         command_code = 0x06  # 运动状态
         
-        # 发送格式化的角度数据
-        success, message = self.serial_manager.send_formatted_angles(angles, command_code)
+        # 根据编码类型发送数据
+        if encoding_type == 'hex':
+            # 发送格式化的角度数据（二进制格式）
+            success, message = self.serial_manager.send_formatted_angles(angles, command_code)
+            
+            if success:
+                # 记录发送的内容
+                hex_values = []
+                for angle in angles:
+                    value = int((angle / (2 * math.pi)) * (2 ** 19))
+                    hex_values.append(f"0x{value:08X}")
+                
+                self.handle_message(f"曲线类型: {curve_type}, 命令: MOTION (0x06)", "参数")
+                self.handle_message(f"角度(弧度): {','.join([f'{angle:.6f}' for angle in angles])}", "参数")
+                self.handle_message(f"角度(十六进制): {', '.join(hex_values)}", "参数")
+                self.handle_message(f"发送的十六进制数据: {message}", "发送")
+        else:
+            # 发送格式化的角度数据（字符串格式）
+            success, message = self.serial_manager.send_formatted_string(angles, command_code)
+            
+            if success:
+                self.handle_message(f"曲线类型: {curve_type}, 命令: MOTION (编码: 字符串)", "参数")
+                self.handle_message(f"角度(弧度): {','.join([f'{angle:.6f}' for angle in angles])}", "参数")
+                self.handle_message(f"发送的字符串数据: {message}", "发送")
         
         if success:
-            # 记录发送的内容
-            hex_values = []
-            for angle in angles:
-                value = int((angle / (2 * math.pi)) * (2 ** 19))
-                hex_values.append(f"0x{value:08X}")
-            
-            self.handle_message(f"曲线类型: {curve_type}, 命令: MOTION (0x06)", "发送")
-            self.handle_message(f"角度(弧度): {','.join([f'{angle:.6f}' for angle in angles])}", "发送")
-            self.handle_message(f"角度(十六进制): {', '.join(hex_values)}", "发送")
-            self.handle_message(f"发送的十六进制数据: {message}", "发送")
-            
             # 生成并显示曲线
             self.generate_and_plot_curves(angles, curve_type)
             
-            # 切换到曲线显示标签页
-            self.main_notebook.select(1)  # 索引1是曲线显示标签页
+            # # 切换到曲线显示标签页
+            # self.main_notebook.select(1)  # 索引1是曲线显示标签页
         else:
             self.handle_message(message, "错误")
             messagebox.showerror("发送错误", message)

@@ -121,7 +121,7 @@ class SerialConfigFrame:
         
         # 波特率
         ttk.Label(row1_frame, text="波特率:").pack(side=tk.LEFT, padx=(0, 5))
-        self.baud_rate = tk.StringVar(value='9600')
+        self.baud_rate = tk.StringVar(value='115200')
         baud_combo = ttk.Combobox(row1_frame, textvariable=self.baud_rate, values=self.baud_rates, width=10)
         baud_combo.pack(side=tk.LEFT, padx=(0, 15))
         
@@ -212,41 +212,66 @@ class ControlButtonsFrame:
         初始化控制按钮框架
         
         参数:
-            parent: 父级容器
-            send_command_callback: 发送命令回调函数
+            parent: 父级窗口
+            send_command_callback: 发送命令的回调函数
         """
-        self.frame = ttk.LabelFrame(parent, text="控制命令")
-        self.frame.pack(fill=tk.X, padx=10, pady=5)
+        # 创建主框架
+        self.frame = ttk.LabelFrame(parent, text="参数配置和控制命令")
+        self.frame.pack(fill=tk.X, padx=5, pady=5)
         
-        # 定义控制命令按钮
-        self.commands = [
+        # 存储按钮列表，用于状态管理
+        self.buttons = []
+        
+        # 创建参数配置区域
+        self._create_config_widgets()
+        
+        # 创建分隔线
+        ttk.Separator(self.frame, orient='horizontal').pack(fill=tk.X, padx=5, pady=5)
+        
+        # 创建控制按钮
+        self._create_control_buttons(send_command_callback)
+    
+    def _create_config_widgets(self):
+        """创建参数配置控件"""
+        # 创建配置框架
+        config_frame = ttk.Frame(self.frame)
+        config_frame.pack(fill=tk.X, padx=5, pady=5)
+        
+        # 编码格式选择
+        ttk.Label(config_frame, text="编码格式:").pack(side=tk.LEFT, padx=(0, 5))
+        self.encoding_var = tk.StringVar(value='string')
+        encoding_combo = ttk.Combobox(config_frame, textvariable=self.encoding_var, 
+                                    values=['string', 'hex'], width=10, state='readonly')
+        encoding_combo.pack(side=tk.LEFT)
+        
+        # 添加提示标签
+        ttk.Label(config_frame, text="(string: 字符串格式, hex: 十六进制格式)").pack(side=tk.LEFT, padx=(5, 0))
+    
+    def _create_control_buttons(self, send_command_callback):
+        """创建控制按钮"""
+        # 创建按钮框架
+        button_frame = ttk.Frame(self.frame)
+        button_frame.pack(fill=tk.X, padx=5, pady=5)
+        
+        # 定义命令按钮
+        commands = [
             ("使能", "ENABLE"),
             ("取消使能", "DISABLE"),
             ("释放刹车", "RELEASE"),
             ("锁止刹车", "LOCK"),
-            ("立刻停止", "STOP")
+            ("立刻停止", "STOP"),
+            ("运动状态", "MOTION")
         ]
         
         # 创建按钮
-        self._create_control_buttons(send_command_callback)
-    
-    def _create_control_buttons(self, send_command_callback):
-        """创建控制按钮"""
-        button_frame = ttk.Frame(self.frame)
-        button_frame.pack(fill=tk.X, padx=5, pady=5)
-        
-        # 创建每个命令按钮
-        for i, (text, command) in enumerate(self.commands):
-            # 创建一个闭包来保存当前命令值
+        for text, command in commands:
             def create_command_callback(cmd=command):
-                return lambda: send_command_callback(cmd)
+                return lambda: send_command_callback(cmd, self.encoding_var.get())
             
-            button = ttk.Button(
-                button_frame, 
-                text=text, 
-                command=create_command_callback()
-            )
-            button.pack(side=tk.LEFT, padx=2, pady=5, fill=tk.X)
+            button = ttk.Button(button_frame, text=text, 
+                              command=create_command_callback())
+            button.pack(side=tk.LEFT, padx=2)
+            self.buttons.append(button)
     
     def set_buttons_state(self, is_connected):
         """
@@ -255,13 +280,13 @@ class ControlButtonsFrame:
         参数:
             is_connected: 是否已连接
         """
-        state = tk.NORMAL if is_connected else tk.DISABLED
-        
-        # 设置所有按钮的状态
-        for child in self.frame.winfo_children():
-            for button in child.winfo_children():
-                if isinstance(button, ttk.Button):
-                    button.config(state=state)
+        state = 'normal' if is_connected else 'disabled'
+        for button in self.buttons:
+            button.configure(state=state)
+    
+    def get_encoding_type(self):
+        """获取当前选择的编码格式"""
+        return self.encoding_var.get()
 
 
 class AngleControlFrame:
@@ -437,128 +462,101 @@ class DataDisplayFrame:
         
         参数:
             parent: 父级容器
-            clear_send_callback: 清除发送显示回调函数
-            clear_receive_callback: 清除接收显示回调函数
-            clear_all_callback: 清除全部显示回调函数
+            clear_send_callback: 清除发送区回调函数
+            clear_receive_callback: 清除接收区回调函数
+            clear_all_callback: 清除所有回调函数
         """
-        self.frame = ttk.LabelFrame(parent, text="接收数据显示")
+        self.frame = ttk.LabelFrame(parent, text="数据显示")
         self.frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
         
-        # 添加数据显示控件
+        # 创建数据显示控件
         self._create_data_display_widgets(clear_send_callback, clear_receive_callback, clear_all_callback)
     
     def _create_data_display_widgets(self, clear_send_callback, clear_receive_callback, clear_all_callback):
         """创建数据显示控件"""
-        # 创建左右分栏框架
-        display_pane = ttk.PanedWindow(self.frame, orient=tk.HORIZONTAL)
-        display_pane.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
+        # 创建文本框和滚动条
+        text_frame = ttk.Frame(self.frame)
+        text_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
-        # 左侧发送数据显示框架
-        send_frame = ttk.LabelFrame(display_pane, text="发送数据")
-        display_pane.add(send_frame, weight=1)
+        self.text = tk.Text(text_frame, wrap=tk.WORD, height=10)
+        scrollbar = ttk.Scrollbar(text_frame, orient=tk.VERTICAL, command=self.text.yview)
+        self.text.configure(yscrollcommand=scrollbar.set)
         
-        # 右侧接收数据显示框架
-        receive_frame = ttk.LabelFrame(display_pane, text="接收数据")
-        display_pane.add(receive_frame, weight=1)
+        self.text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         
-        # 创建发送数据显示区域
-        self.send_display = scrolledtext.ScrolledText(send_frame, wrap=tk.WORD, height=10, width=50)
-        self.send_display.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
+        # 设置文本标签
+        self.text.tag_configure("发送", foreground="blue")
+        self.text.tag_configure("接收", foreground="green")
+        self.text.tag_configure("错误", foreground="red")
+        self.text.tag_configure("信息", foreground="black")
+        self.text.tag_configure("参数", foreground="purple")
         
-        # 创建接收数据显示区域
-        self.receive_display = scrolledtext.ScrolledText(receive_frame, wrap=tk.WORD, height=10, width=50)
-        self.receive_display.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
+        # 创建按钮框架
+        button_frame = ttk.Frame(self.frame)
+        button_frame.pack(fill=tk.X, padx=5, pady=5)
         
-        # 控制按钮框架
-        control_frame = ttk.Frame(self.frame)
-        control_frame.pack(fill=tk.X, padx=2, pady=2, anchor="w")
-        
-        # 清除发送按钮
-        self.clear_send_button = ttk.Button(control_frame, text="清除发送显示", command=clear_send_callback)
-        self.clear_send_button.pack(side=tk.LEFT, padx=5)
-        
-        # 清除接收按钮
-        self.clear_receive_button = ttk.Button(control_frame, text="清除接收显示", command=clear_receive_callback)
-        self.clear_receive_button.pack(side=tk.LEFT, padx=5)
-        
-        # 清除全部按钮
-        self.clear_all_button = ttk.Button(control_frame, text="清除全部", command=clear_all_callback)
-        self.clear_all_button.pack(side=tk.LEFT, padx=5)
-        
-        # 自动滚动选项
-        self.autoscroll_var = tk.BooleanVar(value=True)
-        self.autoscroll_check = ttk.Checkbutton(control_frame, text="自动滚动", variable=self.autoscroll_var)
-        self.autoscroll_check.pack(side=tk.LEFT, padx=5)
-        
-        # 显示时间戳选项
-        self.timestamp_var = tk.BooleanVar(value=True)
-        self.timestamp_check = ttk.Checkbutton(control_frame, text="显示时间戳", variable=self.timestamp_var)
-        self.timestamp_check.pack(side=tk.LEFT, padx=5)
+        # 创建清除按钮
+        ttk.Button(button_frame, text="清除发送", command=clear_send_callback).pack(side=tk.LEFT, padx=2)
+        ttk.Button(button_frame, text="清除接收", command=clear_receive_callback).pack(side=tk.LEFT, padx=2)
+        ttk.Button(button_frame, text="清除全部", command=clear_all_callback).pack(side=tk.LEFT, padx=2)
     
     def append_message(self, message, message_type="信息"):
         """
-        向数据显示区域添加消息
+        添加消息到显示区域
         
         参数:
             message: 要显示的消息
-            message_type: 消息类型，用于确定显示在哪个区域，可选值为 "发送", "接收", "信息", "错误"
+            message_type: 消息类型，可以是 "发送"、"接收"、"错误"、"信息"、"参数"
         """
-        # 如果需要时间戳
-        if self.timestamp_var.get():
-            timestamp = datetime.now().strftime("%H:%M:%S.%f")[:-3]
-            prefix = f"[{timestamp}] "
-        else:
-            prefix = ""
-        
-        # 根据消息类型选择显示区域
-        if message_type.lower() in ["发送", "send"]:
-            display = self.send_display
-            prefix += "[发送] "
-        elif message_type.lower() in ["接收", "receive"]:
-            display = self.receive_display
-            prefix += "[接收] "
-        elif message_type.lower() in ["错误", "error"]:
-            # 错误信息在两个区域都显示
-            error_prefix = prefix + "[错误] "
-            self.send_display.insert(tk.END, error_prefix + message + "\n")
-            self.receive_display.insert(tk.END, error_prefix + message + "\n")
+        try:
+            # 获取当前时间
+            current_time = datetime.now().strftime("%H:%M:%S.%f")[:-3]
             
-            # 如果启用了自动滚动
-            if self.autoscroll_var.get():
-                self.send_display.see(tk.END)
-                self.receive_display.see(tk.END)
-            return
-        else:
-            # 普通信息在两个区域都显示
-            info_prefix = prefix + "[信息] "
-            self.send_display.insert(tk.END, info_prefix + message + "\n")
-            self.receive_display.insert(tk.END, info_prefix + message + "\n")
+            # 在文本末尾插入消息
+            self.text.insert(tk.END, f"[{current_time}] ")
+            self.text.insert(tk.END, f"[{message_type}] ", message_type)
+            self.text.insert(tk.END, f"{message}\n")
             
-            # 如果启用了自动滚动
-            if self.autoscroll_var.get():
-                self.send_display.see(tk.END)
-                self.receive_display.see(tk.END)
-            return
-        
-        # 添加消息到选定的显示区域
-        display.insert(tk.END, prefix + message + "\n")
-        
-        # 如果启用了自动滚动
-        if self.autoscroll_var.get():
-            display.see(tk.END)
+            # 自动滚动到最后
+            self.text.see(tk.END)
+            
+            # 更新显示
+            self.text.update()
+            
+        except Exception as e:
+            print(f"显示消息时出错: {str(e)}")
     
     def clear_display(self, display_type="all"):
         """
-        清除数据显示区域
+        清除显示区域
         
         参数:
-            display_type: 要清除的显示区域类型，可选值为 "send", "receive", "all"
+            display_type: 要清除的类型，可以是 "send"、"receive" 或 "all"
         """
-        if display_type in ["send", "all"]:
-            self.send_display.delete(1.0, tk.END)
-        
-        if display_type in ["receive", "all"]:
-            self.receive_display.delete(1.0, tk.END)
+        try:
+            # 获取所有文本
+            content = self.text.get("1.0", tk.END)
+            lines = content.split("\n")
+            
+            # 根据类型清除相应的内容
+            if display_type == "send":
+                # 保留非发送的行
+                new_content = "\n".join(line for line in lines 
+                                      if not ("[发送]" in line or "[参数]" in line))
+                self.text.delete("1.0", tk.END)
+                self.text.insert("1.0", new_content)
+            elif display_type == "receive":
+                # 保留非接收的行
+                new_content = "\n".join(line for line in lines 
+                                      if not "[接收]" in line)
+                self.text.delete("1.0", tk.END)
+                self.text.insert("1.0", new_content)
+            else:  # all
+                self.text.delete("1.0", tk.END)
+            
+        except Exception as e:
+            print(f"清除显示区域时出错: {str(e)}")
 
 
 class CurvePlotFrame:

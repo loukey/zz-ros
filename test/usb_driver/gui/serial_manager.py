@@ -116,9 +116,6 @@ class SerialManager:
                 # 启动状态监测线程
                 self.start_monitor()
                 
-                # 进行简单的通信测试
-                self.test_communication()
-                
                 return True, (info, details)
             else:
                 return False, "串口无法打开，请检查设备或参数"
@@ -246,9 +243,12 @@ class SerialManager:
             
             # 数据域: 6个关节位置，每个4字节
             # 将弧度值转换为指定格式: 弧度值 / (2*pi) * 2^19，然后转为4字节整数
-            for angle in angle_values[:6]:  # 只处理前6个角度
+            offsets = [78623, 369707, 83986, 391414, 508006, 455123]  # 每个关节的偏移值
+            for i, angle in enumerate(angle_values[:6]):  # 只处理前6个角度
                 # 转换公式: 弧度值 / (2*pi) * 2^19
                 value = int((angle / (2 * math.pi)) * (2 ** 19))
+                # 减去对应关节的偏移值
+                value = value - offsets[i]
                 
                 # 将32位整数转换为4个字节（大端序）
                 data.append((value >> 24) & 0xFF)
@@ -275,6 +275,51 @@ class SerialManager:
             
         except Exception as e:
             return False, f"发送格式化角度数据时出错: {str(e)}"
+    
+    def send_formatted_string(self, angles, command_code):
+        """
+        按照字符串格式发送角度数据
+        
+        格式: cmd XX angle1 angle2 angle3 angle4 angle5 angle6
+        其中XX是命令代码（01-06），angles是转换后的角度值
+        
+        参数:
+            angles: 角度列表（弧度值）
+            command_code: 命令代码（0x01-0x06）
+            
+        返回:
+            success: 是否成功发送
+            message: 发送结果消息
+        """
+        try:
+            # 确保有6个角度值
+            angle_values = list(angles)  # 创建副本，避免修改原始列表
+            if len(angle_values) < 6:
+                angle_values.extend([0.0] * (6 - len(angle_values)))
+            
+            # 将角度转换为整数值
+            converted_angles = []
+            offsets = [78623, 369707, 83986, 391414, 508006, 455123]  # 每个关节的偏移值
+            for i, angle in enumerate(angle_values[:6]):  # 只处理前6个角度
+                # 转换公式: 弧度值 / (2*pi) * 2^19
+                value = int((angle / (2 * math.pi)) * (2 ** 19))
+                # 减去对应关节的偏移值
+                value = value - offsets[i]
+                converted_angles.append(str(value))
+            
+            # 构建命令字符串
+            cmd_str = f"cmd {command_code:02d} {' '.join(converted_angles)}\n"
+            
+            # 发送数据
+            success, _ = self.send_data(cmd_str)
+            
+            if success:
+                return True, cmd_str.strip()
+            else:
+                return False, "发送数据失败"
+            
+        except Exception as e:
+            return False, f"发送字符串格式数据时出错: {str(e)}"
     
     def test_communication(self):
         """
