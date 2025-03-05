@@ -304,11 +304,11 @@ class SerialManager:
                 # 转换公式: 弧度值 / (2*pi) * 2^19
                 value = int((angle / (2 * math.pi)) * (2 ** 19))
                 # 减去对应关节的偏移值
-                value = value - offsets[i]
+                value = value + offsets[i]
                 converted_angles.append(str(value))
             
             # 构建命令字符串
-            cmd_str = f"cmd {command_code:02d} {' '.join(converted_angles)}\n"
+            cmd_str = f"cmd {command_code:02d} {' '.join(converted_angles)}\r\n"
             
             # 发送数据
             success, _ = self.send_data(cmd_str)

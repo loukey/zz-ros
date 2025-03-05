@@ -30,13 +30,15 @@ from kinematic.velocity_planning import trapezoidal_velocity_planning, s_curve_v
 from kinematic.kinematic_6dof import Kinematic6DOF
 
 from .serial_manager import SerialManager
-from .ui_components import PortSelectionFrame, SerialConfigFrame, ControlButtonsFrame, AngleControlFrame, DataDisplayFrame, CurvePlotFrame, InverseKinematicFrame
+from .ui_components import (PortSelectionFrame, SerialConfigFrame, ControlButtonsFrame, 
+                          AngleControlFrame, DataDisplayFrame, CurvePlotFrame, 
+                          InverseKinematicFrame, EndPositionFrame)
 
 
 class USBSerialApp:
     """USB串口通信应用程序类"""
     
-    def __init__(self, root, title="镇中科技串口测试", version="v0.0.7"):
+    def __init__(self, root, title="镇中科技串口测试", version="v0.0.9"):
         """
         初始化应用程序
         
@@ -47,7 +49,7 @@ class USBSerialApp:
         """
         self.root = root
         self.root.title(f"{title}{version}")
-        self.root.geometry("800x750")  # 调整窗口大小，更紧凑
+        self.root.geometry("1200x750")  # 调整窗口大小，更紧凑
         
         # 创建串口管理器
         self.serial_manager = SerialManager(message_callback=self.handle_message)
@@ -133,13 +135,17 @@ class USBSerialApp:
         # 创建控制按钮框架
         self.control_frame = ControlButtonsFrame(control_panel, self.send_command)
         
-        # 创建角度控制框架 - 现在只放置角度控制，不再包含逆运动学
+        # 创建角度控制框架
         self.angle_frame = AngleControlFrame(
             control_panel, 
             self.send_angles, 
             self.convert_degrees_to_radians, 
             self.set_angles_to_zero
         )
+        
+        # 创建末端姿态显示框架
+        self.end_position_frame = EndPositionFrame(scrollable_frame)
+        self.end_position_frame.frame.pack(fill=tk.X, expand=False, padx=10)  # 添加水平内边距
         
         # 创建数据显示框架
         self.data_frame = DataDisplayFrame(
@@ -148,6 +154,7 @@ class USBSerialApp:
             lambda: self.clear_display("receive"),
             lambda: self.clear_display("all")
         )
+        self.data_frame.frame.pack(fill=tk.BOTH, expand=True, padx=10)  # 添加水平内边距
         
         # ===== 曲线显示标签页 =====
         # 创建滚动条容器
@@ -371,13 +378,7 @@ class USBSerialApp:
                 messagebox.showerror("连接错误", message)
     
     def send_command(self, command, encoding_type='hex'):
-        """
-        发送控制命令
-        
-        参数:
-            command: 要发送的命令字符串
-            encoding_type: 编码类型，'hex' 或 'string'
-        """
+        """发送控制命令"""
         if not self.serial_manager.is_connected:
             self.handle_message("请先连接串口", "错误")
             messagebox.showerror("错误", "请先连接串口")
@@ -402,6 +403,13 @@ class USBSerialApp:
         # 发送命令，使用全零角度
         angles = [0.0] * 6
         
+        # 更新末端位置显示（全零位置）
+        try:
+            px, py, pz, A, B, C = self.kinematic_solver.get_end_position(angles)
+            self.end_position_frame.update_theoretical_position(px, py, pz, A, B, C)
+        except Exception as e:
+            self.handle_message(f"计算末端位置时出错: {str(e)}", "错误")
+        
         if encoding_type == 'hex':
             # 使用二进制格式发送
             success, message = self.serial_manager.send_formatted_angles(angles, command_code)
@@ -423,8 +431,8 @@ class USBSerialApp:
         """发送角度数据并生成曲线"""
         angles = self.angle_frame.get_angles()
         
-        # 获取选择的加减速曲线类型
-        curve_type = self.angle_frame.get_curve_type()
+        # 获取选择的加减速曲线类型和时间参数
+        curve_type, duration, frequency = self.angle_frame.get_curve_type()
         
         # 获取编码类型
         encoding_type = self.control_frame.get_encoding_type()
@@ -432,61 +440,97 @@ class USBSerialApp:
         # 使用MOTION命令代码(0x06)发送角度数据
         command_code = 0x06  # 运动状态
         
-        # 根据编码类型发送数据
-        if encoding_type == 'hex':
-            # 发送格式化的角度数据（二进制格式）
-            success, message = self.serial_manager.send_formatted_angles(angles, command_code)
+        try:
+            # 计算时间点
+            num_points = int(duration / frequency) + 1
+            times = [i * frequency for i in range(num_points)]
             
-            if success:
-                # 记录发送的内容
-                hex_values = []
-                for angle in angles:
-                    value = int((angle / (2 * math.pi)) * (2 ** 19))
-                    hex_values.append(f"0x{value:08X}")
-                
-                self.handle_message(f"曲线类型: {curve_type}, 命令: MOTION (0x06)", "参数")
-                self.handle_message(f"角度(弧度): {','.join([f'{angle:.6f}' for angle in angles])}", "参数")
-                self.handle_message(f"角度(十六进制): {', '.join(hex_values)}", "参数")
-                self.handle_message(f"发送的十六进制数据: {message}", "发送")
-        else:
-            # 发送格式化的角度数据（字符串格式）
-            success, message = self.serial_manager.send_formatted_string(angles, command_code)
+            # 获取当前角度值（假设为0，如果需要可以从其他地方获取）
+            start_angles = [0.0] * 6
             
-            if success:
-                self.handle_message(f"曲线类型: {curve_type}, 命令: MOTION (编码: 字符串)", "参数")
-                self.handle_message(f"角度(弧度): {','.join([f'{angle:.6f}' for angle in angles])}", "参数")
-                self.handle_message(f"发送的字符串数据: {message}", "发送")
-        
-        if success:
-            # 生成并显示曲线
-            self.generate_and_plot_curves(angles, curve_type)
+            # 计算每个关节的步进值
+            steps = []
+            for i in range(6):
+                total_diff = angles[i] - start_angles[i]
+                step = total_diff / (num_points - 1) if num_points > 1 else 0
+                steps.append(step)
             
-            # # 切换到曲线显示标签页
-            # self.main_notebook.select(1)  # 索引1是曲线显示标签页
-        else:
-            self.handle_message(message, "错误")
-            messagebox.showerror("发送错误", message)
+            # 记录发送参数
+            self.handle_message(f"总时长: {duration}s, 发送频率: {frequency}s", "参数")
+            self.handle_message(f"目标角度: {','.join([f'{angle:.6f}' for angle in angles])}", "参数")
+            
+            # 开始发送第一个点
+            self._send_next_point(0, times, start_angles, steps, encoding_type, command_code, frequency)
+            
+        except Exception as e:
+            error_msg = f"发送角度数据时出错: {str(e)}"
+            self.handle_message(error_msg, "错误")
+            messagebox.showerror("发送错误", error_msg)
     
-    def generate_and_plot_curves(self, angles, curve_type):
+    def _send_next_point(self, i, times, start_angles, steps, encoding_type, command_code, frequency):
+        """递归发送下一个点"""
+        try:
+            if i >= len(times):
+                return
+            
+            t = times[i]
+            # 计算当前时间点的角度值
+            current_angles = [start_angles[j] + steps[j] * i for j in range(6)]
+            
+            # 计算并更新末端位置
+            try:
+                px, py, pz, A, B, C = self.kinematic_solver.get_end_position(current_angles)
+                self.end_position_frame.update_theoretical_position(px, py, pz, A, B, C)
+            except Exception as e:
+                self.handle_message(f"计算末端位置时出错: {str(e)}", "错误")
+            
+            # 根据编码类型发送数据
+            if encoding_type == 'hex':
+                success, message = self.serial_manager.send_formatted_angles(current_angles, command_code)
+                if success:
+                    self.handle_message(f"时间点 {t:.2f}s - 发送的十六进制数据: {message}", "发送")
+            else:
+                success, message = self.serial_manager.send_formatted_string(current_angles, command_code)
+                if success:
+                    self.handle_message(f"时间点 {t:.2f}s - 发送的字符串数据: {message}", "发送")
+            
+            if not success:
+                self.handle_message(f"发送失败: {message}", "错误")
+                messagebox.showerror("发送错误", message)
+                return
+            
+            # 如果还有下一个点，安排发送下一个点
+            if i < len(times) - 1:
+                self.root.after(int(frequency * 1000), 
+                              lambda: self._send_next_point(i + 1, times, start_angles, steps, 
+                                                          encoding_type, command_code, frequency))
+                
+        except Exception as e:
+            error_msg = f"发送数据点时出错: {str(e)}"
+            self.handle_message(error_msg, "错误")
+            messagebox.showerror("发送错误", error_msg)
+    
+    def generate_and_plot_curves(self, angles, curve_type, duration):
         """
         生成并绘制速度、加速度和位置曲线
         
         参数:
             angles: 目标角度列表
             curve_type: 曲线类型，"trapezoidal" 或 "s_curve"
+            duration: 运动总时长
         """
         try:
             # 根据曲线类型调用相应的函数
             if curve_type == "trapezoidal":
-                times, velocities, accelerations, positions = trapezoidal_velocity_planning(angles)
+                times, velocities, accelerations, positions = trapezoidal_velocity_planning(angles, duration)
             else:  # s_curve
-                times, velocities, accelerations, positions = s_curve_velocity_planning(angles)
+                times, velocities, accelerations, positions = s_curve_velocity_planning(angles, duration)
             
             # 绘制曲线
             self.curve_frame.plot_curves(times, velocities, accelerations, positions, curve_type)
             
             # 记录生成曲线的信息
-            self.handle_message(f"已生成{curve_type}曲线，总时间: {times[-1]:.2f}秒", "信息")
+            self.handle_message(f"已生成{curve_type}曲线，总时间: {duration:.2f}秒", "信息")
             
         except Exception as e:
             error_msg = f"生成曲线时出错: {str(e)}"
@@ -523,6 +567,10 @@ class USBSerialApp:
         """处理消息回调"""
         # 在UI线程中安全地更新显示
         self.root.after(0, lambda: self.data_frame.append_message(message, message_type))
+        
+        # 如果是接收到的数据，尝试解析并更新实际姿态
+        if message_type == "接收" and message.startswith("AA55"):
+            self.end_position_frame.parse_and_update_actual_position(message, self.kinematic_solver)
         
         # 处理串口状态变化
         if "检测到串口已断开" in message:

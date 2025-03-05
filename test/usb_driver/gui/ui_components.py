@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import numpy as np
 import platform
+import math
 
 # 配置matplotlib支持中文显示
 if platform.system() == 'Windows':
@@ -395,6 +396,20 @@ class AngleControlFrame:
             value="s_curve"
         ).pack(side=tk.LEFT, padx=2)
         
+        # 创建时长输入框
+        ttk.Label(curve_frame, text="时长:").pack(side=tk.LEFT, padx=(20, 0))
+        self.duration_var = tk.StringVar(value="4.0")
+        duration_entry = ttk.Entry(curve_frame, textvariable=self.duration_var, width=8)
+        duration_entry.pack(side=tk.LEFT, padx=(5, 0))
+        ttk.Label(curve_frame, text="s").pack(side=tk.LEFT)
+
+        # 创建发送频率输入框
+        ttk.Label(curve_frame, text="发送频率:").pack(side=tk.LEFT, padx=(20, 0))
+        self.frequency_var = tk.StringVar(value="0.1")
+        frequency_entry = ttk.Entry(curve_frame, textvariable=self.frequency_var, width=8)
+        frequency_entry.pack(side=tk.LEFT, padx=(5, 0))
+        ttk.Label(curve_frame, text="s").pack(side=tk.LEFT)
+        
         # 按钮区域
         button_frame = ttk.Frame(main_frame)
         button_frame.pack(fill=tk.X, pady=5)
@@ -422,12 +437,18 @@ class AngleControlFrame:
     
     def get_curve_type(self):
         """
-        获取当前选择的加减速曲线类型
+        获取曲线类型和时间参数
         
         返回:
-            curve_type: 曲线类型字符串，"trapezoidal" 或 "s_curve"
+            tuple: (曲线类型, 时长, 发送频率)
         """
-        return self.curve_type.get()
+        try:
+            duration = float(self.duration_var.get())
+            frequency = float(self.frequency_var.get())
+            return self.curve_type.get(), duration, frequency
+        except ValueError:
+            # 如果转换失败，返回默认值
+            return self.curve_type.get(), 4.0, 0.1
     
     def set_angles(self, angles):
         """
@@ -467,39 +488,57 @@ class DataDisplayFrame:
             clear_all_callback: 清除所有回调函数
         """
         self.frame = ttk.LabelFrame(parent, text="数据显示")
-        self.frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+        self.frame.pack(fill=tk.BOTH, expand=True)
         
         # 创建数据显示控件
         self._create_data_display_widgets(clear_send_callback, clear_receive_callback, clear_all_callback)
     
     def _create_data_display_widgets(self, clear_send_callback, clear_receive_callback, clear_all_callback):
         """创建数据显示控件"""
-        # 创建文本框和滚动条
-        text_frame = ttk.Frame(self.frame)
-        text_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        # 创建主框架，使用水平布局
+        main_frame = ttk.Frame(self.frame)
+        main_frame.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
         
-        self.text = tk.Text(text_frame, wrap=tk.WORD, height=10)
-        scrollbar = ttk.Scrollbar(text_frame, orient=tk.VERTICAL, command=self.text.yview)
-        self.text.configure(yscrollcommand=scrollbar.set)
+        # 创建左侧发送数据框架
+        send_frame = ttk.LabelFrame(main_frame, text="发送数据")
+        send_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=1)
         
-        self.text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        # 创建发送数据文本框和滚动条
+        self.send_text = tk.Text(send_frame, wrap=tk.WORD, height=8)
+        send_scrollbar = ttk.Scrollbar(send_frame, orient=tk.VERTICAL, command=self.send_text.yview)
+        self.send_text.configure(yscrollcommand=send_scrollbar.set)
+        
+        self.send_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        send_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        # 创建右侧接收数据框架
+        receive_frame = ttk.LabelFrame(main_frame, text="接收数据")
+        receive_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=1)
+        
+        # 创建接收数据文本框和滚动条
+        self.receive_text = tk.Text(receive_frame, wrap=tk.WORD, height=8)
+        receive_scrollbar = ttk.Scrollbar(receive_frame, orient=tk.VERTICAL, command=self.receive_text.yview)
+        self.receive_text.configure(yscrollcommand=receive_scrollbar.set)
+        
+        self.receive_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        receive_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         
         # 设置文本标签
-        self.text.tag_configure("发送", foreground="blue")
-        self.text.tag_configure("接收", foreground="green")
-        self.text.tag_configure("错误", foreground="red")
-        self.text.tag_configure("信息", foreground="black")
-        self.text.tag_configure("参数", foreground="purple")
+        for text_widget in [self.send_text, self.receive_text]:
+            text_widget.tag_configure("发送", foreground="blue")
+            text_widget.tag_configure("接收", foreground="green")
+            text_widget.tag_configure("错误", foreground="red")
+            text_widget.tag_configure("信息", foreground="black")
+            text_widget.tag_configure("参数", foreground="purple")
         
         # 创建按钮框架
         button_frame = ttk.Frame(self.frame)
-        button_frame.pack(fill=tk.X, padx=5, pady=5)
+        button_frame.pack(fill=tk.X, padx=2, pady=2)
         
         # 创建清除按钮
-        ttk.Button(button_frame, text="清除发送", command=clear_send_callback).pack(side=tk.LEFT, padx=2)
-        ttk.Button(button_frame, text="清除接收", command=clear_receive_callback).pack(side=tk.LEFT, padx=2)
-        ttk.Button(button_frame, text="清除全部", command=clear_all_callback).pack(side=tk.LEFT, padx=2)
+        ttk.Button(button_frame, text="清除发送", command=clear_send_callback).pack(side=tk.LEFT, padx=1)
+        ttk.Button(button_frame, text="清除接收", command=clear_receive_callback).pack(side=tk.LEFT, padx=1)
+        ttk.Button(button_frame, text="清除全部", command=clear_all_callback).pack(side=tk.LEFT, padx=1)
     
     def append_message(self, message, message_type="信息"):
         """
@@ -513,16 +552,22 @@ class DataDisplayFrame:
             # 获取当前时间
             current_time = datetime.now().strftime("%H:%M:%S.%f")[:-3]
             
+            # 根据消息类型选择显示的文本框
+            if message_type in ["发送", "参数"]:
+                text_widget = self.send_text
+            else:
+                text_widget = self.receive_text
+            
             # 在文本末尾插入消息
-            self.text.insert(tk.END, f"[{current_time}] ")
-            self.text.insert(tk.END, f"[{message_type}] ", message_type)
-            self.text.insert(tk.END, f"{message}\n")
+            text_widget.insert(tk.END, f"[{current_time}] ")
+            text_widget.insert(tk.END, f"[{message_type}] ", message_type)
+            text_widget.insert(tk.END, f"{message}\n")
             
             # 自动滚动到最后
-            self.text.see(tk.END)
+            text_widget.see(tk.END)
             
             # 更新显示
-            self.text.update()
+            text_widget.update()
             
         except Exception as e:
             print(f"显示消息时出错: {str(e)}")
@@ -535,25 +580,13 @@ class DataDisplayFrame:
             display_type: 要清除的类型，可以是 "send"、"receive" 或 "all"
         """
         try:
-            # 获取所有文本
-            content = self.text.get("1.0", tk.END)
-            lines = content.split("\n")
-            
-            # 根据类型清除相应的内容
             if display_type == "send":
-                # 保留非发送的行
-                new_content = "\n".join(line for line in lines 
-                                      if not ("[发送]" in line or "[参数]" in line))
-                self.text.delete("1.0", tk.END)
-                self.text.insert("1.0", new_content)
+                self.send_text.delete("1.0", tk.END)
             elif display_type == "receive":
-                # 保留非接收的行
-                new_content = "\n".join(line for line in lines 
-                                      if not "[接收]" in line)
-                self.text.delete("1.0", tk.END)
-                self.text.insert("1.0", new_content)
+                self.receive_text.delete("1.0", tk.END)
             else:  # all
-                self.text.delete("1.0", tk.END)
+                self.send_text.delete("1.0", tk.END)
+                self.receive_text.delete("1.0", tk.END)
             
         except Exception as e:
             print(f"清除显示区域时出错: {str(e)}")
@@ -830,4 +863,116 @@ class InverseKinematicFrame:
         参数:
             callback: 应用按钮回调函数
         """
-        self.apply_button.config(command=lambda: callback(self.calculated_angles)) 
+        self.apply_button.config(command=lambda: callback(self.calculated_angles))
+
+
+class EndPositionFrame:
+    """末端姿态显示框架"""
+    
+    def __init__(self, parent):
+        """
+        初始化末端姿态显示框架
+        
+        参数:
+            parent: 父级容器
+        """
+        self.frame = ttk.LabelFrame(parent, text="末端姿态显示")
+        
+        # 创建左右两列的容器
+        left_frame = ttk.Frame(self.frame)
+        right_frame = ttk.Frame(self.frame)
+        left_frame.pack(side=tk.LEFT, expand=True, fill=tk.BOTH, padx=2)
+        right_frame.pack(side=tk.LEFT, expand=True, fill=tk.BOTH, padx=2)
+        
+        # 添加标题标签
+        ttk.Label(left_frame, text="理论姿态", font=('Arial', 9, 'bold')).pack()
+        ttk.Label(right_frame, text="实际姿态", font=('Arial', 9, 'bold')).pack()
+        
+        # 创建理论姿态变量
+        self.theoretical_vars = {
+            'px': tk.StringVar(value='0.000'),
+            'py': tk.StringVar(value='0.000'),
+            'pz': tk.StringVar(value='0.000'),
+            'A': tk.StringVar(value='0.000'),
+            'B': tk.StringVar(value='0.000'),
+            'C': tk.StringVar(value='0.000')
+        }
+        
+        # 创建实际姿态变量
+        self.actual_vars = {
+            'px': tk.StringVar(value='0.000'),
+            'py': tk.StringVar(value='0.000'),
+            'pz': tk.StringVar(value='0.000'),
+            'A': tk.StringVar(value='0.000'),
+            'B': tk.StringVar(value='0.000'),
+            'C': tk.StringVar(value='0.000')
+        }
+        
+        # 创建理论姿态标签
+        labels = ['位置 X (m):', '位置 Y (m):', '位置 Z (m):', 
+                 '姿态 A (rad):', '姿态 B (rad):', '姿态 C (rad):']
+        vars_keys = ['px', 'py', 'pz', 'A', 'B', 'C']
+        
+        # 创建理论姿态显示
+        for i, (label, key) in enumerate(zip(labels, vars_keys)):
+            frame = ttk.Frame(left_frame)
+            frame.pack(fill=tk.X, padx=2, pady=1)
+            ttk.Label(frame, text=label, width=10).pack(side=tk.LEFT)
+            ttk.Label(frame, textvariable=self.theoretical_vars[key], width=8).pack(side=tk.LEFT)
+        
+        # 创建实际姿态显示
+        for i, (label, key) in enumerate(zip(labels, vars_keys)):
+            frame = ttk.Frame(right_frame)
+            frame.pack(fill=tk.X, padx=2, pady=1)
+            ttk.Label(frame, text=label, width=10).pack(side=tk.LEFT)
+            ttk.Label(frame, textvariable=self.actual_vars[key], width=8).pack(side=tk.LEFT)
+    
+    def update_theoretical_position(self, px, py, pz, A, B, C):
+        """更新理论末端位置显示"""
+        self.theoretical_vars['px'].set(f"{px:.3f}")
+        self.theoretical_vars['py'].set(f"{py:.3f}")
+        self.theoretical_vars['pz'].set(f"{pz:.3f}")
+        self.theoretical_vars['A'].set(f"{A:.3f}")
+        self.theoretical_vars['B'].set(f"{B:.3f}")
+        self.theoretical_vars['C'].set(f"{C:.3f}")
+    
+    def update_actual_position(self, px, py, pz, A, B, C):
+        """更新实际末端位置显示"""
+        self.actual_vars['px'].set(f"{px:.3f}")
+        self.actual_vars['py'].set(f"{py:.3f}")
+        self.actual_vars['pz'].set(f"{pz:.3f}")
+        self.actual_vars['A'].set(f"{A:.3f}")
+        self.actual_vars['B'].set(f"{B:.3f}")
+        self.actual_vars['C'].set(f"{C:.3f}")
+    
+    def parse_and_update_actual_position(self, message, kinematic_solver):
+        """解析串口消息并更新实际位置"""
+        try:
+            # 检查消息格式是否正确
+            if not message.startswith('AA55') or not message.endswith('\\r\\n'):
+                return
+            
+            # 解析消息
+            parts = message.strip().split()
+            if len(parts) < 9:  # AA55 01 1 2 3 4 5 6 0000
+                return
+                
+            # 提取六个关节位置值
+            joint_values = [int(x) for x in parts[2:8]]
+            offsets = [78623, 369707, 83986, 391414, 508006, 455123]
+            
+            # 计算实际角度值（弧度）
+            angles = []
+            for value, offset in zip(joint_values, offsets):
+                adjusted_value = value - offset
+                angle = (adjusted_value / (2**19)) * (2 * math.pi)
+                angles.append(angle)
+            
+            # 计算末端位置
+            px, py, pz, A, B, C = kinematic_solver.get_end_position(angles)
+            
+            # 更新显示
+            self.update_actual_position(px, py, pz, A, B, C)
+            
+        except Exception as e:
+            print(f"解析实际位置时出错: {str(e)}") 

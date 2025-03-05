@@ -41,6 +41,16 @@ class Kinematic6DOF:
     def forward_kinematic(self):
         return reduce(lambda x, y: x @ y, self.rm_list, np.eye(4))
     
+    def get_end_position(self, theta_list):
+        temp_theta_list = []
+        for i in range(len(theta_list)):
+            temp_theta_list.append(theta_list[i] + self.theta_list[i])
+        self.update_dh(temp_theta_list)
+        self.get_rotation_matrix_list()
+        self.forward_rm = self.forward_kinematic()
+        A, B, C = XYZ_rotation_matrix_to_euler_angles(self.forward_rm[:3, :3])
+        return *self.forward_rm[:3, 3], A, B, C
+
     def update_dh(self, theta_list):
         self.DH_matrix[:, 3] = theta_list
         self.get_rotation_matrix_list()
