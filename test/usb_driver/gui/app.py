@@ -38,7 +38,7 @@ from .ui_components import (PortSelectionFrame, SerialConfigFrame, ControlButton
 class USBSerialApp:
     """USB串口通信应用程序类"""
     
-    def __init__(self, root, title="镇中科技串口测试", version="v0.0.9"):
+    def __init__(self, root, title="镇中科技串口测试", version="v0.0.12"):
         """
         初始化应用程序
         
@@ -49,7 +49,7 @@ class USBSerialApp:
         """
         self.root = root
         self.root.title(f"{title}{version}")
-        self.root.geometry("1200x750")  # 调整窗口大小，更紧凑
+        self.root.geometry("1400x750")  # 调整窗口大小，更紧凑
         
         # 创建串口管理器
         self.serial_manager = SerialManager(message_callback=self.handle_message)
@@ -377,7 +377,7 @@ class USBSerialApp:
                 self.handle_message(message, "错误")
                 messagebox.showerror("连接错误", message)
     
-    def send_command(self, command, encoding_type='hex'):
+    def send_command(self, command, encoding_type='string'):
         """发送控制命令"""
         if not self.serial_manager.is_connected:
             self.handle_message("请先连接串口", "错误")
@@ -415,7 +415,7 @@ class USBSerialApp:
         
         if encoding_type == 'hex':
             # 使用二进制格式发送
-            success, message = self.serial_manager.send_formatted_angles(angles, command_code)
+            success, message = self.serial_manager.send_formatted_angles(angles, command_code, run_mode)
             if success:
                 self.handle_message(f"命令: {command} (0x{command_code:02X})", "参数")
                 self.handle_message(f"运行模式: {run_mode}", "参数")
@@ -431,6 +431,39 @@ class USBSerialApp:
         if not success:
             self.handle_message(message, "错误")
             messagebox.showerror("发送错误", message)
+            return
+        
+        # 如果是运动状态命令(0x06)，则继续按频率发送
+        if command_code == 0x06:
+            # 获取发送频率
+            _, _, frequency = self.angle_frame.get_curve_type()
+            
+            # 设置定时器，每隔frequency秒发送一次
+            self.root.after(int(frequency * 1000), 
+                          lambda: self._send_motion_status(angles, encoding_type, run_mode, frequency))
+    
+    def _send_motion_status(self, angles, encoding_type, run_mode, frequency):
+        """定期发送运动状态"""
+        if not self.serial_manager.is_connected:
+            return
+            
+        # 发送数据
+        if encoding_type == 'hex':
+            success, message = self.serial_manager.send_formatted_angles(angles, 0x06, run_mode)
+            if success:
+                self.handle_message(f"发送的十六进制数据: {message}", "发送")
+        else:
+            success, message = self.serial_manager.send_formatted_string(angles, 0x06, run_mode)
+            if success:
+                self.handle_message(f"发送的字符串数据: {message}", "发送")
+        
+        if not success:
+            self.handle_message(message, "错误")
+            return
+        
+        # 继续设置下一次发送
+        self.root.after(int(frequency * 1000), 
+                       lambda: self._send_motion_status(angles, encoding_type, run_mode, frequency))
     
     def send_angles(self):
         """发送角度数据并生成曲线"""

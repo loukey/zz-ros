@@ -258,16 +258,16 @@ class ControlButtonsFrame:
         # 定义运行模式选项
         self.run_modes = [
             ('轮廓位置模式', '01'),
-            ('轮廓速度模式', '02'),
-            ('轮廓扭矩模式', '03'),
-            ('回零模式(暂不支持)', '04'),
-            ('位置插补模式(暂不支持)', '05'),
-            ('周期同步位置模式', '06'),
-            ('周期同步速度模式', '07'),
-            ('周期同步扭矩模式', '08')
+            ('轮廓速度模式', '03'),
+            ('轮廓扭矩模式', '04'),
+            ('回零模式(暂不支持)', '06'),
+            ('位置插补模式(暂不支持)', '07'),
+            ('周期同步位置模式', '08'),
+            ('周期同步速度模式', '09'),
+            ('周期同步扭矩模式', '0A')
         ]
         
-        self.run_mode_var = tk.StringVar(value='周期同步扭矩模式(08)')
+        self.run_mode_var = tk.StringVar(value='周期同步位置模式(08)')
         mode_combo = ttk.Combobox(mode_frame, textvariable=self.run_mode_var, 
                                 values=[f"{mode[0]} ({mode[1]})" for mode in self.run_modes],
                                 width=25, state='readonly')
@@ -538,7 +538,7 @@ class DataDisplayFrame:
         send_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=1)
         
         # 创建发送数据文本框和滚动条
-        self.send_text = tk.Text(send_frame, wrap=tk.WORD, height=8)
+        self.send_text = tk.Text(send_frame, wrap=tk.WORD, height=24)  # 增加高度从8到15
         send_scrollbar = ttk.Scrollbar(send_frame, orient=tk.VERTICAL, command=self.send_text.yview)
         self.send_text.configure(yscrollcommand=send_scrollbar.set)
         
@@ -550,7 +550,7 @@ class DataDisplayFrame:
         receive_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=1)
         
         # 创建接收数据文本框和滚动条
-        self.receive_text = tk.Text(receive_frame, wrap=tk.WORD, height=8)
+        self.receive_text = tk.Text(receive_frame, wrap=tk.WORD, height=24)  # 增加高度从8到15
         receive_scrollbar = ttk.Scrollbar(receive_frame, orient=tk.VERTICAL, command=self.receive_text.yview)
         self.receive_text.configure(yscrollcommand=receive_scrollbar.set)
         

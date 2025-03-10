@@ -41,7 +41,7 @@ def build_exe():
     # Create a README.md file if it doesn't exist
     if not os.path.exists("README.md"):
         with open("README.md", "w", encoding="utf-8") as f:
-            f.write("# 镇中科技USB串口测试工具v0.0.10\n\n")
+            f.write("# 镇中科技USB串口测试工具v0.0.12\n\n")
             f.write("这是一个用于测试USB串口设备的工具，支持选择串口、配置参数、发送和接收数据。\n\n")
             f.write("## 使用方法\n\n")
             f.write("1. 从下拉列表中选择串口设备\n")
@@ -66,7 +66,7 @@ def build_exe():
         print("No spec file found. Using command line arguments for PyInstaller...")
         pyinstaller_cmd = [
             "pyinstaller",
-            "--name=镇中科技USB串口测试工具v0.0.10",  # Name of the executable
+            "--name=镇中科技USB串口测试工具v0.0.12",  # Name of the executable
             "--onefile",              # Create a single executable file
             "--windowed",             # Windows specific: do not open a console window
             "--icon=NONE",            # No icon (you can specify an .ico file here if you have one)
@@ -88,7 +88,7 @@ def build_exe():
     print("The executable can be found in the 'dist' folder.")
     
     # Check if the executable was created
-    exe_path = os.path.join("dist", "镇中科技USB串口测试工具v0.0.10.exe")
+    exe_path = os.path.join("dist", "镇中科技USB串口测试工具v0.0.12.exe")
     if os.path.exists(exe_path):
         print(f"Executable created: {os.path.abspath(exe_path)}")
         print(f"Size: {os.path.getsize(exe_path) / (1024*1024):.2f} MB")

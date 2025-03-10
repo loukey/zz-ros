@@ -199,7 +199,32 @@ class SerialManager:
         except Exception as e:
             return False, f"发送角度数据时出错: {str(e)}"
     
-    def send_formatted_angles(self, angles, command_code):
+    def _calculate_crc16(self, data):
+        """
+        计算CRC16校验值 (CRC-CCITT, 多项式0x1021)
+        
+        参数:
+            data: 要计算校验的数据（字节数组）
+            
+        返回:
+            crc: 16位校验值
+        """
+        crc = 0xFFFF  # 初始值为 0xFFFF
+        
+        for byte in data:
+            crc ^= (byte << 8)  # 将当前字节移到高8位并异或
+            
+            for _ in range(8):
+                if crc & 0x8000:  # 如果最高位为1
+                    crc = (crc << 1) ^ 0x1021  # 左移并异或多项式
+                else:
+                    crc = crc << 1  # 仅左移
+                    
+                crc &= 0xFFFF  # 保持为16位
+        
+        return crc
+    
+    def send_formatted_angles(self, angles, command_code, run_mode='01'):
         """
         按照指定的报文格式发送角度数据
         
@@ -207,14 +232,16 @@ class SerialManager:
         帧头: 0xAA 0x55  
         地址: 0x01  
         命令: 根据command_code设置
+        运行模式: 根据run_mode设置
         数据长度: 0x18（24字节）  
         数据域: 6个关节位置，每个4字节
-        校验: CRC16(0x12 0x34)  
+        校验: CRC16  
         帧尾: 0x0D 0x0A
         
         参数:
             angles: 角度列表（弧度值）
             command_code: 命令代码（0x01-0x06）
+            run_mode: 运行模式代码（01-08）
             
         返回:
             success: 是否成功发送
@@ -232,6 +259,9 @@ class SerialManager:
             
             # 命令: 根据command_code设置
             data.append(command_code)
+            
+            # 运行模式
+            data.append(int(run_mode, 16))
             
             # 数据长度: 0x18（24字节）
             data.append(0x18)
@@ -256,8 +286,10 @@ class SerialManager:
                 data.append((value >> 8) & 0xFF)
                 data.append(value & 0xFF)
             
-            # 校验: CRC16(0x12 0x34)
-            data.extend([0x12, 0x34])
+            # 计算CRC16校验值
+            crc = self._calculate_crc16(data)
+            data.append((crc >> 8) & 0xFF)  # CRC高字节
+            data.append(crc & 0xFF)         # CRC低字节
             
             # 帧尾: 0x0D 0x0A
             data.extend([0x0D, 0x0A])
@@ -280,7 +312,7 @@ class SerialManager:
         """
         按照字符串格式发送角度数据
         
-        格式: cmd XX YY angle1 angle2 angle3 angle4 angle5 angle6
+        格式: cmd XX YY angle1 angle2 angle3 angle4 angle5 angle6 CRC16
         其中XX是命令代码（01-06），YY是运行模式（01-08），angles是转换后的角度值
         
         参数:
@@ -308,8 +340,16 @@ class SerialManager:
                 value = value + offsets[i]
                 converted_angles.append(str(value))
             
-            # 构建命令字符串，包含运行模式
-            cmd_str = f"cmd {command_code:02d} {run_mode} {' '.join(converted_angles)}\r\n"
+            # 构建命令字符串（不包含CRC）
+            cmd_str = f"cmd {command_code:02d} {run_mode} {' '.join(converted_angles)}"
+            
+            # 计算CRC16
+            # 将字符串转换为字节数组进行CRC计算
+            data_bytes = cmd_str.encode('ascii')
+            crc = self._calculate_crc16(data_bytes)
+            
+            # 添加CRC16和行尾
+            cmd_str = f"{cmd_str} {crc:04X}\r\n"
             
             # 发送数据
             success, _ = self.send_data(cmd_str)
@@ -550,4 +590,104 @@ class SerialManager:
             
         except Exception as e:
             return False, f"重置连接时出错: {str(e)}"
+    
+    def send_command_only(self, command_code, run_mode='01'):
+        """
+        只发送命令代码，不包含位置数据（用于命令代码01-05）
+        
+        报文格式:
+        帧头: 0xAA 0x55  
+        地址: 0x01  
+        命令: 根据command_code设置
+        运行模式: 根据run_mode设置
+        数据长度: 0x00（无数据）  
+        校验: CRC16  
+        帧尾: 0x0D 0x0A
+        
+        参数:
+            command_code: 命令代码（0x01-0x05）
+            run_mode: 运行模式代码（01-08）
+            
+        返回:
+            success: 是否成功发送
+            message: 发送结果消息或十六进制数据字符串（如果成功）
+        """
+        try:
+            # 构建二进制数据
+            data = bytearray()
+            
+            # 帧头: 0xAA 0x55
+            data.extend([0xAA, 0x55])
+            
+            # 地址: 0x01
+            data.append(0x01)
+            
+            # 命令: 根据command_code设置
+            data.append(command_code)
+            
+            # 运行模式
+            data.append(int(run_mode, 16))
+            
+            # 数据长度: 0x00（无数据）
+            data.append(0x00)
+            
+            # 计算CRC16校验值
+            crc = self._calculate_crc16(data)
+            data.append((crc >> 8) & 0xFF)  # CRC高字节
+            data.append(crc & 0xFF)         # CRC低字节
+            
+            # 帧尾: 0x0D 0x0A
+            data.extend([0x0D, 0x0A])
+            
+            # 创建十六进制数据字符串用于调试
+            hex_data = ' '.join([f"{b:02X}" for b in data])
+            
+            # 发送二进制数据
+            success, _ = self.send_data(data, is_binary=True)
+            
+            if success:
+                return True, hex_data
+            else:
+                return False, "发送数据失败"
+            
+        except Exception as e:
+            return False, f"发送命令数据时出错: {str(e)}"
+    
+    def send_command_string_only(self, command_code, run_mode='01'):
+        """
+        只发送命令字符串，不包含位置数据（用于命令代码01-05）
+        
+        格式: cmd XX YY CRC16
+        其中XX是命令代码（01-05），YY是运行模式（01-08）
+        
+        参数:
+            command_code: 命令代码（0x01-0x05）
+            run_mode: 运行模式代码（01-08）
+            
+        返回:
+            success: 是否成功发送
+            message: 发送结果消息
+        """
+        try:
+            # 构建命令字符串（不包含CRC）
+            cmd_str = f"cmd {command_code:02d} {run_mode}"
+            
+            # 计算CRC16
+            # 将字符串转换为字节数组进行CRC计算
+            data_bytes = cmd_str.encode('ascii')
+            crc = self._calculate_crc16(data_bytes)
+            
+            # 添加CRC16和行尾
+            cmd_str = f"{cmd_str} {crc:04X}\r\n"
+            
+            # 发送数据
+            success, _ = self.send_data(cmd_str)
+            
+            if success:
+                return True, cmd_str.strip()
+            else:
+                return False, "发送数据失败"
+            
+        except Exception as e:
+            return False, f"发送命令字符串时出错: {str(e)}"
                 
