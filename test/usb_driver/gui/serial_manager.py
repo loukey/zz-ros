@@ -276,16 +276,17 @@ class SerialManager:
         except Exception as e:
             return False, f"发送格式化角度数据时出错: {str(e)}"
     
-    def send_formatted_string(self, angles, command_code):
+    def send_formatted_string(self, angles, command_code, run_mode='01'):
         """
         按照字符串格式发送角度数据
         
-        格式: cmd XX angle1 angle2 angle3 angle4 angle5 angle6
-        其中XX是命令代码（01-06），angles是转换后的角度值
+        格式: cmd XX YY angle1 angle2 angle3 angle4 angle5 angle6
+        其中XX是命令代码（01-06），YY是运行模式（01-08），angles是转换后的角度值
         
         参数:
             angles: 角度列表（弧度值）
             command_code: 命令代码（0x01-0x06）
+            run_mode: 运行模式代码（01-08）
             
         返回:
             success: 是否成功发送
@@ -307,8 +308,8 @@ class SerialManager:
                 value = value + offsets[i]
                 converted_angles.append(str(value))
             
-            # 构建命令字符串
-            cmd_str = f"cmd {command_code:02d} {' '.join(converted_angles)}\r\n"
+            # 构建命令字符串，包含运行模式
+            cmd_str = f"cmd {command_code:02d} {run_mode} {' '.join(converted_angles)}\r\n"
             
             # 发送数据
             success, _ = self.send_data(cmd_str)

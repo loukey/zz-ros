@@ -403,6 +403,9 @@ class USBSerialApp:
         # 发送命令，使用全零角度
         angles = [0.0] * 6
         
+        # 获取当前运行模式
+        run_mode = self.control_frame.get_run_mode()
+        
         # 更新末端位置显示（全零位置）
         try:
             px, py, pz, A, B, C = self.kinematic_solver.get_end_position(angles)
@@ -415,12 +418,14 @@ class USBSerialApp:
             success, message = self.serial_manager.send_formatted_angles(angles, command_code)
             if success:
                 self.handle_message(f"命令: {command} (0x{command_code:02X})", "参数")
+                self.handle_message(f"运行模式: {run_mode}", "参数")
                 self.handle_message(f"发送的十六进制数据: {message}", "发送")
         else:
             # 使用字符串格式发送
-            success, message = self.serial_manager.send_formatted_string(angles, command_code)
+            success, message = self.serial_manager.send_formatted_string(angles, command_code, run_mode)
             if success:
                 self.handle_message(f"命令: {command} (编码: 字符串)", "参数")
+                self.handle_message(f"运行模式: {run_mode}", "参数")
                 self.handle_message(f"发送的字符串数据: {message}", "发送")
         
         if not success:
@@ -477,6 +482,9 @@ class USBSerialApp:
             # 计算当前时间点的角度值
             current_angles = [start_angles[j] + steps[j] * i for j in range(6)]
             
+            # 获取当前运行模式
+            run_mode = self.control_frame.get_run_mode()
+            
             # 计算并更新末端位置
             try:
                 px, py, pz, A, B, C = self.kinematic_solver.get_end_position(current_angles)
@@ -490,7 +498,7 @@ class USBSerialApp:
                 if success:
                     self.handle_message(f"时间点 {t:.2f}s - 发送的十六进制数据: {message}", "发送")
             else:
-                success, message = self.serial_manager.send_formatted_string(current_angles, command_code)
+                success, message = self.serial_manager.send_formatted_string(current_angles, command_code, run_mode)
                 if success:
                     self.handle_message(f"时间点 {t:.2f}s - 发送的字符串数据: {message}", "发送")
             

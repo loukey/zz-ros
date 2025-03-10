@@ -239,14 +239,39 @@ class ControlButtonsFrame:
         config_frame.pack(fill=tk.X, padx=5, pady=5)
         
         # 编码格式选择
-        ttk.Label(config_frame, text="编码格式:").pack(side=tk.LEFT, padx=(0, 5))
+        encoding_frame = ttk.Frame(config_frame)
+        encoding_frame.pack(fill=tk.X, pady=2)
+        ttk.Label(encoding_frame, text="编码格式:").pack(side=tk.LEFT, padx=(0, 5))
         self.encoding_var = tk.StringVar(value='string')
-        encoding_combo = ttk.Combobox(config_frame, textvariable=self.encoding_var, 
+        encoding_combo = ttk.Combobox(encoding_frame, textvariable=self.encoding_var, 
                                     values=['string', 'hex'], width=10, state='readonly')
         encoding_combo.pack(side=tk.LEFT)
         
         # 添加提示标签
-        ttk.Label(config_frame, text="(string: 字符串格式, hex: 十六进制格式)").pack(side=tk.LEFT, padx=(5, 0))
+        ttk.Label(encoding_frame, text="(string: 字符串格式, hex: 十六进制格式)").pack(side=tk.LEFT, padx=(5, 0))
+        
+        # 运行模式选择
+        mode_frame = ttk.Frame(config_frame)
+        mode_frame.pack(fill=tk.X, pady=2)
+        ttk.Label(mode_frame, text="运行模式:").pack(side=tk.LEFT, padx=(0, 5))
+        
+        # 定义运行模式选项
+        self.run_modes = [
+            ('轮廓位置模式', '01'),
+            ('轮廓速度模式', '02'),
+            ('轮廓扭矩模式', '03'),
+            ('回零模式(暂不支持)', '04'),
+            ('位置插补模式(暂不支持)', '05'),
+            ('周期同步位置模式', '06'),
+            ('周期同步速度模式', '07'),
+            ('周期同步扭矩模式', '08')
+        ]
+        
+        self.run_mode_var = tk.StringVar(value='周期同步扭矩模式(08)')
+        mode_combo = ttk.Combobox(mode_frame, textvariable=self.run_mode_var, 
+                                values=[f"{mode[0]} ({mode[1]})" for mode in self.run_modes],
+                                width=25, state='readonly')
+        mode_combo.pack(side=tk.LEFT)
     
     def _create_control_buttons(self, send_command_callback):
         """创建控制按钮"""
@@ -288,6 +313,15 @@ class ControlButtonsFrame:
     def get_encoding_type(self):
         """获取当前选择的编码格式"""
         return self.encoding_var.get()
+    
+    def get_run_mode(self):
+        """获取当前选择的运行模式"""
+        # 从选择的文本中提取模式代码
+        selected = self.run_mode_var.get()
+        for mode_name, mode_code in self.run_modes:
+            if mode_name in selected:
+                return mode_code
+        return '01'  # 默认返回轮廓位置模式
 
 
 class AngleControlFrame:
