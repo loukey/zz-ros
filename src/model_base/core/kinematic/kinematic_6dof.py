@@ -130,7 +130,8 @@ class Kinematic6DOF:
         if not valid_solutions:
             raise ValueError("No valid solutions found")
         final_solution = min(valid_solutions, key=lambda sol: np.linalg.norm(np.array(sol) - np.array(self.theta_list)))
-        final_solution[2:6] = [-x for x in final_solution[2:6]]
+        # ros
+        # final_solution[2:6] = [-x for x in final_solution[2:6]]
         print("最终解:", final_solution)
         return final_solution
         
@@ -152,7 +153,6 @@ class Kinematic6DOF:
         try:
             solved_angles = self.inverse_kinematic(A, B, C, *target_pos)
             print("解算角度:", [degrees(t) for t in solved_angles])
-            
             if self.verify_solution(solved_angles, target_pos):
                 print("解算成功！误差在允许范围内")
             else:
@@ -172,7 +172,6 @@ class Kinematic6DOF:
         
         # 恢复原状态
         self.update_dh(current_theta)
-        
         # 计算误差
         error = np.linalg.norm(current_pos - target_pos)
         return error < 1e-3  # 允许的误差阈值

@@ -1,7 +1,7 @@
 from math import pi
 import numpy as np
-from core.core.kinematic import *
 import math
+from model_base.core import *
 
 
 if __name__ == "__main__":

@@ -3,7 +3,7 @@ from rclpy.node import Node
 from sensor_msgs.msg import JointState
 from interface.msg import Pose
 import time
-from core.kinematic import Kinematic6DOF
+from kinematic import Kinematic6DOF
 
 
 class JointStatePublisher(Node):
@@ -16,7 +16,7 @@ class JointStatePublisher(Node):
         self.joint_state.name = ['Joint1', 'Joint2', 'Joint3', 'Joint4', 'Joint5', 'Joint6']
 
         self.initial_angles = [0.0] * 6
-        self.target_angles  = [0.0] * 6
+        self.target_angles  = [0.47793504240980056, -2.025109349713061, 2.420328398253977, 1.1755772782539804, 1.5707963267948966, -2.048731369204697]
         self.update_angles = self.target_angles
         self.interval = 0.1
         self.transition_duration = 5.0

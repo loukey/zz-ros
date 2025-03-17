@@ -4,8 +4,8 @@
   <name>core</name>
   <version>0.0.0</version>
   <description>TODO: Package description</description>
-  <maintainer email="za@todo.todo">za</maintainer>
-  <license>Apache-2.0</license>
+  <maintainer email="529768926@qq.com">za</maintainer>
+  <license>TODO: License declaration</license>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>
