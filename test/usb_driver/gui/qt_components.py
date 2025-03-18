@@ -15,6 +15,8 @@ import numpy as np
 import platform
 import math
 import matplotlib
+from .kinematic.velocity_planning import trapezoidal_velocity_planning, s_curve_velocity_planning
+from .kinematic.kinematic_6dof import Kinematic6DOF
 matplotlib.use('Qt5Agg')
 
 # 设置matplotlib支持中文显示
@@ -355,6 +357,7 @@ class AngleControlFrame(QGroupBox):
         
         # 创建曲线类型和按钮区域
         control_layout = QHBoxLayout()
+        control_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)  # 设置左对齐
         
         # 曲线类型选择
         curve_group = QButtonGroup()
@@ -367,20 +370,29 @@ class AngleControlFrame(QGroupBox):
         control_layout.addWidget(self.s_curve)
         
         # 时长输入
-        control_layout.addWidget(QLabel("时长:"))
+        time_layout = QHBoxLayout()
+        time_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)  # 设置左对齐
+        time_layout.addWidget(QLabel("时长:"))
         self.duration_var = QLineEdit("4.0")
         self.duration_var.setFont(default_font)
         self.duration_var.setMaximumWidth(60)
-        control_layout.addWidget(self.duration_var)
-        control_layout.addWidget(QLabel("s"))
+        time_layout.addWidget(self.duration_var)
+        time_layout.addWidget(QLabel("s"))
+        control_layout.addLayout(time_layout)
         
         # 发送频率输入
-        control_layout.addWidget(QLabel("发送频率:"))
+        freq_layout = QHBoxLayout()
+        freq_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)  # 设置左对齐
+        freq_layout.addWidget(QLabel("发送频率:"))
         self.frequency_var = QLineEdit("0.1")
         self.frequency_var.setFont(default_font)
         self.frequency_var.setMaximumWidth(60)
-        control_layout.addWidget(self.frequency_var)
-        control_layout.addWidget(QLabel("s"))
+        freq_layout.addWidget(self.frequency_var)
+        freq_layout.addWidget(QLabel("s"))
+        control_layout.addLayout(freq_layout)
+        
+        # 添加伸缩项，让前面的内容向左对齐
+        control_layout.addStretch(1)
         
         layout.addLayout(control_layout)
         
@@ -540,6 +552,7 @@ class CurvePlotFrame(QGroupBox):
     def __init__(self, parent=None):
         super().__init__("曲线显示", parent)
         self._init_ui()
+        self.kinematics = Kinematic6DOF()  # 创建运动学对象
     
     def _init_ui(self):
         """初始化UI"""
@@ -578,15 +591,26 @@ class CurvePlotFrame(QGroupBox):
         layout.addWidget(self.tab_widget)
         self.setLayout(layout)
     
-    def plot_curves(self, time_points, position_data, velocity_data, acceleration_data):
+    def plot_curves(self, angles, curve_type="trapezoidal", duration=4.0, frequency=0.1):
         """绘制曲线"""
+        # 根据曲线类型选择规划函数
+        if curve_type == "trapezoidal":
+            times, velocities, accelerations, positions = trapezoidal_velocity_planning(
+                angles, v_max=math.pi, t_acc=duration/4, dt=frequency
+            )
+        else:  # s_curve
+            times, velocities, accelerations, positions = s_curve_velocity_planning(
+                angles, v_max=math.pi, t_acc=duration/4, dt=frequency
+            )
+        
         # 清除现有曲线
         self.position_ax.clear()
         self.velocity_ax.clear()
         self.acceleration_ax.clear()
         
         # 绘制位置曲线
-        self.position_ax.plot(time_points, position_data, 'b-', label='位置')
+        for i in range(positions.shape[1]):
+            self.position_ax.plot(times, positions[:, i], label=f'关节{i+1}')
         self.position_ax.set_title('位置曲线')
         self.position_ax.set_xlabel('时间 (s)')
         self.position_ax.set_ylabel('位置 (rad)')
@@ -594,7 +618,7 @@ class CurvePlotFrame(QGroupBox):
         self.position_ax.legend()
         
         # 绘制速度曲线
-        self.velocity_ax.plot(time_points, velocity_data, 'r-', label='速度')
+        self.velocity_ax.plot(times, velocities, 'r-', label='速度')
         self.velocity_ax.set_title('速度曲线')
         self.velocity_ax.set_xlabel('时间 (s)')
         self.velocity_ax.set_ylabel('速度 (rad/s)')
@@ -602,7 +626,7 @@ class CurvePlotFrame(QGroupBox):
         self.velocity_ax.legend()
         
         # 绘制加速度曲线
-        self.acceleration_ax.plot(time_points, acceleration_data, 'g-', label='加速度')
+        self.acceleration_ax.plot(times, accelerations, 'g-', label='加速度')
         self.acceleration_ax.set_title('加速度曲线')
         self.acceleration_ax.set_xlabel('时间 (s)')
         self.acceleration_ax.set_ylabel('加速度 (rad/s²)')
@@ -629,6 +653,7 @@ class InverseKinematicFrame(QWidget):
     def __init__(self, parent=None, inverse_callback=None):
         super().__init__(parent)
         self.inverse_callback = inverse_callback
+        self.kinematics = Kinematic6DOF()  # 创建运动学对象
         self._init_ui()
     
     def _init_ui(self):
@@ -666,7 +691,7 @@ class InverseKinematicFrame(QWidget):
         # 计算按钮
         self.calculate_button = QPushButton("计算逆运动学")
         self.calculate_button.setFont(default_font)
-        self.calculate_button.clicked.connect(self.inverse_callback)
+        self.calculate_button.clicked.connect(self.calculate_inverse_kinematics)
         input_layout.addWidget(self.calculate_button, 4, 0, 1, 3)
         
         input_group.setLayout(input_layout)
@@ -698,6 +723,25 @@ class InverseKinematicFrame(QWidget):
         
         self.setLayout(layout)
     
+    def calculate_inverse_kinematics(self):
+        """计算逆运动学"""
+        try:
+            # 获取位置和欧拉角输入
+            position, euler = self.get_position_and_euler()
+            
+            # 调用逆运动学求解
+            angles = self.kinematics.inverse_kinematic(
+                euler[0], euler[1], euler[2],  # A, B, C
+                position[0], position[1], position[2]  # X, Y, Z
+            )
+            
+            # 显示结果
+            self.set_result(angles, True)
+            
+        except Exception as e:
+            QMessageBox.warning(self, "错误", f"计算逆运动学失败: {str(e)}")
+            self.set_result(None, False)
+    
     def get_position_and_euler(self):
         """
         获取当前位置和欧拉角值
@@ -721,7 +765,7 @@ class InverseKinematicFrame(QWidget):
             angles: 计算得到的关节角度列表
             success: 计算是否成功
         """
-        if success:
+        if success and angles is not None:
             self.result_label.setText("计算成功，关节角度值(弧度):")
             
             # 将角度分为两行显示

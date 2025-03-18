@@ -1,34 +1,8 @@
 """
-工具类模块，包含 CRC16 校验和命令格式化功能
+命令格式化工具模块
 """
-
-def calculate_crc16(data):
-    """
-    计算 CRC16 校验值 (CRC-CCITT 标准，多项式 0x1021)
-    
-    参数:
-        data: 字节数组或字符串
-    返回:
-        crc16: 16位校验值
-    """
-    if isinstance(data, str):
-        # 如果输入是字符串，转换为ASCII字节数组
-        data = data.encode('ascii')
-        
-    crc = 0xFFFF  # 初始值为 0xFFFF
-    
-    for byte in data:
-        crc ^= (byte << 8)  # 将当前字节移到高8位并异或
-        
-        for _ in range(8):
-            if crc & 0x8000:  # 如果最高位为1
-                crc = (crc << 1) ^ 0x1021  # 左移并异或多项式
-            else:
-                crc = crc << 1  # 仅左移
-                
-            crc &= 0xFFFF  # 保持为16位
-    
-    return crc
+from utils.crc import calculate_crc16
+import math
 
 def format_command(angles, control=0x01, mode=0x01):
     """
@@ -42,8 +16,6 @@ def format_command(angles, control=0x01, mode=0x01):
     返回:
         formatted_cmd: 命令字节数组
     """
-    import math
-    
     # 如果不是运动模式（control != 0x06），使用默认角度值
     if control != 0x06:
         angles = [0.0] * 6
@@ -53,19 +25,27 @@ def format_command(angles, control=0x01, mode=0x01):
     # 偏移值
     OFFSETS = [78623, 369707, 83986, 391414, 508006, 455123]
     
-    # 转换系数 rad / (2π * 2^19)
-    SCALE_FACTOR = 1.0 / (2 * math.pi * 2**19)
+    # 转换系数 rad * 2^19 / (2π)
+    SCALE_FACTOR = (2**19) / (2 * math.pi)
     
     # 转换角度值并添加偏移
     converted_angles = []
     for angle, offset in zip(angles, OFFSETS):
         # 将弧度值转换为整数值
-        scaled_value = int(angle / SCALE_FACTOR)
+        scaled_value = int(angle * SCALE_FACTOR)
         # 添加偏移
         final_value = (scaled_value + offset) & 0xFFFFFF  # 确保是24位
         converted_angles.append(final_value)
     
-    # 构建命令
+    # 构建字符串命令用于计算CRC
+    cmd_str = f"cmd {control:02d} {mode:02d}"
+    for value in converted_angles:
+        cmd_str += f" {value}"
+    
+    # 计算CRC16校验
+    crc = calculate_crc16(cmd_str)
+    
+    # 构建二进制命令
     cmd = bytearray()
     
     # 添加 "cmd" 字符串作为命令字节
@@ -81,8 +61,7 @@ def format_command(angles, control=0x01, mode=0x01):
     for value in converted_angles:
         cmd.extend([(value >> 16) & 0xFF, (value >> 8) & 0xFF, value & 0xFF])
     
-    # 计算CRC16校验
-    crc = calculate_crc16(cmd)
+    # 添加CRC16校验
     cmd.extend([(crc >> 8) & 0xFF, crc & 0xFF])
     
     # 添加帧尾 \r\n
