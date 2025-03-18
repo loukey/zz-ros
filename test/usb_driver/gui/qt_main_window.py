@@ -3,11 +3,12 @@ PyQt版本的主窗口模块
 """
 
 from PyQt5.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QTabWidget, QMessageBox
-from PyQt5.QtCore import Qt, QThread
+from PyQt5.QtCore import Qt, QThread, QTimer
 from .qt_components import (PortSelectionFrame, SerialConfigFrame, ControlButtonsFrame,
                           AngleControlFrame, DataDisplayFrame, CurvePlotFrame,
                           InverseKinematicFrame, EndPositionFrame)
 from .serial_comm import SerialComm
+from .utils import format_command, generate_trajectory
 import math
 
 
@@ -29,6 +30,11 @@ class MainWindow(QMainWindow):
         self.read_thread = QThread()
         self.serial_comm.moveToThread(self.read_thread)
         self.read_thread.started.connect(self.serial_comm.read_data)
+        
+        self.current_angles = [0.0] * 6  # 当前角度
+        self.trajectory_data = None  # 轨迹数据
+        self.trajectory_index = 0    # 当前轨迹点索引
+        self.trajectory_timer = None # 轨迹发送定时器
         
         self._init_ui()
     
