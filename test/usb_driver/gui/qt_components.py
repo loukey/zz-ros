@@ -148,12 +148,13 @@ class SerialConfigFrame(QGroupBox):
         row2_layout = QHBoxLayout()
         row2_layout.addWidget(QLabel("校验位:"))
         self.parity_group = QButtonGroup()
-        for text, value in self.parity_bits:
+        for i, (text, value) in enumerate(self.parity_bits):
             radio = QRadioButton(text)
             radio.setFont(default_font)
+            radio.setProperty('parity_value', value)  # 存储实际的校验位值
             if value == 'N':
                 radio.setChecked(True)
-            self.parity_group.addButton(radio)
+            self.parity_group.addButton(radio, i)
             row2_layout.addWidget(radio)
         row2_layout.addStretch()
         layout.addLayout(row2_layout)
@@ -204,7 +205,7 @@ class SerialConfigFrame(QGroupBox):
         return {
             'baud_rate': int(self.baud_rate.currentText()),
             'data_bits': int(self.data_bit.currentText()),
-            'parity': self.parity_group.checkedButton().text(),
+            'parity': self.parity_group.checkedButton().property('parity_value'),  # 获取实际的校验位值
             'stop_bits': float(self.stop_bit_group.checkedButton().text()),
             'flow_control': self.flow_control_group.checkedButton().text()
         }
@@ -357,13 +358,13 @@ class AngleControlFrame(QGroupBox):
         
         # 曲线类型选择
         curve_group = QButtonGroup()
-        trapezoidal = QRadioButton("梯形")
-        s_curve = QRadioButton("S形")
-        trapezoidal.setChecked(True)
-        curve_group.addButton(trapezoidal)
-        curve_group.addButton(s_curve)
-        control_layout.addWidget(trapezoidal)
-        control_layout.addWidget(s_curve)
+        self.trapezoidal = QRadioButton("梯形")  # 保存为实例变量
+        self.s_curve = QRadioButton("S形")      # 保存为实例变量
+        self.trapezoidal.setChecked(True)
+        curve_group.addButton(self.trapezoidal)
+        curve_group.addButton(self.s_curve)
+        control_layout.addWidget(self.trapezoidal)
+        control_layout.addWidget(self.s_curve)
         
         # 时长输入
         control_layout.addWidget(QLabel("时长:"))
@@ -427,7 +428,7 @@ class AngleControlFrame(QGroupBox):
         try:
             duration = float(self.duration_var.text())
             frequency = float(self.frequency_var.text())
-            curve_type = "trapezoidal" if self.findChild(QRadioButton, "梯形").isChecked() else "s_curve"
+            curve_type = "trapezoidal" if self.trapezoidal.isChecked() else "s_curve"
             return curve_type, duration, frequency
         except ValueError:
             return "trapezoidal", 4.0, 0.1

@@ -37,10 +37,7 @@ from PyQt5.QtWidgets import QApplication
 from gui.qt_main_window import MainWindow
 
 
-def main():
-    # 设置环境变量
-    os.environ['QT_QPA_PLATFORM'] = 'xcb'  # 使用 X11 平台
-    
+def main():    
     app = QApplication(sys.argv)
     window = MainWindow()
     window.show()
