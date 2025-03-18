@@ -6,7 +6,7 @@ USB串口通信界面主程序
 锁止刹车 LOCK
 立刻停止 STOP
 运动状态 MOTION
-运动状态实时显示 安全限位设置  显示状态码  获取当前位置
+运动状态实时显示  安全限位设置  显示状态码  获取当前位置
 
 帧头: 0xAA 0x55  
 地址: 0x01  
@@ -31,31 +31,21 @@ USB串口通信界面主程序
 0x06 运动状态 MOTION
 """
 
-import tkinter as tk
 import sys
 import os
-from gui.app import USBSerialApp
+from PyQt5.QtWidgets import QApplication
+from gui.qt_main_window import MainWindow
 
 
 def main():
-    """应用程序入口点"""
-    root = tk.Tk()
-    app = USBSerialApp(root)
+    # 设置环境变量
+    os.environ['QT_QPA_PLATFORM'] = 'xcb'  # 使用 X11 平台
     
-    try:
-        app.run()
-    except Exception as e:
-        print(f"程序运行出错: {str(e)}")
-    finally:
-        # 确保程序完全退出
-        try:
-            root.destroy()
-        except:
-            pass
-        
-        # 强制退出进程
-        os._exit(0)
+    app = QApplication(sys.argv)
+    window = MainWindow()
+    window.show()
+    sys.exit(app.exec_())
 
 
 if __name__ == "__main__":
-    main()
+    main() 
