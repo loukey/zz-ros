@@ -4,7 +4,7 @@
 from utils.crc import calculate_crc16
 import math
 
-def format_command(angles, control=0x01, mode=0x01):
+def format_command(angles, control=0x01, mode=0x01, result_type='binary'):
     """
     格式化角度命令
     
@@ -12,9 +12,13 @@ def format_command(angles, control=0x01, mode=0x01):
         angles: 角度值列表，包含6个关节角度（弧度值）。当control不为0x06时可以为空列表。
         control: 控制字节，默认为0x01（使能）
         mode: 运动模式，默认为0x01（轮廓位置模式）
+        result_type: 返回结果类型，'binary'(二进制字节)、'string'(字符串格式)或'hex'(十六进制字符串)
         
     返回:
-        formatted_cmd: 命令字节数组
+        result: 根据result_type返回不同格式的命令:
+               - 'binary': 返回命令字节数组
+               - 'string': 返回可读的文本命令字符串，包含\r\n
+               - 'hex': 返回以空格分隔的十六进制字符串
     """
     # 如果不是运动模式（control != 0x06），使用默认角度值
     if control != 0x06:
@@ -45,6 +49,11 @@ def format_command(angles, control=0x01, mode=0x01):
     # 计算CRC16校验
     crc = calculate_crc16(cmd_str)
     
+    # 如果需要返回字符串格式
+    if result_type == 'string':
+        # 构建可读的文本命令字符串，包含CRC
+        return f"{cmd_str} {crc:04X}\r\n"
+    
     # 构建二进制命令
     cmd = bytearray()
     
@@ -67,6 +76,12 @@ def format_command(angles, control=0x01, mode=0x01):
     # 添加帧尾 \r\n
     cmd.extend([0x0D, 0x0A])
     
+    # 根据result_type返回不同格式
+    if result_type == 'hex':
+        # 返回十六进制字符串
+        return ' '.join([f"{b:02X}" for b in cmd])
+    
+    # 默认返回二进制字节数组
     return cmd
 
 def generate_trajectory(start_angles, end_angles, duration, frequency, curve_type='trapezoidal'):

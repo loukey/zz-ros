@@ -10,35 +10,18 @@ from kinematic.velocity_planning import trapezoidal_velocity_planning, s_curve_v
 class RobotController:
     """机器人控制器，负责控制机器人的状态和运动"""
     
-    def __init__(self):
+    def __init__(self, serial_controller=None):
+        """
+        初始化机器人控制器
+        
+        参数:
+            serial_controller: 串口控制器实例，如果为None则自动创建
+        """
         self.robot_model = RobotModel()
-        self.serial_controller = SerialController()
+        self.serial_controller = serial_controller or SerialController()
         self.trajectory_timer = None      # 轨迹发送定时器
         self.trajectory_data = None       # 轨迹数据
         self.trajectory_index = 0         # 当前轨迹点索引
-    
-    def connect_serial(self, port, baud_rate=115200, data_bits=8, parity='N', stop_bits=1, flow_control=None):
-        """
-        连接到串口
-        
-        参数:
-            port: 串口设备名称
-            baud_rate: 波特率
-            data_bits: 数据位
-            parity: 校验位
-            stop_bits: 停止位
-            flow_control: 流控制
-        
-        返回:
-            bool: 是否连接成功
-        """
-        return self.serial_controller.connect(port, baud_rate, data_bits, parity, stop_bits, flow_control)
-    
-    def disconnect_serial(self):
-        """断开串口连接"""
-        if self.trajectory_timer and self.trajectory_timer.isActive():
-            self.trajectory_timer.stop()
-        self.serial_controller.disconnect()
     
     def enable_robot(self):
         """启用机器人"""

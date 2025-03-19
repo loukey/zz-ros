@@ -8,6 +8,7 @@ from components.control_components import ControlButtonsFrame, AngleControlFrame
 from components.display_components import DataDisplayFrame, CurvePlotFrame, EndPositionFrame
 from components.kinematic_components import InverseKinematicFrame
 from controllers.robot_controller import RobotController
+from controllers.serial_controller import SerialController
 from math import pi
 import math
 
@@ -20,13 +21,16 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("机器人控制界面")
         self.setMinimumSize(1200, 800)
         
-        # 创建机器人控制器
-        self.robot_controller = RobotController()
+        # 创建串口控制器
+        self.serial_controller = SerialController()
+        
+        # 创建机器人控制器，传入串口控制器
+        self.robot_controller = RobotController(self.serial_controller)
         
         # 注册回调函数
-        self.robot_controller.serial_controller.serial_model.data_received.connect(self.handle_data_received)
-        self.robot_controller.serial_controller.serial_model.connection_changed.connect(self.handle_connection_changed)
-        self.robot_controller.serial_controller.serial_model.error_occurred.connect(self.handle_error_occurred)
+        self.serial_controller.serial_model.data_received.connect(self.handle_data_received)
+        self.serial_controller.serial_model.connection_changed.connect(self.handle_connection_changed)
+        self.serial_controller.serial_model.error_occurred.connect(self.handle_error_occurred)
         
         # 创建定时器以定期更新末端位置显示
         self.position_timer = QTimer()
@@ -121,20 +125,24 @@ class MainWindow(QMainWindow):
     
     def refresh_ports(self):
         """刷新串口列表"""
-        available_ports = self.robot_controller.serial_controller.get_available_ports()
+        available_ports = self.serial_controller.get_available_ports()
         self.port_frame.set_ports(available_ports)
     
     def toggle_connection(self):
         """切换连接状态"""
-        if hasattr(self.robot_controller.serial_controller.serial_model, 'is_connected') and self.robot_controller.serial_controller.serial_model.is_connected:
-            # 断开连接
-            self.robot_controller.disconnect_serial()
+        # 获取按钮当前文本，判断用户意图
+        button_text = self.serial_config.connect_button.text()
+        
+        if button_text == "断开连接":
+            # 用户想要断开连接
+            self.data_display.append_message("断开串口连接", "控制")
+            self.serial_controller.disconnect()
             self.port_frame.update_connection_status(False)
             self.serial_config.update_connection_status(False)
             self.control_buttons.update_connection_status(False)
             self.angle_control.set_send_button_state(False)
-            self.data_display.append_message("已断开串口连接", "信息")
         else:
+            # 用户想要连接
             # 获取选择的串口
             port = self.port_frame.get_selected_port()
             if not port:
@@ -144,9 +152,14 @@ class MainWindow(QMainWindow):
             # 获取串口配置
             config = self.serial_config.get_config()
             
+            # 尝试连接前先记录操作信息
+            self.data_display.append_message(f"连接到串口 {port}", "控制")
+            config_str = f"波特率:{config['baud_rate']}, 数据位:{config['data_bits']}, 校验位:{config['parity']}, 停止位:{config['stop_bits']}"
+            self.data_display.append_message(config_str, "参数")
+            
             # 尝试连接
             try:
-                self.robot_controller.connect_serial(
+                success = self.serial_controller.connect(
                     port=port,
                     baud_rate=config['baud_rate'],
                     data_bits=config['data_bits'],
@@ -154,19 +167,24 @@ class MainWindow(QMainWindow):
                     stop_bits=config['stop_bits'],
                     flow_control=config['flow_control']
                 )
-                self.port_frame.update_connection_status(True)
-                self.serial_config.update_connection_status(True)
-                self.control_buttons.update_connection_status(True)
-                self.angle_control.set_send_button_state(True)
-                self.data_display.append_message(f"已连接到串口 {port}", "信息")
+                
+                if success:
+                    self.port_frame.update_connection_status(True)
+                    self.serial_config.update_connection_status(True)
+                    self.control_buttons.update_connection_status(True)
+                    self.angle_control.set_send_button_state(True)
+                else:
+                    QMessageBox.critical(self, "错误", "连接失败，请检查串口配置")
+                    self.data_display.append_message("连接失败", "错误")
             except Exception as e:
                 QMessageBox.critical(self, "错误", f"连接失败: {str(e)}")
+                self.data_display.append_message(f"连接异常: {str(e)}", "错误")
                 return
     
     def send_control_command(self, command_type):
         """发送控制命令"""
-        if not (hasattr(self.robot_controller.serial_controller.serial_model, 'is_connected') and 
-                self.robot_controller.serial_controller.serial_model.is_connected):
+        if not (hasattr(self.serial_controller.serial_model, 'is_connected') and 
+                self.serial_controller.serial_model.is_connected):
             return
         
         # 获取编码格式和运行模式
@@ -174,194 +192,216 @@ class MainWindow(QMainWindow):
         run_mode = self.control_buttons.get_run_mode()
         
         try:
-            # 调用SerialController的方法发送控制命令
-            success, cmd_str = self.robot_controller.serial_controller.send_control_command(
+            # 记录控制命令的高级描述
+            command_desc = {
+                "ENABLE": "使能",
+                "DISABLE": "取消使能",
+                "RELEASE": "释放刹车",
+                "LOCK": "锁止刹车",
+                "STOP": "立刻停止",
+                "MOTION": "运动状态"
+            }.get(command_type, f"执行 {command_type} 命令")
+            
+            # 显示控制命令描述
+            self.data_display.append_message(command_desc, "控制")
+            
+            # 直接通过串口控制器发送命令并获取命令字符串
+            success, cmd_str = self.serial_controller.send_control_command(
                 command_type=command_type,
                 encoding=encoding_type,
                 mode=run_mode,
-                return_cmd=True  # 要求返回命令字符串
+                return_cmd=True
             )
             
             if success:
-                # 记录完整的消息格式
-                self.data_display.append_message(f"发送控制命令: {command_type}", "发送")
-                self.data_display.append_message(f"完整命令: {cmd_str}", "发送")
+                # 显示实际命令的内容
+                self.data_display.append_message(f"{cmd_str}", "发送")
             else:
                 # 记录错误
                 self.data_display.append_message(f"发送控制命令失败: {command_type}", "错误")
+            
         except Exception as e:
-            QMessageBox.critical(self, "错误", f"发送命令失败: {str(e)}")
+            # 记录异常
+            self.data_display.append_message(f"发送控制命令异常: {str(e)}", "错误")
     
     def send_angles(self):
         """发送角度命令"""
-        if not (hasattr(self.robot_controller.serial_controller.serial_model, 'is_connected') and self.robot_controller.serial_controller.serial_model.is_connected):
+        if not (hasattr(self.serial_controller.serial_model, 'is_connected') and 
+                self.serial_controller.serial_model.is_connected):
+            QMessageBox.warning(self, "警告", "请先连接串口")
             return
         
-        # 获取角度值和曲线参数
-        angles = self.angle_control.get_angles()
-        curve_type, duration, frequency = self.angle_control.get_curve_type()
-        # 获取编码格式和运行模式
-        encoding_type = self.control_buttons.get_encoding_type()
-        run_mode = self.control_buttons.get_run_mode()
-        
         try:
-            # 绘制曲线
-            self.curve_plot.plot_curves(angles, curve_type, duration, frequency)
+            # 获取角度值
+            angles = self.angle_control.get_angles()
             
-            # 记录基本发送信息
+            # 获取曲线类型和时间参数
+            curve_type, duration, frequency = self.angle_control.get_curve_type()
+            
+            # 获取编码类型
+            encoding_type = self.control_buttons.get_encoding_type()
+            
+            # 获取运行模式
+            run_mode = self.control_buttons.get_run_mode()
+            
+            # 使用控制类型消息显示高级操作描述
             angles_str = ", ".join([f"{angle:.4f}" for angle in angles])
-            self.data_display.append_message(
-                f"发送角度: [{angles_str}], 曲线类型: {curve_type}, 时长: {duration}秒, 频率: {frequency}秒",
-                "发送"
-            )
+            self.data_display.append_message(f"移动到角度: [{angles_str}]", "控制")
+            self.data_display.append_message(f"曲线类型: {curve_type}, 时长: {duration}秒, 频率: {frequency}秒", "参数")
             
-            # 如果是轨迹发送模式，连接信号
             if duration > 0 and frequency > 0:
-                # 先创建轨迹线程（会自动清除旧线程）
-                success = self.robot_controller.serial_controller.send_angles(
+                # 轨迹模式
+                # 注：这里将关键的串口控制器设置为创建轨迹线程但不立即启动
+                # 获取串口控制器准备好的轨迹线程
+                self.serial_controller.prepare_trajectory(
                     angles=angles,
                     curve_type=curve_type,
                     duration=duration,
                     frequency=frequency,
                     encoding=encoding_type,
-                    mode=run_mode,
-                    return_cmd=False  # 非阻塞方式
+                    mode=run_mode
                 )
                 
-                if not success:
-                    # 记录错误
-                    self.data_display.append_message("发送角度命令失败", "错误")
-                    return
-                
                 # 获取创建好的轨迹线程
-                traj_thread = self.robot_controller.serial_controller.trajectory_thread
-                if traj_thread:
+                if hasattr(self.serial_controller, 'trajectory_thread') and self.serial_controller.trajectory_thread:
                     # 清除之前的连接
                     try:
-                        traj_thread.point_sent.disconnect(self.handle_trajectory_point_sent)
-                        traj_thread.finished.disconnect(self.handle_trajectory_finished)
+                        self.serial_controller.trajectory_thread.point_sent.disconnect()
+                        self.serial_controller.trajectory_thread.finished.disconnect()
                     except:
                         pass  # 如果没有连接过，会抛出异常，忽略
                     
                     # 连接轨迹点发送和完成信号
-                    traj_thread.point_sent.connect(self.handle_trajectory_point_sent)
-                    traj_thread.finished.connect(self.handle_trajectory_finished)
+                    self.serial_controller.trajectory_thread.point_sent.connect(self.handle_trajectory_point_sent)
+                    self.serial_controller.trajectory_thread.finished.connect(self.handle_trajectory_finished)
+                    
+                    # 启动轨迹线程
+                    self.serial_controller.trajectory_thread.start()
                 else:
                     self.data_display.append_message("创建轨迹线程失败", "错误")
             else:
-                # 单点发送模式，使用阻塞方式
-                success, cmd_str = self.robot_controller.serial_controller.send_angles(
+                # 单点模式，直接获取完整命令字符串
+                success, cmd_str = self.serial_controller.send_angles(
                     angles=angles,
                     curve_type=curve_type,
                     duration=0,
                     frequency=0,
                     encoding=encoding_type,
                     mode=run_mode,
-                    return_cmd=True  # 要求返回命令字符串
+                    return_cmd=True
                 )
                 
                 if success:
-                    # 记录完整命令
-                    self.data_display.append_message(f"完整命令: {cmd_str}", "发送")
+                    # 显示实际发送的命令
+                    self.data_display.append_message(f"{cmd_str}", "发送")
+                    
+                    # 更新曲线绘图
+                    self.curve_plot.update_angles(angles)
                 else:
-                    # 记录错误
-                    self.data_display.append_message("发送角度命令失败", "错误")
+                    self.data_display.append_message(f"发送角度命令失败", "错误")
                 
         except Exception as e:
-            QMessageBox.critical(self, "错误", f"发送角度命令失败: {str(e)}")
+            self.data_display.append_message(f"发送角度命令异常: {str(e)}", "错误")
+    
+    def calculate_inverse_kinematics(self, x, y, z, A, B, C):
+        """计算逆运动学"""
+        try:
+            # 调用机器人控制器计算逆运动学
+            joint_angles = self.robot_controller.calculate_inverse_kinematics(x, y, z, A, B, C)
+            
+            if joint_angles:
+                return joint_angles
+            else:
+                return None
+        except Exception as e:
+            QMessageBox.critical(self, "错误", f"逆运动学计算失败: {str(e)}")
+            return None
+    
+    def apply_inverse_kinematics_result(self, angles):
+        """应用逆运动学计算结果"""
+        if not angles:
+            return
+        
+        # 将计算结果更新到角度控制框
+        for i, angle_var in enumerate(self.angle_control.angle_vars):
+            if i < len(angles):
+                angle_var.setText(f"{angles[i]:.6f}")
+        
+        # 显示应用信息
+        angles_str = ", ".join([f"{a:.4f}" for a in angles])
+        self.data_display.append_message(f"应用逆运动学结果: [{angles_str}]", "控制")
+    
+    def zero_angles(self):
+        """归零处理"""
+        # 将所有角度值设置为0
+        for angle_var in self.angle_control.angle_vars:
+            angle_var.setText("0.0")
+        
+        # 显示归零信息
+        self.data_display.append_message("角度值归零", "控制")
+    
+    def update_end_position(self):
+        """更新末端位置显示"""
+        if hasattr(self.end_position, 'update_position'):
+            # 获取当前末端位置
+            position = self.robot_controller.get_end_position()
+            if position:
+                self.end_position.update_position(*position)
+    
+    def handle_data_received(self, data):
+        """处理接收到的数据"""
+        self.data_display.append_message(data, "接收")
+    
+    def handle_connection_changed(self, connected):
+        """处理连接状态变化"""
+        if not connected:
+            self.port_frame.update_connection_status(False)
+            self.serial_config.update_connection_status(False)
+            self.control_buttons.update_connection_status(False)
+            self.angle_control.set_send_button_state(False)
+    
+    def handle_error_occurred(self, error_message):
+        """处理错误"""
+        self.data_display.append_message(f"错误: {error_message}", "错误")
+        QMessageBox.critical(self, "错误", error_message)
+    
+    def clear_send(self):
+        """清除发送数据区域"""
+        self.data_display.clear_send()
+    
+    def clear_receive(self):
+        """清除接收数据区域"""
+        self.data_display.clear_receive()
+    
+    def clear_all(self):
+        """清除所有数据区域"""
+        self.data_display.clear_all()
+    
+    def convert_angles(self):
+        """度数转弧度处理"""
+        # 获取当前角度值
+        angles = self.angle_control.get_angles()
+        # 将角度值乘以π/180转换为弧度值
+        radian_angles = [angle * math.pi / 180 for angle in angles]
+        
+        # 更新角度控制框中的值
+        for i, angle_var in enumerate(self.angle_control.angle_vars):
+            angle_var.setText(f"{radian_angles[i]:.6f}")
+        
+        # 显示转换信息
+        self.data_display.append_message("度数转换为弧度", "控制")
     
     def handle_trajectory_point_sent(self, index, total, cmd_str, success):
         """处理轨迹点发送信号"""
         if success:
-            self.data_display.append_message(f"轨迹点[{index}/{total}]: {cmd_str}", "发送")
+            self.data_display.append_message(f"轨迹点[{index}/{total}]已发送", "控制")
+            self.data_display.append_message(f"{cmd_str}", "发送")
         else:
             self.data_display.append_message(f"轨迹点[{index}/{total}]发送失败", "错误")
     
     def handle_trajectory_finished(self, success, cmd_strs):
         """处理轨迹发送完成信号"""
         if success:
-            self.data_display.append_message(f"轨迹发送完成，共{len(cmd_strs)}个点", "信息")
+            self.data_display.append_message(f"轨迹执行完成，共{len(cmd_strs)}个点", "控制")
         else:
-            self.data_display.append_message("轨迹发送失败", "错误")
-    
-    def calculate_inverse_kinematics(self, x, y, z, A, B, C):
-        """计算逆运动学"""
-        try:
-            # 转化为浮点数
-            x = float(x)
-            y = float(y)
-            z = float(z)
-            A = float(A)
-            B = float(B)
-            C = float(C)
-            angles = self.robot_controller.calculate_inverse_kinematics(x, y, z, A, B, C)
-            return angles
-        except Exception as e:
-            QMessageBox.warning(self, "错误", f"计算逆运动学失败: {str(e)}")
-            return None
-    
-    def apply_inverse_kinematics_result(self, angles):
-        """应用逆运动学计算结果"""
-        if angles:
-            self.angle_control.set_angles(angles)
-    
-    def zero_angles(self):
-        """所有角度清零"""
-        self.angle_control.set_angles([0.0] * 6)
-    
-    def update_end_position(self):
-        """更新末端位置显示"""
-        if not (hasattr(self.robot_controller.serial_controller.serial_model, 'is_connected') and 
-                self.robot_controller.serial_controller.serial_model.is_connected):
-            return
-        
-        try:
-            # 获取当前末端位置
-            x, y, z, A, B, C = self.robot_controller.get_end_position()
-            # 更新末端位置和姿态显示
-            self.end_position.update_theoretical_position(x, y, z)
-            self.end_position.update_theoretical_attitude(A, B, C)
-        except Exception as e:
-            pass
-    
-    def handle_data_received(self, data, is_hex=False):
-        """处理接收到的数据"""
-        if is_hex:
-            # 如果是十六进制数据，则转换为十六进制字符串
-            hex_string = ' '.join([f"{byte:02X}" for byte in data])
-            self.data_display.append_message(hex_string, "接收(HEX)")
-        else:
-            # 如果是字符串数据，直接显示
-            self.data_display.append_message(data.decode('utf-8', errors='replace'), "接收")
-    
-    def handle_connection_changed(self, connected):
-        """处理连接状态变化"""
-        status = "已连接" if connected else "已断开"
-        self.data_display.append_message(f"串口状态: {status}", "系统")
-        
-        # 更新UI状态
-        self.port_frame.update_connection_status(connected)
-        self.control_buttons.update_connection_status(connected)
-    
-    def handle_error_occurred(self, error_message):
-        """处理错误消息"""
-        self.data_display.append_message(f"错误: {error_message}", "错误")
-    
-    def clear_send(self):
-        """清除发送区数据"""
-        self.data_display.clear_display("send")
-    
-    def clear_receive(self):
-        """清除接收区数据"""
-        self.data_display.clear_display("receive")
-    
-    def clear_all(self):
-        """清除所有数据显示"""
-        self.data_display.clear_display("all")
-    
-    def convert_angles(self):
-        """转换角度值（度数转弧度）"""
-        angles = self.angle_control.get_angles()
-        converted_angles = [math.radians(angle) for angle in angles]
-        self.angle_control.set_angles(converted_angles)
-        self.data_display.append_message(f"角度转换: {angles}° -> {converted_angles}rad", "参数") 
+            self.data_display.append_message("轨迹执行失败", "错误") 

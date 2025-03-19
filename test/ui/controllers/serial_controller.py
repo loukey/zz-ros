@@ -54,35 +54,29 @@ class TrajectoryThread(QThread):
                 # 提取当前时间点的6个关节角度
                 current_point = [position_data[j][i] for j in range(6)]
                 
-                # 构建当前点的命令
-                cmd = format_command(current_point, control=self.control_byte, mode=self.mode_value)
+                # 直接使用format_command获取所需格式的命令
+                formatted_cmd = format_command(
+                    current_point, 
+                    control=self.control_byte, 
+                    mode=self.mode_value,
+                    result_type=self.encoding
+                )
                 
-                # 创建可读的命令字符串
-                cmd_control = cmd[3]
-                cmd_mode = cmd[4]
+                # 发送命令
+                point_success = self.serial_model.send_data(formatted_cmd, encoding=self.encoding)
                 
-                # 提取6个位置值
-                positions = []
-                for j in range(6):
-                    start_idx = 5 + j * 3
-                    pos_value = (cmd[start_idx] << 16) | (cmd[start_idx + 1] << 8) | cmd[start_idx + 2]
-                    positions.append(pos_value)
-                
-                # 提取CRC16值
-                crc_value = (cmd[-4] << 8) | cmd[-3]
-                
-                # 组装完整命令字符串
-                cmd_str = f"cmd {cmd_control:02d} {cmd_mode:02d}"
-                for pos in positions:
-                    cmd_str += f" {pos}"
-                cmd_str += f" {crc_value:04X}\\r\\n"
-                
-                # 发送当前点
-                point_success = False
+                # 获取可读的命令字符串用于显示和记录
                 if self.encoding == 'string':
-                    point_success = self.serial_model.send_command(cmd)
-                else:  # hex
-                    point_success = self.serial_model.send_command(cmd)
+                    # 对于string格式，可以直接使用，但去掉末尾的\r\n
+                    cmd_str = formatted_cmd[:-2] if isinstance(formatted_cmd, str) else formatted_cmd
+                else:
+                    # 获取一个可读的字符串格式(不包含\r\n)以便显示
+                    cmd_str = format_command(
+                        current_point, 
+                        control=self.control_byte, 
+                        mode=self.mode_value,
+                        result_type='string'
+                    )[:-2]
                 
                 # 记录命令字符串
                 all_cmd_strs.append(cmd_str)
@@ -183,19 +177,7 @@ class SerialController:
         """
         return self.serial_model.send_data(data, encoding)
     
-    def send_command(self, data):
-        """
-        发送命令数据
-        
-        参数:
-            data: 要发送的数据（字节数组）
-            
-        返回:
-            bool: 是否发送成功
-        """
-        return self.serial_model.send_command(data)
-    
-    def send_control_command(self, command_type, encoding='string', mode='01', return_cmd=False):
+    def send_control_command(self, command_type, encoding='string', mode=0x08, return_cmd=False):
         """
         发送控制命令
         
@@ -243,40 +225,27 @@ class SerialController:
         # 默认角度值
         angles = [0.0] * 6
         
-        # 使用format_command构建命令并获取字节数组
-        cmd_bytes = format_command(angles, control=control, mode=mode_value)
+        # 直接使用format_command获取所需格式的命令
+        cmd = format_command(angles, control=control, mode=mode_value, result_type=encoding)
         
-        # 创建可读的命令字符串
-        # 提取控制字节和模式字节
-        cmd_control = cmd_bytes[3]
-        cmd_mode = cmd_bytes[4]
+        # 发送命令并获取成功标志
+        success = self.serial_model.send_data(cmd, encoding=encoding)
         
-        # 提取6个位置值
-        positions = []
-        for i in range(6):
-            start_idx = 5 + i * 3
-            pos_value = (cmd_bytes[start_idx] << 16) | (cmd_bytes[start_idx + 1] << 8) | cmd_bytes[start_idx + 2]
-            positions.append(pos_value)
+        # 对于返回值处理，我们需要一个可读的命令字符串(不含\r\n)
+        if return_cmd:
+            # 获取不带\r\n的可读命令字符串用于返回和显示
+            if encoding == 'string':
+                # 对于string格式，去掉末尾的\r\n
+                readable_cmd = cmd[:-2] if isinstance(cmd, str) else cmd
+            else:
+                # 获取一个可读的字符串格式(不包含\r\n)
+                readable_cmd = format_command(angles, control=control, mode=mode_value, result_type='string')[:-2]
+            
+            return (success, readable_cmd)
         
-        # 提取CRC16值
-        crc_value = (cmd_bytes[-4] << 8) | cmd_bytes[-3]
-        
-        # 组装完整命令字符串
-        cmd_str = f"cmd {cmd_control:02d} {cmd_mode:02d}"
-        for pos in positions:
-            cmd_str += f" {pos}"
-        cmd_str += f" {crc_value:04X}\\r\\n"
-        
-        # 发送命令
-        success = False
-        if encoding == 'string':
-            success = self.serial_model.send_command(cmd_bytes)
-        else:  # hex
-            success = self.serial_model.send_command(cmd_bytes)
-        
-        return (success, cmd_str) if return_cmd else success
+        return success
     
-    def send_angles(self, angles, curve_type="Trapezoid", duration=5.0, frequency=0.01, encoding="string", mode="normal", return_cmd=False):
+    def send_angles(self, angles, curve_type="Trapezoid", duration=5.0, frequency=0.01, encoding="string", mode=0x08, return_cmd=False):
         """
         发送角度命令
         
@@ -286,7 +255,7 @@ class SerialController:
             duration: 运动持续时间，默认5秒
             frequency: 采样频率，默认0.01秒
             encoding: 编码类型，默认为"string"
-            mode: 运行模式，默认为"normal"
+            mode: 运行模式，默认为0x08
             return_cmd: 是否返回完整命令字符串
             
         返回:
@@ -300,21 +269,19 @@ class SerialController:
             if len(angles) != 6:
                 raise ValueError("角度值必须是6个")
             
-            # 运行模式映射
-            mode_map = {
-                "normal": 0x01,  # 轮廓位置模式
-                "motion": 0x08   # 周期同步位置模式
-            }
-            
-            # 获取模式值
-            mode_value = mode_map.get(mode, 0x01)
-            
-            # 如果是具体的模式编码（如'01', '08'等），尝试转换
-            if isinstance(mode, str) and mode.isdigit():
-                try:
-                    mode_value = int(mode)
-                except ValueError:
-                    pass
+            # 转换模式字符串为整数
+            mode_value = mode
+            if isinstance(mode, str):
+                # 如果是十六进制字符串，如"0x01"
+                if '0x' in mode.lower():
+                    mode_value = int(mode, 16)
+                # 如果是其他字符串，如"01"或数字字符串
+                else:
+                    try:
+                        mode_value = int(mode)
+                    except ValueError:
+                        # 默认使用轮廓位置模式
+                        mode_value = 1
             
             # 控制字节，对于角度发送使用运动状态(0x06)
             control_byte = 0x06
@@ -366,38 +333,25 @@ class SerialController:
                 return (success, all_cmd_strs)
             else:
                 # 单点发送模式
-                # 使用format_command构建二进制命令
-                cmd = format_command(angles, control=control_byte, mode=mode_value)
+                # 直接使用format_command获取所需格式的命令
+                cmd = format_command(angles, control=control_byte, mode=mode_value, result_type=encoding)
                 
-                # 创建可读的命令字符串
-                # 提取控制字节和模式字节
-                cmd_control = cmd[3]
-                cmd_mode = cmd[4]
+                # 发送命令并获取成功标志
+                success = self.serial_model.send_data(cmd, encoding=encoding)
                 
-                # 提取6个位置值
-                positions = []
-                for i in range(6):
-                    start_idx = 5 + i * 3
-                    pos_value = (cmd[start_idx] << 16) | (cmd[start_idx + 1] << 8) | cmd[start_idx + 2]
-                    positions.append(pos_value)
+                # 对于返回值处理，我们需要一个可读的命令字符串(不含\r\n)
+                if return_cmd:
+                    # 获取不带\r\n的可读命令字符串用于返回和显示
+                    if encoding == 'string':
+                        # 对于string格式，去掉末尾的\r\n
+                        readable_cmd = cmd[:-2] if isinstance(cmd, str) else cmd
+                    else:
+                        # 获取一个可读的字符串格式(不包含\r\n)
+                        readable_cmd = format_command(angles, control=control_byte, mode=mode_value, result_type='string')[:-2]
+                    
+                    return (success, readable_cmd)
                 
-                # 提取CRC16值
-                crc_value = (cmd[-4] << 8) | cmd[-3]
-                
-                # 组装完整命令字符串
-                cmd_str = f"cmd {cmd_control:02d} {cmd_mode:02d}"
-                for pos in positions:
-                    cmd_str += f" {pos}"
-                cmd_str += f" {crc_value:04X}\\r\\n"
-                
-                # 发送命令
-                success = False
-                if encoding == 'string':
-                    success = self.serial_model.send_command(cmd)
-                else:  # hex
-                    success = self.serial_model.send_command(cmd)
-                
-                return (success, cmd_str) if return_cmd else success
+                return success
                 
         except Exception as e:
             if hasattr(self, 'error_occurred'):
@@ -429,4 +383,69 @@ class SerialController:
         参数:
             callback: 回调函数，接收一个字符串参数
         """
-        self.serial_model.error_occurred.connect(callback) 
+        self.serial_model.error_occurred.connect(callback)
+    
+    def prepare_trajectory(self, angles, curve_type="Trapezoid", duration=5.0, frequency=0.01, encoding="string", mode="normal"):
+        """
+        准备轨迹发送线程但不启动它
+        
+        参数:
+            angles: 关节角度列表，包含6个关节角度
+            curve_type: 曲线类型，默认为"Trapezoid"
+            duration: 运动持续时间，默认5秒
+            frequency: 采样频率，默认0.01秒
+            encoding: 编码类型，默认为"string"
+            mode: 运行模式，默认为"normal"
+            
+        返回:
+            bool: 是否准备成功
+        """
+        if not hasattr(self.serial_model, 'is_connected') or not self.serial_model.is_connected:
+            return False
+        
+        try:
+            # 确保有6个角度值
+            if len(angles) != 6:
+                raise ValueError("角度值必须是6个")
+            
+            # 转换模式字符串为整数
+            mode_value = mode
+            if isinstance(mode, str):
+                # 如果是十六进制字符串，如"0x01"
+                if '0x' in mode.lower():
+                    mode_value = int(mode, 16)
+                # 如果是其他字符串，如"01"或数字字符串
+                else:
+                    try:
+                        mode_value = int(mode)
+                    except ValueError:
+                        # 默认使用轮廓位置模式
+                        mode_value = 1
+            
+            # 控制字节，对于角度发送使用运动状态(0x06)
+            control_byte = 0x06
+            
+            # 如果已经有正在运行的轨迹线程，停止它
+            if self.trajectory_thread and self.trajectory_thread.isRunning():
+                self.trajectory_thread.stop()
+                self.trajectory_thread.wait()
+            
+            # 创建轨迹线程
+            self.trajectory_thread = TrajectoryThread(
+                serial_model=self.serial_model,
+                angles=angles,
+                curve_type=curve_type,
+                duration=duration,
+                frequency=frequency,
+                encoding=encoding,
+                mode_value=mode_value,
+                control_byte=control_byte
+            )
+            
+            # 不启动线程，由调用者决定何时启动
+            return True
+                
+        except Exception as e:
+            if hasattr(self, 'error_occurred'):
+                self.error_occurred.emit(f"准备轨迹线程失败: {str(e)}")
+            return False 

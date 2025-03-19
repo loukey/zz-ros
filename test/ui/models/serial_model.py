@@ -5,6 +5,8 @@ import serial
 import serial.tools.list_ports
 import time
 from PyQt5.QtCore import QObject, pyqtSignal
+import os
+import glob
 
 
 class SerialModel(QObject):
@@ -29,8 +31,22 @@ class SerialModel(QObject):
             list: 包含(port, description)元组的列表
         """
         ports = []
+        
+        # 获取标准串口设备
         for port in serial.tools.list_ports.comports():
             ports.append((port.device, port.description))
+        
+        # 在Linux系统上，检查虚拟终端(PTY)设备
+        if os.name == 'posix':  # 仅在类Unix系统上执行
+            # 获取/dev/pts/下的虚拟终端设备
+            pty_devices = glob.glob('/dev/pts/*')
+            for device in pty_devices:
+                # 跳过非数字命名的设备，通常只考虑数字命名的pts
+                if os.path.basename(device).isdigit():
+                    # 如果还没有添加到列表中
+                    if not any(device == port[0] for port in ports):
+                        ports.append((device, f"虚拟串口 ({device})"))
+        
         return ports
     
     def connect(self, port, baud_rate=115200, data_bits=8, parity='N', stop_bits=1, flow_control=None):
@@ -148,30 +164,4 @@ class SerialModel(QObject):
             
         except Exception as e:
             self.error_occurred.emit(f"发送数据失败: {str(e)}")
-            return False
-    
-    def send_command(self, data):
-        """
-        发送命令数据
-        
-        参数:
-            data: 要发送的数据（字符串或字节数组）
-            
-        返回:
-            bool: 是否发送成功
-        """
-        if not self.is_connected or not self.serial or not self.serial.is_open:
-            self.error_occurred.emit("串口未连接")
-            return False
-        
-        try:
-            # 确保data是字节类型
-            if isinstance(data, str):
-                data = data.encode('utf-8')
-            
-            self.serial.write(data)
-            return True
-            
-        except Exception as e:
-            self.error_occurred.emit(f"发送命令失败: {str(e)}")
             return False 

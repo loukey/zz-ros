@@ -130,43 +130,53 @@ class DataDisplayFrame(QGroupBox):
     
     def append_message(self, message, message_type="接收"):
         """添加消息到显示区"""
-        if message_type == "发送":
-            self.send_text.append(message)
+        timestamp = QDateTime.currentDateTime().toString("HH:mm:ss.zzz")
+        
+        # 使用[类型]格式显示不同类型的消息，每种类型对应不同颜色
+        if message_type in ["发送", "控制", "参数"]:  # 这些类型显示在发送区
+            # 根据消息类型设置颜色
+            if message_type == "发送":
+                color = "#007ACC"  # 蓝色
+            elif message_type == "控制":
+                color = "#E91E63"  # 粉色
+            else:  # 参数
+                color = "#FF9800"  # 橙色
+                
+            formatted_message = f"<span style='color:{color};'>[{timestamp}][{message_type}]</span> {message}"
+            self.send_text.append(formatted_message)
             self.send_text.verticalScrollBar().setValue(
                 self.send_text.verticalScrollBar().maximum()
             )
-        elif message_type == "接收":
-            self.receive_text.append(message)
-            self.receive_text.verticalScrollBar().setValue(
-                self.receive_text.verticalScrollBar().maximum()
-            )
-        elif message_type == "错误":
-            self.receive_text.append(f"错误: {message}")
-            self.receive_text.verticalScrollBar().setValue(
-                self.receive_text.verticalScrollBar().maximum()
-            )
-        elif message_type == "信息":
-            self.receive_text.append(f"信息: {message}")
-            self.receive_text.verticalScrollBar().setValue(
-                self.receive_text.verticalScrollBar().maximum()
-            )
-        elif message_type == "系统":
-            self.receive_text.append(f"系统: {message}")
-            self.receive_text.verticalScrollBar().setValue(
-                self.receive_text.verticalScrollBar().maximum()
-            )
-        elif message_type == "参数":
-            self.receive_text.append(f"参数: {message}")
+        else:  # 接收、错误、信息、系统等类型显示在接收区
+            if message_type == "接收":
+                color = "#28A745"  # 绿色
+            elif message_type == "错误":
+                color = "#DC3545"  # 红色
+            elif message_type == "信息":
+                color = "#6C757D"  # 灰色
+            elif message_type == "系统":
+                color = "#9C27B0"  # 紫色
+            else:
+                color = "#6C757D"  # 默认灰色
+                
+            formatted_message = f"<span style='color:{color};'>[{timestamp}][{message_type}]</span> {message}"
+            self.receive_text.append(formatted_message)
             self.receive_text.verticalScrollBar().setValue(
                 self.receive_text.verticalScrollBar().maximum()
             )
     
-    def clear_display(self, display_type="all"):
-        """清除显示区"""
-        if display_type in ["send", "all"]:
-            self.send_text.clear()
-        if display_type in ["receive", "all"]:
-            self.receive_text.clear()
+    def clear_send(self):
+        """清除发送区域"""
+        self.send_text.clear()
+    
+    def clear_receive(self):
+        """清除接收区域"""
+        self.receive_text.clear()
+    
+    def clear_all(self):
+        """清除所有区域"""
+        self.send_text.clear()
+        self.receive_text.clear()
 
 
 class CurvePlotFrame(QGroupBox):
