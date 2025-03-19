@@ -18,7 +18,7 @@ class MainWindow(QMainWindow):
     
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("机器人控制界面")
+        self.setWindowTitle("镇中科技机械臂控制工具v0.1.0")
         self.setMinimumSize(1200, 800)
         
         # 创建串口控制器

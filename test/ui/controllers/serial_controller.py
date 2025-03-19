@@ -140,6 +140,7 @@ class SerialController:
         返回:
             bool: 是否连接成功
         """
+        time.sleep(2)
         success = self.serial_model.connect(
             port=port,
             baud_rate=baud_rate,
