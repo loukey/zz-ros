@@ -121,18 +121,82 @@ class SerialModel(QObject):
     
     def read_data(self):
         """读取串口数据"""
+        error_count = 0  # 错误计数器
+        max_errors = 3   # 最大允许连续错误次数
+        
         while not self.stop_flag:
             if self.serial and self.serial.is_open:
                 try:
                     if self.serial.in_waiting:
                         data = self.serial.read(self.serial.in_waiting)
                         if data:
-                            self.data_received.emit(data.decode('utf-8', errors='ignore'))
+                            # 直接解码为UTF-8字符串，忽略错误的字符
+                            decoded_data = data.decode('utf-8', errors='ignore')
+                            # 发送数据接收信号
+                            self.data_received.emit(decoded_data)
+                            # 成功读取数据，重置错误计数
+                            error_count = 0
+                            
+                except serial.SerialException as e:
+                    # 串口异常（如设备断开连接）
+                    error_count += 1
+                    self.error_occurred.emit(f"串口异常: {str(e)}")
+                    
+                    if "Input/output error" in str(e):
+                        # 对于I/O错误，尝试先等待一会儿
+                        time.sleep(0.5)
+                        if error_count > max_errors:
+                            self.error_occurred.emit("串口发生多次I/O错误，尝试重新连接...")
+                            # 尝试重新打开串口
+                            try:
+                                if self.serial and self.serial.is_open:
+                                    port = self.serial.port
+                                    settings = {
+                                        'baudrate': self.serial.baudrate,
+                                        'bytesize': self.serial.bytesize,
+                                        'parity': self.serial.parity,
+                                        'stopbits': self.serial.stopbits,
+                                        'xonxoff': self.serial.xonxoff,
+                                        'rtscts': self.serial.rtscts,
+                                        'dsrdtr': self.serial.dsrdtr,
+                                        'timeout': self.serial.timeout
+                                    }
+                                    self.serial.close()
+                                    time.sleep(1)  # 等待一会儿
+                                    self.serial.open()
+                                    error_count = 0  # 重置错误计数
+                                    self.error_occurred.emit("串口已重新连接")
+                            except Exception as reopen_e:
+                                self.error_occurred.emit(f"重新连接失败: {str(reopen_e)}")
+                                self.disconnect()
+                                break
+                    else:
+                        # 其他串口异常，如果连续出现多次，断开连接
+                        if error_count > max_errors:
+                            self.error_occurred.emit("串口多次出现异常，断开连接")
+                            self.disconnect()
+                            break
+                
                 except Exception as e:
+                    # 其他异常
+                    error_count += 1
                     self.error_occurred.emit(f"读取数据失败: {str(e)}")
-                    self.disconnect()
-                    break
-            time.sleep(0.01)
+                    
+                    # 如果连续出现多次错误，断开连接
+                    if error_count > max_errors:
+                        self.error_occurred.emit("多次读取失败，断开连接")
+                        self.disconnect()
+                        break
+                    
+                    # 出错后等待一段时间再继续
+                    time.sleep(0.2)
+            
+            # 如果没有错误，正常延时
+            if error_count == 0:
+                time.sleep(0.01)
+            else:
+                # 有错误时增加延时，避免频繁尝试导致更多错误
+                time.sleep(0.1)
     
     def send_data(self, data, encoding='string'):
         """

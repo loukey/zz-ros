@@ -21,6 +21,7 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, current_dir)
 
 from virtual_serial import VirtualSerial
+from crc import calculate_crc16
 
 
 class TextCommandSimulator(QMainWindow):
@@ -152,11 +153,47 @@ class TextCommandSimulator(QMainWindow):
         text_data = data.decode('utf-8', errors='replace')
         self.log_message("接收", f"'{text_data.strip()}'")
         
-        # 如果以cmd开头，按空格分割解析命令
-        if text_data.lower().startswith('cmd'):
+        # 如果以cmd或msg开头，按空格分割解析命令
+        if text_data.lower().startswith('cmd') or text_data.lower().startswith('msg'):
             self.parse_text_command(text_data)
+            
+            # 构造修改后的回显消息
+            parts = text_data.strip().split()
+            if len(parts) >= 9:  # cmd/msg + 控制 + 模式 + 6个位置值
+                # 构建新消息：msg + 控制字节 + 模式字节 + 6个位置值 + 6个状态字 + 6个异常值 + CRC
+                new_parts = ['msg', parts[1], parts[2]]  # 替换为msg，保留控制字节和模式字节
+                new_parts.extend(parts[3:9])  # 添加6个位置值
+                
+                # 添加6个状态字，均为1250
+                new_parts.extend(['1250'] * 6)
+                
+                # 添加6个异常值，均为0
+                new_parts.extend(['0'] * 6)
+                
+                # 计算CRC - 使用纯文本字符串
+                # 构造待计算CRC的消息字符串（不包含CRC部分）
+                crc_message = ' '.join(new_parts)
+                # 使用CRC模块计算CRC-16
+                crc_value = calculate_crc16(crc_message)
+                # 将CRC值转换为4位十六进制字符串，大写
+                crc_hex = f"{crc_value:04X}"
+                # 添加CRC到消息
+                new_parts.append(crc_hex)
+                
+                # 构造新消息（确保使用正确的行尾符号）
+                new_message = ' '.join(new_parts)
+                # 直接添加实际的CR和LF字符
+                message_with_crlf = new_message + '\r\n'
+                
+                # 简化日志，移除十六进制调试
+                self.log_message("调试", f"构造的消息: '{new_message}'")
+                
+                # 回显修改后的消息 - 使用纯文本字符串
+                self.virtual_serial.write(message_with_crlf.encode('utf-8'))
+                self.log_message("回显", f"'{new_message}'")
+                return  # 已经处理完毕，不执行原来的回显代码
         
-        # 回显接收到的数据
+        # 如果不是以cmd或msg开头，原样回显
         self.virtual_serial.write(data)
         self.log_message("回显", "已回显接收到的数据")
     
@@ -173,7 +210,7 @@ class TextCommandSimulator(QMainWindow):
             return
         
         # 提取命令各部分
-        prefix = parts[0]           # 命令前缀 (cmd)
+        prefix = parts[0]           # 命令前缀 (cmd 或 msg)
         control = parts[1]          # 控制字节
         mode = parts[2]             # 模式字节
         
@@ -182,12 +219,25 @@ class TextCommandSimulator(QMainWindow):
         self.log_message("解析", f"模式字节: {mode}")
         
         # 提取位置数据（如果有）
-        if len(parts) >= 9:  # cmd + 控制 + 模式 + 6个位置值
+        if len(parts) >= 9:  # cmd/msg + 控制 + 模式 + 6个位置值
             positions = parts[3:9]  # 直接提取原始字符串
             self.log_message("解析", f"位置数据: {positions}")
         
+        # 提取状态字（如果有）
+        if len(parts) >= 15:  # cmd/msg + 控制 + 模式 + 6个位置值 + 6个状态字
+            status = parts[9:15]  # 提取状态字
+            self.log_message("解析", f"状态字: {status}")
+        
+        # 提取异常值（如果有）
+        if len(parts) >= 21:  # cmd/msg + 控制 + 模式 + 6个位置值 + 6个状态字 + 6个异常值
+            errors = parts[15:21]  # 提取异常值
+            self.log_message("解析", f"异常值: {errors}")
+        
         # 提取CRC（如果有）
-        if len(parts) >= 10:
+        if len(parts) >= 22:
+            crc = parts[21]
+            self.log_message("解析", f"CRC16: {crc}")
+        elif len(parts) >= 10 and len(parts) < 15:
             crc = parts[9]
             self.log_message("解析", f"CRC16: {crc}")
     

@@ -4,7 +4,7 @@
 from PyQt5.QtWidgets import (QWidget, QLabel, QPushButton, QComboBox, QVBoxLayout, 
                             QHBoxLayout, QGroupBox, QRadioButton, QButtonGroup)
 from PyQt5.QtCore import Qt
-from components.base_components import default_font
+from gui.components.base_components import default_font
 
 
 class PortSelectionFrame(QWidget):

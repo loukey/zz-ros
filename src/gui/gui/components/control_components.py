@@ -6,7 +6,7 @@ from PyQt5.QtWidgets import (QWidget, QLabel, QLineEdit, QPushButton, QRadioButt
                            QGroupBox, QFrame)
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QDoubleValidator
-from components.base_components import default_font, GroupFrame
+from gui.components.base_components import default_font, GroupFrame
 from math import pi
 
 
@@ -81,7 +81,7 @@ class ControlButtonsFrame(QGroupBox):
             ("释放刹车", "RELEASE"),
             ("锁止刹车", "LOCK"),
             ("立刻停止", "STOP"),
-            ("运动状态", "MOTION")
+            ("暂停", "PAUSE")
         ]
         
         for text, command in commands:

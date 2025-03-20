@@ -55,14 +55,14 @@ class RobotModel:
         """
         self.is_brake_released = released
         
-    def get_end_position(self):
+    def get_end_position(self, theta_list):
         """
         获取末端位置和姿态
         
         返回:
-            position: 包含位置和欧拉角的元组 (x, y, z, A, B, C)
+            position: 包含位置和欧拉角的元组 (A, B, C, x, y, z)
         """
-        return self.kinematics.get_end_position(self.current_angles)
+        return self.kinematics.get_end_position(theta_list)
     
     def calculate_inverse_kinematics(self, x, y, z, A, B, C):
         """

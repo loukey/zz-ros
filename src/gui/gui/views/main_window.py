@@ -3,14 +3,15 @@
 """
 from PyQt5.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QTabWidget, QMessageBox, QHBoxLayout
 from PyQt5.QtCore import QTimer
-from components.serial_components import PortSelectionFrame, SerialConfigFrame
-from components.control_components import ControlButtonsFrame, AngleControlFrame
-from components.display_components import DataDisplayFrame, CurvePlotFrame, EndPositionFrame
-from components.kinematic_components import InverseKinematicFrame
-from controllers.robot_controller import RobotController
-from controllers.serial_controller import SerialController
+from gui.components.serial_components import PortSelectionFrame, SerialConfigFrame
+from gui.components.control_components import ControlButtonsFrame, AngleControlFrame
+from gui.components.display_components import DataDisplayFrame, CurvePlotFrame, EndPositionFrame
+from gui.components.kinematic_components import InverseKinematicFrame
+from gui.controllers.robot_controller import RobotController
+from gui.controllers.serial_controller import SerialController
 from math import pi
 import math
+from gui.utils.command_utils import calculate_crc16
 
 
 class MainWindow(QMainWindow):
@@ -199,11 +200,33 @@ class MainWindow(QMainWindow):
                 "RELEASE": "释放刹车",
                 "LOCK": "锁止刹车",
                 "STOP": "立刻停止",
-                "MOTION": "运动状态"
+                "PAUSE": "暂停"
             }.get(command_type, f"执行 {command_type} 命令")
             
             # 显示控制命令描述
             self.data_display.append_message(command_desc, "控制")
+            
+            # 如果是暂停命令，检查是否有正在运行的轨迹线程，并停止它
+            if command_type == "PAUSE" and hasattr(self.serial_controller, 'trajectory_thread'):
+                if self.serial_controller.trajectory_thread and self.serial_controller.trajectory_thread.isRunning():
+                    self.data_display.append_message("停止当前轨迹发送", "控制")
+                    # 设置标志，表示轨迹被暂停按钮终止
+                    self.was_trajectory_paused = True
+                    
+                    # 停止轨迹线程
+                    self.serial_controller.trajectory_thread.stop()
+                    
+                    # 等待线程完全停止
+                    if self.serial_controller.trajectory_thread.isRunning():
+                        # 等待最多200毫秒让线程停止
+                        if not self.serial_controller.trajectory_thread.wait(200):
+                            self.data_display.append_message("轨迹线程未能立即停止，强制终止", "警告")
+                            # 如果仍在运行，尝试更激进的措施
+                            try:
+                                self.serial_controller.trajectory_thread.terminate()
+                                self.serial_controller.trajectory_thread.wait(100)
+                            except:
+                                pass
             
             # 直接通过串口控制器发送命令并获取命令字符串
             success, cmd_str = self.serial_controller.send_control_command(
@@ -216,6 +239,18 @@ class MainWindow(QMainWindow):
             if success:
                 # 显示实际命令的内容
                 self.data_display.append_message(f"{cmd_str}", "发送")
+                
+                # 如果是暂停命令，确保不会再发送后续轨迹点
+                if command_type == "PAUSE":
+                    # 清除可能的等待状态和定时器
+                    if hasattr(self, 'position_response_timer') and self.position_response_timer.isActive():
+                        self.position_response_timer.stop()
+                    
+                    if hasattr(self, 'waiting_for_position'):
+                        self.waiting_for_position = False
+                        
+                    # 确保后续不再有轨迹点消息
+                    self.data_display.append_message("暂停完成，轨迹发送已终止", "控制")
             else:
                 # 记录错误
                 self.data_display.append_message(f"发送控制命令失败: {command_type}", "错误")
@@ -232,8 +267,8 @@ class MainWindow(QMainWindow):
             return
         
         try:
-            # 获取角度值
-            angles = self.angle_control.get_angles()
+            # 获取目标角度值（从界面输入）
+            target_angles = self.angle_control.get_angles()
             
             # 获取曲线类型和时间参数
             curve_type, duration, frequency = self.angle_control.get_curve_type()
@@ -244,17 +279,101 @@ class MainWindow(QMainWindow):
             # 获取运行模式
             run_mode = self.control_buttons.get_run_mode()
             
-            # 使用控制类型消息显示高级操作描述
-            angles_str = ", ".join([f"{angle:.4f}" for angle in angles])
-            self.data_display.append_message(f"移动到角度: [{angles_str}]", "控制")
+            # 记录操作信息
+            angles_str = ", ".join([f"{angle:.4f}" for angle in target_angles])
+            self.data_display.append_message(f"目标角度: [{angles_str}]", "控制")
             self.data_display.append_message(f"曲线类型: {curve_type}, 时长: {duration}秒, 频率: {frequency}秒", "参数")
             
+            # 先发送cmd 07获取当前位置
+            self.data_display.append_message("正在获取当前位置...", "控制")
+            success, cmd_str = self.serial_controller.send_control_command(
+                command_type="POSITION",  # 需要确保serial_controller中有POSITION对应的控制字节07
+                encoding=encoding_type,
+                mode=run_mode,
+                return_cmd=True
+            )
+            
+            if not success:
+                self.data_display.append_message("获取当前位置失败，无法执行差分运动", "错误")
+                return
+                
+            self.data_display.append_message(f"{cmd_str}", "发送")
+            
+            # 等待接收当前位置响应
+            self.data_display.append_message("等待位置数据响应...", "控制")
+            
+            # 设置标志和变量，将在handle_data_received中使用
+            self.waiting_for_position = True
+            self.current_position = None
+            self.target_angles_pending = target_angles
+            self.curve_params_pending = (curve_type, duration, frequency)
+            self.encoding_type_pending = encoding_type
+            self.run_mode_pending = run_mode
+            
+            # 创建定时器等待响应，超时处理
+            self.position_response_timer = QTimer()
+            self.position_response_timer.setSingleShot(True)
+            self.position_response_timer.timeout.connect(self.on_position_response_timeout)
+            self.position_response_timer.start(2000)  # 2秒超时
+            
+            # 注意：实际的差分处理会在handle_data_received方法中完成
+            # 当接收到msg 07响应时，会调用process_differential_motion方法
+                
+        except Exception as e:
+            self.data_display.append_message(f"发送角度命令异常: {str(e)}", "错误")
+    
+    def on_position_response_timeout(self):
+        """位置响应超时处理"""
+        if self.waiting_for_position:
+            self.waiting_for_position = False
+            self.data_display.append_message("获取当前位置超时", "错误")
+            self.current_position = None
+    
+    def process_differential_motion(self):
+        """处理差分运动"""
+        if not self.current_position or not self.target_angles_pending:
+            self.data_display.append_message("缺少当前位置或目标位置数据", "错误")
+            return
+        
+        try:
+            # 获取存储的目标角度和参数
+            target_angles = self.target_angles_pending
+            curve_type, duration, frequency = self.curve_params_pending
+            encoding_type = self.encoding_type_pending
+            run_mode = self.run_mode_pending
+            
+            # 偏移值
+            OFFSETS = [78623, 369707, 83986, 391414, 508006, 455123]
+            
+            # 转换系数 2π / 2^19
+            SCALE_FACTOR = (2 * math.pi) / (2**19)
+            
+            # 将当前位置数值转换为弧度角度
+            current_angles = []
+            for pos_str, offset in zip(self.current_position, OFFSETS):
+                pos_value = int(pos_str)
+                # 减去偏移值
+                adjusted_value = (pos_value - offset) & 0xFFFFFF
+                # 如果是负数(高位为1)，则转换为有符号数
+                if adjusted_value & 0x800000:
+                    adjusted_value = adjusted_value - 0x1000000
+                # 转换为弧度
+                angle = adjusted_value * SCALE_FACTOR
+                current_angles.append(angle)
+            
+            # 记录当前位置信息
+            current_angles_str = ", ".join([f"{angle:.4f}" for angle in current_angles])
+            self.data_display.append_message(f"当前角度: [{current_angles_str}]", "控制")
+            
+            # 计算差分
+            self.data_display.append_message("计算差分轨迹...", "控制")
+            
+            # 差分轨迹使用的是目标位置和当前位置之间的运动
             if duration > 0 and frequency > 0:
-                # 轨迹模式
-                # 注：这里将关键的串口控制器设置为创建轨迹线程但不立即启动
-                # 获取串口控制器准备好的轨迹线程
+                # 轨迹模式 - 使用当前位置作为起点，目标位置作为终点
                 self.serial_controller.prepare_trajectory(
-                    angles=angles,
+                    angles=target_angles,
+                    start_angles=current_angles,  # 传入当前位置作为起点
                     curve_type=curve_type,
                     duration=duration,
                     frequency=frequency,
@@ -280,9 +399,10 @@ class MainWindow(QMainWindow):
                 else:
                     self.data_display.append_message("创建轨迹线程失败", "错误")
             else:
-                # 单点模式，直接获取完整命令字符串
+                # 单点模式，直接发送目标角度
                 success, cmd_str = self.serial_controller.send_angles(
-                    angles=angles,
+                    angles=target_angles,
+                    start_angles=current_angles,  # 传入当前位置作为起点
                     curve_type=curve_type,
                     duration=0,
                     frequency=0,
@@ -295,13 +415,18 @@ class MainWindow(QMainWindow):
                     # 显示实际发送的命令
                     self.data_display.append_message(f"{cmd_str}", "发送")
                     
-                    # 更新曲线绘图
-                    self.curve_plot.update_angles(angles)
+                    # 更新曲线绘图 - 使用plot_curves替代不存在的update_angles
+                    self.curve_plot.plot_curves(target_angles, curve_type, duration, frequency)
                 else:
                     self.data_display.append_message(f"发送角度命令失败", "错误")
-                
+            
+            # 重置等待标志
+            self.waiting_for_position = False
+            self.current_position = None
+            
         except Exception as e:
-            self.data_display.append_message(f"发送角度命令异常: {str(e)}", "错误")
+            self.data_display.append_message(f"差分运动处理异常: {str(e)}", "错误")
+            self.waiting_for_position = False
     
     def calculate_inverse_kinematics(self, x, y, z, A, B, C):
         """计算逆运动学"""
@@ -342,15 +467,93 @@ class MainWindow(QMainWindow):
     
     def update_end_position(self):
         """更新末端位置显示"""
-        if hasattr(self.end_position, 'update_position'):
-            # 获取当前末端位置
-            position = self.robot_controller.get_end_position()
-            if position:
-                self.end_position.update_position(*position)
+        pass
+        # if hasattr(self.end_position, 'update_position'):
+        #     # 获取当前末端位置
+        #     position = self.robot_controller.get_end_position()
+        #     if position:
+        #         self.end_position.update_position(*position)
     
     def handle_data_received(self, data):
         """处理接收到的数据"""
-        self.data_display.append_message(data, "接收")
+        # 去除首尾空白和换行符后处理
+        clean_data = data.strip()
+        self.data_display.append_message(f"接收数据: '{clean_data}'", "接收")
+        
+        # 如果数据以"msg"开头，尝试解析更详细的内容
+        if clean_data.lower().startswith('msg'):
+            try:
+                # 按空格分割
+                parts = clean_data.split()
+                if len(parts) >= 22:  # msg命令完整格式 (msg + 控制 + 模式 + 6个位置 + 6个状态 + 6个异常 + CRC)
+                    control = parts[1]
+                    mode = parts[2]
+                    positions = parts[3:9]
+                    status = parts[9:15]
+                    errors = parts[15:21]
+                    crc = parts[21]
+                    
+                    # 记录解析后的详细信息
+                    self.data_display.append_message(f"控制字节: {control}, 模式: {mode}", "接收")
+                    self.data_display.append_message(f"位置数据: {positions}", "接收")
+                    self.data_display.append_message(f"状态字: {status}", "接收")
+                    self.data_display.append_message(f"异常值: {errors}", "接收")
+                    
+                    # 验证CRC16校验
+                    # 构造用于计算CRC的消息（去除CRC部分）
+                    crc_message = ' '.join(parts[:-1])
+                    calculated_crc = calculate_crc16(crc_message)
+                    calculated_crc_hex = f"{calculated_crc:04X}"
+                    
+                    # 验证校验结果
+                    if calculated_crc_hex == crc:
+                        self.data_display.append_message(f"CRC校验: 正确 (接收: {crc}, 计算: {calculated_crc_hex})", "接收")
+                    else:
+                        self.data_display.append_message(f"CRC校验: 错误 (接收: {crc}, 计算: {calculated_crc_hex})", "错误")
+                    
+                    # 检查是否是位置响应 (msg 07)
+                    if control == '07' and hasattr(self, 'waiting_for_position') and self.waiting_for_position:
+                        self.data_display.append_message("收到当前位置响应", "控制")
+                        # 停止计时器
+                        if hasattr(self, 'position_response_timer') and self.position_response_timer.isActive():
+                            self.position_response_timer.stop()
+                        
+                        # 存储当前位置
+                        self.current_position = positions
+                        
+                        # 处理差分运动
+                        self.process_differential_motion()
+                        return
+                    
+                    # 更新曲线 - 使用plot_curves方法
+                    try:
+                        # 偏移值
+                        OFFSETS = [78623, 369707, 83986, 391414, 508006, 455123]
+                        
+                        # 转换系数 2π / 2^19
+                        SCALE_FACTOR = (2 * math.pi) / (2**19)
+                        
+                        # 转换位置数据到弧度角度
+                        angles = []
+                        for pos_str, offset in zip(positions, OFFSETS):
+                            pos_value = int(pos_str)
+                            # 减去偏移值
+                            adjusted_value = (pos_value - offset) & 0xFFFFFF
+                            # 如果是负数(高位为1)，则转换为有符号数
+                            if adjusted_value & 0x800000:
+                                adjusted_value = adjusted_value - 0x1000000
+                            # 转换为弧度
+                            angle = adjusted_value * SCALE_FACTOR
+                            angles.append(angle)
+                        
+                        # 使用plot_curves方法绘制曲线
+                        self.curve_plot.plot_curves(angles, "trapezoidal", 4.0, 0.1)
+                    except ValueError as e:
+                        self.data_display.append_message(f"角度转换失败: {str(e)}", "错误")
+                    except Exception as e:
+                        self.data_display.append_message(f"曲线绘制失败: {str(e)}", "错误")
+            except Exception as e:
+                self.data_display.append_message(f"解析消息失败: {str(e)}", "错误")
     
     def handle_connection_changed(self, connected):
         """处理连接状态变化"""
@@ -404,4 +607,9 @@ class MainWindow(QMainWindow):
         if success:
             self.data_display.append_message(f"轨迹执行完成，共{len(cmd_strs)}个点", "控制")
         else:
-            self.data_display.append_message("轨迹执行失败", "错误") 
+            # 检查是否是被暂停按钮终止的
+            if hasattr(self, 'was_trajectory_paused') and self.was_trajectory_paused:
+                self.data_display.append_message(f"轨迹已暂停，共发送{len(cmd_strs)}个点", "控制")
+                self.was_trajectory_paused = False
+            else:
+                self.data_display.append_message(f"轨迹执行失败，已发送{len(cmd_strs)}个点", "错误") 

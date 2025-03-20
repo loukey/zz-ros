@@ -2,8 +2,8 @@
 机器人控制器
 """
 from PyQt5.QtCore import QTimer
-from models.robot_model import RobotModel
-from controllers.serial_controller import SerialController
+from gui.models.robot_model import RobotModel
+from gui.controllers.serial_controller import SerialController
 from kinematic.velocity_planning import trapezoidal_velocity_planning, s_curve_velocity_planning
 
 
@@ -72,14 +72,14 @@ class RobotController:
         """
         return self.robot_model.calculate_inverse_kinematics(x, y, z, A, B, C)
     
-    def get_end_position(self):
+    def get_end_position(self, theta_list):
         """
         获取末端位置和姿态
         
         返回:
-            position: 包含位置和欧拉角的元组 (x, y, z, A, B, C)
+            position: 包含位置和欧拉角的元组 (A, B, C, x, y, z)
         """
-        return self.robot_model.get_end_position()
+        return self.robot_model.get_end_position(theta_list)
     
     def register_data_received_callback(self, callback):
         """

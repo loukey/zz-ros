@@ -45,6 +45,11 @@ class Kinematic6DOF:
         self.get_rotation_matrix_list()
         self.forward_rm = self.forward_kinematic()
 
+    def get_end_position(self, theta_list):
+        self.update_dh(theta_list)
+        A, B, C = XYZ_rotation_matrix_to_euler_angles(self.forward_rm[:3, :3])
+        return A, B, C, self.forward_rm[:3, 3]
+
     @staticmethod
     def normalize_angle(angle):
         return (angle + pi) % (2 * pi) - pi

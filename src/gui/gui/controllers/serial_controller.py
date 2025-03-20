@@ -2,8 +2,8 @@
 串口通信控制器
 """
 from PyQt5.QtCore import QThread, pyqtSignal, QObject
-from models.serial_model import SerialModel
-from utils.command_utils import format_command, calculate_crc16, generate_trajectory
+from gui.models.serial_model import SerialModel
+from gui.utils.command_utils import format_command, calculate_crc16, generate_trajectory
 import time
 
 
@@ -15,7 +15,7 @@ class TrajectoryThread(QThread):
     # 信号：完成发送(成功状态, 命令字符串列表)
     finished = pyqtSignal(bool, list)
     
-    def __init__(self, serial_model, angles, curve_type, duration, frequency, encoding, mode_value, control_byte):
+    def __init__(self, serial_model, angles, curve_type, duration, frequency, encoding, mode_value, control_byte, start_angles=None):
         super().__init__()
         self.serial_model = serial_model
         self.angles = angles
@@ -26,15 +26,22 @@ class TrajectoryThread(QThread):
         self.mode_value = mode_value
         self.control_byte = control_byte
         self.stop_flag = False
+        self.start_angles = start_angles
     
     def run(self):
         try:
             # 获取当前角度作为起始点（默认为全零）
             current_angles = [0.0] * 6
             
+            # 检查是否已经被要求停止
+            if self.stop_flag:
+                # 提前终止
+                self.finished.emit(False, [])
+                return
+            
             # 生成轨迹
             time_points, position_data, _, _ = generate_trajectory(
-                start_angles=current_angles,
+                start_angles=self.start_angles if self.start_angles else current_angles,
                 end_angles=self.angles,
                 duration=self.duration,
                 frequency=self.frequency,
@@ -47,9 +54,11 @@ class TrajectoryThread(QThread):
             
             # 逐个点发送
             for i, t in enumerate(time_points):
-                # 检查是否被要求停止
+                # 每次发送前检查是否被要求停止
                 if self.stop_flag:
-                    break
+                    # 发送已处理点的部分完成信号
+                    self.finished.emit(False, all_cmd_strs)
+                    return
                 
                 # 提取当前时间点的6个关节角度
                 current_point = [position_data[j][i] for j in range(6)]
@@ -61,6 +70,12 @@ class TrajectoryThread(QThread):
                     mode=self.mode_value,
                     result_type=self.encoding
                 )
+                
+                # 再次检查是否被要求停止
+                if self.stop_flag:
+                    # 发送已处理点的部分完成信号
+                    self.finished.emit(False, all_cmd_strs)
+                    return
                 
                 # 发送命令
                 point_success = self.serial_model.send_data(formatted_cmd, encoding=self.encoding)
@@ -89,8 +104,18 @@ class TrajectoryThread(QThread):
                     success = False
                     break
                 
-                # 根据频率等待
-                time.sleep(self.frequency)
+                # 根据频率等待，但每10毫秒检查一次停止标志
+                remaining_time = self.frequency
+                while remaining_time > 0 and not self.stop_flag:
+                    sleep_time = min(0.01, remaining_time)  # 最多等待10毫秒
+                    time.sleep(sleep_time)
+                    remaining_time -= sleep_time
+                
+                # 最后检查一次停止标志
+                if self.stop_flag:
+                    # 发送已处理点的部分完成信号
+                    self.finished.emit(False, all_cmd_strs)
+                    return
             
             # 发送完成信号
             self.finished.emit(success, all_cmd_strs)
@@ -102,6 +127,19 @@ class TrajectoryThread(QThread):
     def stop(self):
         """停止发送"""
         self.stop_flag = True
+        
+        # 在设置标志后等待一小段时间确保线程看到标志
+        time.sleep(0.05)
+        
+        # 如果线程仍在运行，尝试更强硬的终止方式
+        if self.isRunning():
+            # 清空串口缓冲区
+            if self.serial_model and self.serial_model.serial and self.serial_model.serial.is_open:
+                try:
+                    # 清空输出缓冲区
+                    self.serial_model.serial.reset_output_buffer()
+                except:
+                    pass
 
 
 class SerialController:
@@ -140,6 +178,7 @@ class SerialController:
         返回:
             bool: 是否连接成功
         """
+        time.sleep(2)
         success = self.serial_model.connect(
             port=port,
             baud_rate=baud_rate,
@@ -197,7 +236,9 @@ class SerialController:
             'RELEASE': 0x03,   # 释放刹车
             'LOCK': 0x04,      # 锁止刹车
             'STOP': 0x05,      # 立刻停止
-            'MOTION': 0x06     # 运动状态
+            'MOTION': 0x06,    # 运动状态
+            'PAUSE': 0x08,     # 暂停
+            'POSITION': 0x07   # 获取当前位置
         }
         
         # 获取控制字节
@@ -245,7 +286,7 @@ class SerialController:
         
         return success
     
-    def send_angles(self, angles, curve_type="Trapezoid", duration=5.0, frequency=0.01, encoding="string", mode=0x08, return_cmd=False):
+    def send_angles(self, angles, curve_type="Trapezoid", duration=5.0, frequency=0.01, encoding="string", mode=0x08, return_cmd=False, start_angles=None):
         """
         发送角度命令
         
@@ -257,6 +298,7 @@ class SerialController:
             encoding: 编码类型，默认为"string"
             mode: 运行模式，默认为0x08
             return_cmd: 是否返回完整命令字符串
+            start_angles: 起始角度列表，如果提供则使用差分运动
             
         返回:
             bool 或 (bool, str): 是否发送成功，或者发送成功与命令字符串的元组
@@ -268,6 +310,10 @@ class SerialController:
             # 确保有6个角度值
             if len(angles) != 6:
                 raise ValueError("角度值必须是6个")
+            
+            # 如果提供了起始角度，确保也是6个
+            if start_angles and len(start_angles) != 6:
+                raise ValueError("起始角度值必须是6个")
             
             # 转换模式字符串为整数
             mode_value = mode
@@ -302,7 +348,8 @@ class SerialController:
                     frequency=frequency,
                     encoding=encoding,
                     mode_value=mode_value,
-                    control_byte=control_byte
+                    control_byte=control_byte,
+                    start_angles=start_angles  # 传入起始角度
                 )
                 
                 # 对于非阻塞调用，直接返回
@@ -385,7 +432,7 @@ class SerialController:
         """
         self.serial_model.error_occurred.connect(callback)
     
-    def prepare_trajectory(self, angles, curve_type="Trapezoid", duration=5.0, frequency=0.01, encoding="string", mode="normal"):
+    def prepare_trajectory(self, angles, curve_type="Trapezoid", duration=5.0, frequency=0.01, encoding="string", mode="normal", start_angles=None):
         """
         准备轨迹发送线程但不启动它
         
@@ -396,6 +443,7 @@ class SerialController:
             frequency: 采样频率，默认0.01秒
             encoding: 编码类型，默认为"string"
             mode: 运行模式，默认为"normal"
+            start_angles: 起始角度列表，如果提供则使用差分运动，否则使用零点作为起始
             
         返回:
             bool: 是否准备成功
@@ -406,7 +454,11 @@ class SerialController:
         try:
             # 确保有6个角度值
             if len(angles) != 6:
-                raise ValueError("角度值必须是6个")
+                raise ValueError("目标角度值必须是6个")
+            
+            # 如果提供了起始角度，确保也是6个
+            if start_angles and len(start_angles) != 6:
+                raise ValueError("起始角度值必须是6个")
             
             # 转换模式字符串为整数
             mode_value = mode
@@ -430,7 +482,7 @@ class SerialController:
                 self.trajectory_thread.stop()
                 self.trajectory_thread.wait()
             
-            # 创建轨迹线程
+            # 创建轨迹线程，传入起始角度参数
             self.trajectory_thread = TrajectoryThread(
                 serial_model=self.serial_model,
                 angles=angles,
@@ -439,7 +491,8 @@ class SerialController:
                 frequency=frequency,
                 encoding=encoding,
                 mode_value=mode_value,
-                control_byte=control_byte
+                control_byte=control_byte,
+                start_angles=start_angles  # 传入起始角度
             )
             
             # 不启动线程，由调用者决定何时启动

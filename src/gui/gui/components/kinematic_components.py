@@ -5,7 +5,7 @@ from PyQt5.QtWidgets import (QWidget, QLabel, QPushButton, QLineEdit,
                            QVBoxLayout, QHBoxLayout, QGridLayout, QMessageBox, QGroupBox)
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QDoubleValidator
-from components.base_components import default_font, GroupFrame
+from gui.components.base_components import default_font, GroupFrame
 from math import pi, degrees, radians
 
 

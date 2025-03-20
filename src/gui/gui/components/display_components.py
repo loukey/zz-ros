@@ -10,8 +10,8 @@ import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 import numpy as np
-from components.base_components import default_font, text_font, GroupFrame
-from utils.command_utils import generate_trajectory
+from gui.components.base_components import default_font, text_font, GroupFrame
+from gui.utils.command_utils import generate_trajectory
 import platform
 import math
 
