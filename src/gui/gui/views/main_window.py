@@ -5,21 +5,23 @@ from PyQt5.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QTabWidget, QMess
 from PyQt5.QtCore import QTimer
 from gui.components.serial_components import PortSelectionFrame, SerialConfigFrame
 from gui.components.control_components import ControlButtonsFrame, AngleControlFrame
-from gui.components.display_components import DataDisplayFrame, CurvePlotFrame, EndPositionFrame
-from gui.components.kinematic_components import InverseKinematicFrame
+from gui.components.display_components import DataDisplayFrame
+from gui.components.kinematic_components import InverseKinematicFrame, CurvePlotFrame, EndPositionFrame
 from gui.controllers.robot_controller import RobotController
 from gui.controllers.serial_controller import SerialController
+from gui.controllers.ros_controller import ROSController
 from math import pi
 import math
 from gui.utils.command_utils import calculate_crc16
-
+from gui.views.simulation_window import SimulationWindow  # 导入仿真窗口类
+from gui.views.camera_window import CameraWindow  # 导入相机窗口类
 
 class MainWindow(QMainWindow):
     """主窗口类"""
     
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("镇中科技机械臂控制工具v0.1.0")
+        self.setWindowTitle("镇中科技机械臂控制工具v0.1.1")
         self.setMinimumSize(1200, 800)
         
         # 创建串口控制器
@@ -27,6 +29,19 @@ class MainWindow(QMainWindow):
         
         # 创建机器人控制器，传入串口控制器
         self.robot_controller = RobotController(self.serial_controller)
+        
+        # 创建ROS控制器
+        self.ros_controller = ROSController()
+        # 初始化ROS控制器
+        self.ros_initialized = False
+        try:
+            self.ros_initialized = self.ros_controller.initialize()
+            if self.ros_initialized:
+                print("ROS控制器初始化成功")
+            else:
+                print("ROS控制器初始化失败")
+        except Exception as e:
+            print(f"ROS控制器初始化异常: {str(e)}")
         
         # 注册回调函数
         self.serial_controller.serial_model.data_received.connect(self.handle_data_received)
@@ -49,26 +64,45 @@ class MainWindow(QMainWindow):
         # 创建主布局
         main_layout = QVBoxLayout(central_widget)
         
+        # 创建顶层标签页控件（位于左上角）
+        self.main_tab_widget = QTabWidget()
+        main_layout.addWidget(self.main_tab_widget)
+        
+        # 创建第一个标签页（主控制页面）
+        self.control_tab = QWidget()
+        self.main_tab_widget.addTab(self.control_tab, "机械臂控制")
+        
+        # 第二个标签页（仿真页面）
+        self.simulation_window = SimulationWindow(self)
+        self.main_tab_widget.addTab(self.simulation_window, "仿真控制")
+        
+        # 第三个标签页（相机页面）
+        self.camera_window = CameraWindow(self)
+        self.main_tab_widget.addTab(self.camera_window, "相机控制")
+        
+        # 为第一个标签页设置布局
+        control_layout = QVBoxLayout(self.control_tab)
+        
         # 创建串口选择区域
         self.port_frame = PortSelectionFrame(
             parent=self,
             refresh_callback=self.refresh_ports
         )
-        main_layout.addWidget(self.port_frame)
+        control_layout.addWidget(self.port_frame)
         
         # 创建串口配置区域
         self.serial_config = SerialConfigFrame(
             parent=self,
             connect_callback=self.toggle_connection
         )
-        main_layout.addWidget(self.serial_config)
+        control_layout.addWidget(self.serial_config)
         
         # 创建控制按钮区域
         self.control_buttons = ControlButtonsFrame(
             parent=self,
             send_control_command_callback=self.send_control_command
         )
-        main_layout.addWidget(self.control_buttons)
+        control_layout.addWidget(self.control_buttons)
         
         # 创建角度控制区域
         self.angle_control = AngleControlFrame(
@@ -77,9 +111,9 @@ class MainWindow(QMainWindow):
             convert_callback=self.convert_angles, 
             zero_callback=self.zero_angles
         )
-        main_layout.addWidget(self.angle_control)
+        control_layout.addWidget(self.angle_control)
         
-        # 创建标签页控件
+        # 创建功能标签页控件（嵌套在主控制标签页内）
         tab_widget = QTabWidget()
         
         # 创建数据显示标签页
@@ -122,7 +156,7 @@ class MainWindow(QMainWindow):
         ik_tab.setLayout(ik_layout)
         tab_widget.addTab(ik_tab, "逆运动学")
         
-        main_layout.addWidget(tab_widget)
+        control_layout.addWidget(tab_widget)
     
     def refresh_ports(self):
         """刷新串口列表"""
@@ -216,6 +250,11 @@ class MainWindow(QMainWindow):
                     # 停止轨迹线程
                     self.serial_controller.trajectory_thread.stop()
                     
+                    # 如果ROS初始化了，也停止ROS轨迹发布
+                    if self.ros_initialized:
+                        self.ros_controller.stop_trajectory()
+                        self.data_display.append_message("已停止ROS轨迹发布", "ROS")
+                    
                     # 等待线程完全停止
                     if self.serial_controller.trajectory_thread.isRunning():
                         # 等待最多200毫秒让线程停止
@@ -227,6 +266,11 @@ class MainWindow(QMainWindow):
                                 self.serial_controller.trajectory_thread.wait(100)
                             except:
                                 pass
+            
+            # 如果是停止命令，也要停止ROS轨迹发布
+            if command_type == "STOP" and self.ros_initialized:
+                self.ros_controller.stop_trajectory()
+                self.data_display.append_message("已停止ROS轨迹发布", "ROS")
             
             # 直接通过串口控制器发送命令并获取命令字符串
             success, cmd_str = self.serial_controller.send_control_command(
@@ -348,24 +392,57 @@ class MainWindow(QMainWindow):
             # 转换系数 2π / 2^19
             SCALE_FACTOR = (2 * math.pi) / (2**19)
             
-            # 将当前位置数值转换为弧度角度
-            current_angles = []
-            for pos_str, offset in zip(self.current_position, OFFSETS):
-                pos_value = int(pos_str)
-                # 减去偏移值
-                adjusted_value = (pos_value - offset) & 0xFFFFFF
-                # 如果是负数(高位为1)，则转换为有符号数
-                if adjusted_value & 0x800000:
-                    adjusted_value = adjusted_value - 0x1000000
-                # 转换为弧度
-                angle = adjusted_value * SCALE_FACTOR
-                current_angles.append(angle)
+            # 记录接收到的位置类型和值，方便调试
+            pos_types = [f"{type(pos).__name__}" for pos in self.current_position]
+            self.data_display.append_message(f"位置数据类型: {pos_types}", "调试")
+            self.data_display.append_message(f"位置数据值: {self.current_position}", "调试")
             
-            # 记录当前位置信息
-            current_angles_str = ", ".join([f"{angle:.4f}" for angle in current_angles])
-            self.data_display.append_message(f"当前角度: [{current_angles_str}]", "控制")
+            # 将当前位置从整数值转换为弧度
+            current_angles_rad = []
+            for i, pos in enumerate(self.current_position):
+                try:
+                    # 先将字符串转换为整数
+                    pos_value = int(pos)
+                    # 原始整数转换成弧度: (整数值 - 偏移值) * (2π / 2^19)
+                    angle_rad = (pos_value - OFFSETS[i]) * SCALE_FACTOR
+                    current_angles_rad.append(angle_rad)
+                except ValueError as ve:
+                    # 详细的转换错误信息
+                    self.data_display.append_message(f"关节{i+1}位置值'{pos}'无法转换为整数: {str(ve)}", "错误")
+                    raise  # 重新抛出异常
+                except Exception as e:
+                    self.data_display.append_message(f"处理关节{i+1}位置时发生错误: {str(e)}", "错误")
+                    raise  # 重新抛出异常
             
-            # 计算差分
+            self.data_display.append_message(f"当前角度(rad): {[round(a, 4) for a in current_angles_rad]}", "控制")
+            self.data_display.append_message(f"目标角度(rad): {[round(a, 4) for a in target_angles]}", "控制")
+            
+            # 发送到ROS系统
+            if self.ros_initialized:
+                # 对于轨迹发送，使用同步的轨迹发布
+                if duration > 0 and frequency > 0:
+                    # 将轨迹类型从字符串转换为ROS控制器需要的格式
+                    ros_curve_type = "Trapezoid" if curve_type.lower() == "trapezoid" else "S-Curve"
+                    
+                    # 启动ROS轨迹发布
+                    if self.ros_controller.publish_trajectory(
+                        angles=target_angles,
+                        start_angles=current_angles_rad,
+                        duration=duration,
+                        frequency=frequency,
+                        curve_type=ros_curve_type
+                    ):
+                        self.data_display.append_message(f"已启动ROS轨迹发布，持续{duration}秒，频率{frequency}秒", "ROS")
+                    else:
+                        self.data_display.append_message("启动ROS轨迹发布失败", "错误")
+                else:
+                    # 单点模式，直接发送目标角度
+                    if self.ros_controller.publish_angles(target_angles):
+                        self.data_display.append_message("已将目标角度发送至ROS系统", "ROS")
+                    else:
+                        self.data_display.append_message("发送角度到ROS系统失败", "错误")
+            
+            # 计算差分轨迹
             self.data_display.append_message("计算差分轨迹...", "控制")
             
             # 差分轨迹使用的是目标位置和当前位置之间的运动
@@ -373,7 +450,7 @@ class MainWindow(QMainWindow):
                 # 轨迹模式 - 使用当前位置作为起点，目标位置作为终点
                 self.serial_controller.prepare_trajectory(
                     angles=target_angles,
-                    start_angles=current_angles,  # 传入当前位置作为起点
+                    start_angles=current_angles_rad,  # 传入当前位置作为起点
                     curve_type=curve_type,
                     duration=duration,
                     frequency=frequency,
@@ -402,7 +479,7 @@ class MainWindow(QMainWindow):
                 # 单点模式，直接发送目标角度
                 success, cmd_str = self.serial_controller.send_angles(
                     angles=target_angles,
-                    start_angles=current_angles,  # 传入当前位置作为起点
+                    start_angles=current_angles_rad,  # 传入当前位置作为起点
                     curve_type=curve_type,
                     duration=0,
                     frequency=0,
@@ -415,17 +492,24 @@ class MainWindow(QMainWindow):
                     # 显示实际发送的命令
                     self.data_display.append_message(f"{cmd_str}", "发送")
                     
-                    # 更新曲线绘图 - 使用plot_curves替代不存在的update_angles
-                    self.curve_plot.plot_curves(target_angles, curve_type, duration, frequency)
+                    # 更新曲线绘图
+                    if hasattr(self, 'curve_plot') and hasattr(self.curve_plot, 'plot_angles'):
+                        self.curve_plot.plot_angles(target_angles)
                 else:
-                    self.data_display.append_message(f"发送角度命令失败", "错误")
+                    self.data_display.append_message("发送角度命令失败", "错误")
             
-            # 重置等待标志
+            # 清除等待标志和临时变量
             self.waiting_for_position = False
-            self.current_position = None
+            self.target_angles_pending = None
+            self.curve_params_pending = None
+            self.encoding_type_pending = None
+            self.run_mode_pending = None
             
         except Exception as e:
             self.data_display.append_message(f"差分运动处理异常: {str(e)}", "错误")
+            import traceback
+            self.data_display.append_message(f"错误详情: {traceback.format_exc()}", "错误")
+            # 重置等待位置的标志
             self.waiting_for_position = False
     
     def calculate_inverse_kinematics(self, x, y, z, A, B, C):
@@ -443,18 +527,19 @@ class MainWindow(QMainWindow):
             return None
     
     def apply_inverse_kinematics_result(self, angles):
-        """应用逆运动学计算结果"""
-        if not angles:
-            return
+        """应用逆运动学结果
         
-        # 将计算结果更新到角度控制框
-        for i, angle_var in enumerate(self.angle_control.angle_vars):
-            if i < len(angles):
-                angle_var.setText(f"{angles[i]:.6f}")
+        Args:
+            angles: 关节角度列表
+        """
+        self.angle_control.set_angles(angles)
         
-        # 显示应用信息
-        angles_str = ", ".join([f"{a:.4f}" for a in angles])
-        self.data_display.append_message(f"应用逆运动学结果: [{angles_str}]", "控制")
+        # 发送到ROS系统
+        if self.ros_initialized:
+            if self.ros_controller.publish_angles(angles):
+                self.data_display.append_message("已将逆运动学结果发送至ROS系统", "ROS")
+            else:
+                self.data_display.append_message("发送角度到ROS系统失败", "错误")
     
     def zero_angles(self):
         """归零处理"""
@@ -612,4 +697,17 @@ class MainWindow(QMainWindow):
                 self.data_display.append_message(f"轨迹已暂停，共发送{len(cmd_strs)}个点", "控制")
                 self.was_trajectory_paused = False
             else:
-                self.data_display.append_message(f"轨迹执行失败，已发送{len(cmd_strs)}个点", "错误") 
+                self.data_display.append_message(f"轨迹执行失败，已发送{len(cmd_strs)}个点", "错误")
+    
+    def closeEvent(self, event):
+        """窗口关闭事件处理"""
+        # 停止ROS轨迹发布
+        if hasattr(self, 'ros_controller') and self.ros_controller and self.ros_initialized:
+            self.ros_controller.stop_trajectory()
+            
+        # 关闭ROS控制器
+        if hasattr(self, 'ros_controller') and self.ros_controller:
+            self.ros_controller.shutdown()
+        
+        # 调用父类方法
+        super().closeEvent(event) 

@@ -10,12 +10,16 @@ class JointStatePublisher(Node):
         self.publisher_ = self.create_publisher(JointState, 'joint_states', 10)
         self.joint_state = JointState()
         self.joint_state.name = ['Joint1', 'Joint2', 'Joint3', 'Joint4', 'Joint5', 'Joint6']
+        self.timer = self.create_timer(0.2, self.timer_callback)
 
         self.position_now = initial_position
         self.pose_subscriber = self.create_subscription(Pose, 'position_now', self.pose_callback, 10)
 
     def pose_callback(self, msg):
         self.position_now = msg.positions
+        self.get_logger().info("position_now: {}".format(self.position_now))
+
+    def timer_callback(self):
         self.joint_state.header.stamp = self.get_clock().now().to_msg()
         self.joint_state.position = self.position_now
         self.publisher_.publish(self.joint_state)
