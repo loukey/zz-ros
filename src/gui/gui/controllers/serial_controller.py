@@ -228,6 +228,12 @@ class SerialController:
         返回:
             bool 或 (bool, str): 是否发送成功，或者发送成功与命令字符串的元组
         """
+        # 检查串口连接状态
+        if not hasattr(self.serial_model, 'is_connected') or not self.serial_model.is_connected:
+            if hasattr(self, 'error_occurred'):
+                self.error_occurred.emit("串口未连接")
+            return (False, "") if return_cmd else False
+        
         # 命令类型到控制字节的映射
         control_map = {
             'ENABLE': 0x01,    # 使能
@@ -236,54 +242,61 @@ class SerialController:
             'LOCK': 0x04,      # 锁止刹车
             'STOP': 0x05,      # 立刻停止
             'MOTION': 0x06,    # 运动状态
-            'PAUSE': 0x08,     # 暂停
-            'POSITION': 0x07   # 获取当前位置
+            'POSITION': 0x07,  # 获取当前位置
+            'PAUSE': 0x08      # 暂停
         }
         
         # 获取控制字节
-        control = control_map.get(command_type)
+        control = control_map[command_type]
         if control is None:
-            # 记录错误
             if hasattr(self, 'error_occurred'):
                 self.error_occurred.emit(f"未知的命令类型: {command_type}")
             return (False, "") if return_cmd else False
         
-        # 转换模式字符串为整数
-        mode_value = mode
-        if isinstance(mode, str):
-            # 如果是十六进制字符串，如"0x01"
-            if '0x' in mode.lower():
-                mode_value = int(mode, 16)
-            # 如果是其他字符串，如"01"或数字字符串
-            else:
-                try:
-                    mode_value = int(mode)
-                except ValueError:
-                    # 默认使用轮廓位置模式
-                    mode_value = 1
-        
-        # 默认角度值
-        angles = [0.0] * 6
-        
-        # 直接使用format_command获取所需格式的命令
-        cmd = format_command(angles, control=control, mode=mode_value, result_type=encoding)
-        
-        # 发送命令并获取成功标志
-        success = self.serial_model.send_data(cmd, encoding=encoding)
-        
-        # 对于返回值处理，我们需要一个可读的命令字符串(不含\r\n)
-        if return_cmd:
-            # 获取不带\r\n的可读命令字符串用于返回和显示
-            if encoding == 'string':
-                # 对于string格式，去掉末尾的\r\n
-                readable_cmd = cmd[:-2] if isinstance(cmd, str) else cmd
-            else:
-                # 获取一个可读的字符串格式(不包含\r\n)
-                readable_cmd = format_command(angles, control=control, mode=mode_value, result_type='string')[:-2]
+        try:
+            # 构造命令
+            cmd = format_command(
+                [0.0] * 6,  # 控制命令不需要角度数据
+                control=control,
+                mode=mode,
+                result_type=encoding
+            )
             
-            return (success, readable_cmd)
-        
-        return success
+            # 记录命令内容
+            if hasattr(self, 'error_occurred'):
+                self.error_occurred.emit(f"准备发送命令: {cmd}")
+            
+            # 发送命令
+            success = self.serial_model.send_data(cmd, encoding=encoding)
+            
+            if not success:
+                if hasattr(self, 'error_occurred'):
+                    self.error_occurred.emit(f"发送命令失败: {command_type}")
+                return (False, "") if return_cmd else False
+            
+            # 获取可读的命令字符串
+            if encoding == 'string':
+                cmd_str = cmd[:-2] if isinstance(cmd, str) else cmd  # 去掉末尾的\r\n
+            else:
+                cmd_str = format_command(
+                    [0.0] * 6,
+                    control=control,
+                    mode=mode,
+                    result_type='string'
+                )[:-2]
+            
+            # 记录发送成功
+            if hasattr(self, 'error_occurred'):
+                self.error_occurred.emit(f"命令发送成功: {cmd_str}")
+            
+            if return_cmd:
+                return True, cmd_str
+            return True
+            
+        except Exception as e:
+            if hasattr(self, 'error_occurred'):
+                self.error_occurred.emit(f"发送控制命令失败: {str(e)}")
+            return (False, "") if return_cmd else False
     
     def send_angles(self, angles, curve_type="Trapezoid", duration=5.0, frequency=0.01, encoding="string", mode=0x08, return_cmd=False, start_angles=None):
         """
@@ -500,4 +513,90 @@ class SerialController:
         except Exception as e:
             if hasattr(self, 'error_occurred'):
                 self.error_occurred.emit(f"准备轨迹线程失败: {str(e)}")
-            return False 
+            return False
+
+    def send_control_command(self, command_type, encoding='string', mode=0x08, return_cmd=False):
+        """
+        发送控制命令
+        
+        参数:
+            command_type: 控制命令类型（如 'ENABLE', 'DISABLE' 等）
+            encoding: 编码格式，'string' 或 'hex'
+            mode: 运行模式
+            return_cmd: 是否返回完整命令字符串
+            
+        返回:
+            bool 或 (bool, str): 是否发送成功，或者发送成功与命令字符串的元组
+        """
+        # 检查串口连接状态
+        if not hasattr(self.serial_model, 'is_connected') or not self.serial_model.is_connected:
+            if hasattr(self, 'error_occurred'):
+                self.error_occurred.emit("串口未连接")
+            return (False, "") if return_cmd else False
+        
+        # 命令类型到控制字节的映射
+        control_map = {
+            'ENABLE': 0x01,    # 使能
+            'DISABLE': 0x02,   # 取消使能
+            'RELEASE': 0x03,   # 释放刹车
+            'LOCK': 0x04,      # 锁止刹车
+            'STOP': 0x05,      # 立刻停止
+            'MOTION': 0x06,    # 运动状态
+            'POSITION': 0x07,  # 获取当前位置
+            'PAUSE': 0x08      # 暂停
+        }
+        
+        # 获取控制字节
+        control = control_map[command_type]
+        if control is None:
+            if hasattr(self, 'error_occurred'):
+                self.error_occurred.emit(f"未知的命令类型: {command_type}")
+            return (False, "") if return_cmd else False
+        
+        try:
+            # 构造命令
+            cmd = format_command(
+                [0.0] * 6,  # 控制命令不需要角度数据
+                control=control,
+                mode=mode,
+                result_type=encoding
+            )
+            
+            # 记录命令内容
+            if hasattr(self, 'error_occurred'):
+                self.error_occurred.emit(f"准备发送命令: {cmd}")
+            
+            # 发送命令
+            success = self.serial_model.send_data(cmd, encoding=encoding)
+            
+            if not success:
+                if hasattr(self, 'error_occurred'):
+                    self.error_occurred.emit(f"发送命令失败: {command_type}")
+                return (False, "") if return_cmd else False
+            
+            # 获取可读的命令字符串
+            if encoding == 'string':
+                cmd_str = cmd[:-2] if isinstance(cmd, str) else cmd  # 去掉末尾的\r\n
+            else:
+                cmd_str = format_command(
+                    [0.0] * 6,
+                    control=control,
+                    mode=mode,
+                    result_type='string'
+                )[:-2]
+            
+            # 记录发送成功
+            if hasattr(self, 'error_occurred'):
+                self.error_occurred.emit(f"命令发送成功: {cmd_str}")
+            
+            print(f"控制命令类型: {command_type}")
+            print(f"格式化后的命令: {cmd_str}")
+            
+            if return_cmd:
+                return True, cmd_str
+            return True
+            
+        except Exception as e:
+            if hasattr(self, 'error_occurred'):
+                self.error_occurred.emit(f"发送控制命令失败: {str(e)}")
+            return (False, "") if return_cmd else False 

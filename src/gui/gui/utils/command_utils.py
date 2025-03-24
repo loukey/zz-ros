@@ -25,7 +25,7 @@ def format_command(joint_angles, control=0x06, mode=0x08, result_type='string'):
     # 确保有6个关节角度
     if len(joint_angles) != 6:
         raise ValueError("必须提供6个关节角度")
-    
+    command = f"cmd {control:02X} {mode:02X}"
     # 偏移值
     OFFSETS = [78623, 369707, 83986, 391414, 508006, 455123]
     
@@ -37,22 +37,20 @@ def format_command(joint_angles, control=0x06, mode=0x08, result_type='string'):
     for angle, offset in zip(joint_angles, OFFSETS):
         # 将弧度值转换为整数值
         scaled_value = int(angle * SCALE_FACTOR)
-        # 添加偏移
         final_value = (scaled_value + offset) & 0xFFFFFF  # 确保是24位
         counts.append(final_value)
-    
+    print(counts)
     # 构建命令字符串
-    command = f"cmd {control:02X} {mode:02X}"
+    
     for count in counts:
         command += f" {count}"
-    
     # 计算校验和 (CRC16)
     crc = calculate_crc16(command)
     command += f" {crc:04X}"
     
     # 添加行终止符
     command += "\r\n"
-    
+    print(command)
     # 根据结果类型返回
     if result_type == 'hex':
         return command.encode('ascii')

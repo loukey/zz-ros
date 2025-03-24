@@ -22,6 +22,9 @@ class SerialModel(QObject):
         self.serial = None
         self.is_connected = False
         self.stop_flag = False
+        self.buffer = ""  # 添加缓冲区用于累积数据
+        self.last_buffer_time = 0  # 记录上次处理缓冲区的时间
+        self.buffer_timeout = 0.2  # 缓冲区超时时间（秒）
     
     def get_available_ports(self):
         """
@@ -119,6 +122,36 @@ class SerialModel(QObject):
         """停止读取数据"""
         self.stop_flag = True
     
+    def process_buffer(self, force=False):
+        """处理缓冲区中的数据，将完整的行发送出去"""
+        current_time = time.time()
+        
+        # 如果缓冲区为空，直接返回
+        if not self.buffer:
+            return
+            
+        # 按\r\n分割缓冲区中的数据
+        lines = self.buffer.split('\r\n')
+        
+        # 如果有完整的行（lines长度大于1）或强制处理
+        if len(lines) > 1 or (force and current_time - self.last_buffer_time > self.buffer_timeout):
+            # 如果强制处理但没有完整行，则视当前缓冲区为一个完整行
+            if force and len(lines) == 1 and current_time - self.last_buffer_time > self.buffer_timeout:
+                if self.buffer.strip():  # 只处理非空内容
+                    self.data_received.emit(self.buffer)
+                self.buffer = ""  # 清空缓冲区
+                self.last_buffer_time = current_time
+                return
+                
+            # 处理完整行
+            for line in lines[:-1]:
+                if line.strip():  # 只发送非空行
+                    self.data_received.emit(line)
+            
+            # 保留最后一个可能不完整的行到缓冲区
+            self.buffer = lines[-1]
+            self.last_buffer_time = current_time
+    
     def read_data(self):
         """读取串口数据"""
         error_count = 0  # 错误计数器
@@ -132,10 +165,18 @@ class SerialModel(QObject):
                         if data:
                             # 直接解码为UTF-8字符串，忽略错误的字符
                             decoded_data = data.decode('utf-8', errors='ignore')
-                            # 发送数据接收信号
-                            self.data_received.emit(decoded_data)
+                            
+                            # 将新数据添加到缓冲区
+                            self.buffer += decoded_data
+                            
+                            # 处理缓冲区
+                            self.process_buffer()
+                            
                             # 成功读取数据，重置错误计数
                             error_count = 0
+                    else:
+                        # 检查是否需要强制处理长时间未完成的缓冲区
+                        self.process_buffer(force=True)
                             
                 except serial.SerialException as e:
                     # 串口异常（如设备断开连接）
@@ -219,11 +260,18 @@ class SerialModel(QObject):
                 if isinstance(data, str):
                     data = bytes.fromhex(data.replace(' ', ''))
             else:
-                # 将字符串转换为字节
+                # 将字符串转换为字节，确保添加\r\n结束符
                 if isinstance(data, str):
+                    if not data.endswith('\r\n'):
+                        data += '\r\n'
                     data = data.encode('utf-8')
             
+            # 发送数据
             self.serial.write(data)
+            
+            # 确保数据被发送
+            self.serial.flush()
+            
             return True
             
         except Exception as e:

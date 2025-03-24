@@ -10,6 +10,7 @@ from gui.components.kinematic_components import InverseKinematicFrame, CurvePlot
 from gui.controllers.robot_controller import RobotController
 from gui.controllers.serial_controller import SerialController
 from gui.controllers.ros_controller import ROSController
+from gui.controllers.trajectory_controller import TrajectoryController
 from math import pi
 import math
 from gui.utils.command_utils import calculate_crc16
@@ -43,10 +44,22 @@ class MainWindow(QMainWindow):
         except Exception as e:
             print(f"ROS控制器初始化异常: {str(e)}")
         
+        # 创建轨迹控制器
+        self.trajectory_controller = TrajectoryController(self.serial_controller, self.ros_controller)
+        
         # 注册回调函数
         self.serial_controller.serial_model.data_received.connect(self.handle_data_received)
         self.serial_controller.serial_model.connection_changed.connect(self.handle_connection_changed)
         self.serial_controller.serial_model.error_occurred.connect(self.handle_error_occurred)
+        
+        # 注册轨迹控制器的信号
+        self.trajectory_controller.trajectory_started.connect(self.handle_trajectory_started)
+        self.trajectory_controller.trajectory_paused.connect(self.handle_trajectory_paused)
+        self.trajectory_controller.trajectory_resumed.connect(self.handle_trajectory_resumed)
+        self.trajectory_controller.trajectory_stopped.connect(self.handle_trajectory_stopped)
+        self.trajectory_controller.trajectory_finished.connect(self.handle_trajectory_finished)
+        self.trajectory_controller.trajectory_error.connect(self.handle_trajectory_error)
+        self.trajectory_controller.progress_updated.connect(self.handle_trajectory_progress)
         
         # 创建定时器以定期更新末端位置显示
         self.position_timer = QTimer()
@@ -220,88 +233,49 @@ class MainWindow(QMainWindow):
         """发送控制命令"""
         if not (hasattr(self.serial_controller.serial_model, 'is_connected') and 
                 self.serial_controller.serial_model.is_connected):
+            QMessageBox.warning(self, "警告", "请先连接串口")
             return
         
         # 获取编码格式和运行模式
         encoding_type = self.control_buttons.get_encoding_type()
         run_mode = self.control_buttons.get_run_mode()
+        # 记录控制命令的高级描述
+        command_desc = {
+            "ENABLE": "使能",
+            "DISABLE": "取消使能",
+            "RELEASE": "释放刹车",
+            "LOCK": "锁止刹车",
+            "STOP": "立刻停止",
+            "PAUSE": "暂停"
+        }.get(command_type, f"执行 {command_type} 命令")
         
-        try:
-            # 记录控制命令的高级描述
-            command_desc = {
-                "ENABLE": "使能",
-                "DISABLE": "取消使能",
-                "RELEASE": "释放刹车",
-                "LOCK": "锁止刹车",
-                "STOP": "立刻停止",
-                "PAUSE": "暂停"
-            }.get(command_type, f"执行 {command_type} 命令")
-            
-            # 显示控制命令描述
-            self.data_display.append_message(command_desc, "控制")
-            
-            # 如果是暂停命令，检查是否有正在运行的轨迹线程，并停止它
-            if command_type == "PAUSE" and hasattr(self.serial_controller, 'trajectory_thread'):
-                if self.serial_controller.trajectory_thread and self.serial_controller.trajectory_thread.isRunning():
-                    self.data_display.append_message("停止当前轨迹发送", "控制")
-                    # 设置标志，表示轨迹被暂停按钮终止
-                    self.was_trajectory_paused = True
-                    
-                    # 停止轨迹线程
-                    self.serial_controller.trajectory_thread.stop()
-                    
-                    # 如果ROS初始化了，也停止ROS轨迹发布
-                    if self.ros_initialized:
-                        self.ros_controller.stop_trajectory()
-                        self.data_display.append_message("已停止ROS轨迹发布", "ROS")
-                    
-                    # 等待线程完全停止
-                    if self.serial_controller.trajectory_thread.isRunning():
-                        # 等待最多200毫秒让线程停止
-                        if not self.serial_controller.trajectory_thread.wait(200):
-                            self.data_display.append_message("轨迹线程未能立即停止，强制终止", "警告")
-                            # 如果仍在运行，尝试更激进的措施
-                            try:
-                                self.serial_controller.trajectory_thread.terminate()
-                                self.serial_controller.trajectory_thread.wait(100)
-                            except:
-                                pass
-            
-            # 如果是停止命令，也要停止ROS轨迹发布
-            if command_type == "STOP" and self.ros_initialized:
-                self.ros_controller.stop_trajectory()
-                self.data_display.append_message("已停止ROS轨迹发布", "ROS")
-            
-            # 直接通过串口控制器发送命令并获取命令字符串
-            success, cmd_str = self.serial_controller.send_control_command(
-                command_type=command_type,
-                encoding=encoding_type,
-                mode=run_mode,
-                return_cmd=True
-            )
-            
-            if success:
-                # 显示实际命令的内容
-                self.data_display.append_message(f"{cmd_str}", "发送")
-                
-                # 如果是暂停命令，确保不会再发送后续轨迹点
-                if command_type == "PAUSE":
-                    # 清除可能的等待状态和定时器
-                    if hasattr(self, 'position_response_timer') and self.position_response_timer.isActive():
-                        self.position_response_timer.stop()
-                    
-                    if hasattr(self, 'waiting_for_position'):
-                        self.waiting_for_position = False
-                        
-                    # 确保后续不再有轨迹点消息
-                    self.data_display.append_message("暂停完成，轨迹发送已终止", "控制")
-            else:
-                # 记录错误
-                self.data_display.append_message(f"发送控制命令失败: {command_type}", "错误")
-            
-        except Exception as e:
-            # 记录异常
-            self.data_display.append_message(f"发送控制命令异常: {str(e)}", "错误")
+        # 如果是暂停命令，停止轨迹执行
+        if command_type == "PAUSE":
+            self.trajectory_controller.pause_trajectory()
+            return
+        
+        # 如果是停止命令，停止轨迹执行
+        if command_type == "STOP":
+            self.trajectory_controller.stop_trajectory()
+            return
+        
+        # 发送控制命令并获取命令字符串
+        success, cmd_str = self.serial_controller.send_control_command(
+            command_type=command_type,
+            encoding=encoding_type,
+            mode=run_mode,
+            return_cmd=True  # 确保返回命令字符串
+        )
+        
+        # 显示控制命令描述
+        self.data_display.append_message(cmd_str, "控制")
+        
+        if success:
+            # 显示实际发送的命令
+            self.data_display.append_message(f"{cmd_str}", "发送")
+        else:
+            self.data_display.append_message(f"发送控制命令失败: {command_type}", "错误")
+            QMessageBox.warning(self, "错误", f"发送{command_desc}命令失败")
     
     def send_angles(self):
         """发送角度命令"""
@@ -687,27 +661,78 @@ class MainWindow(QMainWindow):
         else:
             self.data_display.append_message(f"轨迹点[{index}/{total}]发送失败", "错误")
     
-    def handle_trajectory_finished(self, success, cmd_strs):
-        """处理轨迹发送完成信号"""
+    def handle_trajectory_finished(self, success, points):
+        """处理轨迹完成事件
+        
+        Args:
+            success: 是否成功完成
+            points: 轨迹点列表
+        """
         if success:
-            self.data_display.append_message(f"轨迹执行完成，共{len(cmd_strs)}个点", "控制")
+            self.data_display.append_message(f"轨迹执行完成，共发送 {len(points)} 个点", "控制")
         else:
-            # 检查是否是被暂停按钮终止的
-            if hasattr(self, 'was_trajectory_paused') and self.was_trajectory_paused:
-                self.data_display.append_message(f"轨迹已暂停，共发送{len(cmd_strs)}个点", "控制")
-                self.was_trajectory_paused = False
-            else:
-                self.data_display.append_message(f"轨迹执行失败，已发送{len(cmd_strs)}个点", "错误")
+            self.data_display.append_message(f"轨迹执行失败，已发送 {len(points)} 个点", "错误")
+        self.control_buttons.set_trajectory_running(False)
+    
+    def handle_trajectory_started(self):
+        """处理轨迹开始事件"""
+        self.data_display.append_message("开始执行轨迹", "控制")
+        self.control_buttons.set_trajectory_running(True)
+    
+    def handle_trajectory_paused(self):
+        """处理轨迹暂停事件"""
+        self.data_display.append_message("轨迹已暂停", "控制")
+        self.control_buttons.set_trajectory_running(False)
+    
+    def handle_trajectory_resumed(self):
+        """处理轨迹恢复事件"""
+        self.data_display.append_message("轨迹已恢复", "控制")
+        self.control_buttons.set_trajectory_running(True)
+    
+    def handle_trajectory_stopped(self):
+        """处理轨迹停止事件"""
+        self.data_display.append_message("轨迹已停止", "控制")
+        self.control_buttons.set_trajectory_running(False)
+    
+    def handle_trajectory_error(self, error_msg):
+        """处理轨迹错误事件
+        
+        Args:
+            error_msg: 错误信息
+        """
+        self.data_display.append_message(error_msg, "错误")
+        self.control_buttons.set_trajectory_running(False)
+    
+    def handle_trajectory_progress(self, current_index, total_points):
+        """处理轨迹进度更新事件
+        
+        Args:
+            current_index: 当前点索引
+            total_points: 总点数
+        """
+        # 更新进度显示
+        progress = (current_index / total_points) * 100
+        self.control_buttons.update_progress(progress)
     
     def closeEvent(self, event):
         """窗口关闭事件处理"""
-        # 停止ROS轨迹发布
-        if hasattr(self, 'ros_controller') and self.ros_controller and self.ros_initialized:
-            self.ros_controller.stop_trajectory()
-            
+        # 停止轨迹执行
+        self.trajectory_controller.stop_trajectory()
+        
+        # 断开串口连接
+        if hasattr(self.serial_controller.serial_model, 'is_connected') and self.serial_controller.serial_model.is_connected:
+            self.serial_controller.disconnect()
+        
         # 关闭ROS控制器
-        if hasattr(self, 'ros_controller') and self.ros_controller:
+        if self.ros_initialized:
             self.ros_controller.shutdown()
         
-        # 调用父类方法
-        super().closeEvent(event) 
+        # 关闭仿真窗口
+        if hasattr(self, 'simulation_window'):
+            self.simulation_window.close()
+        
+        # 关闭相机窗口
+        if hasattr(self, 'camera_window'):
+            self.camera_window.close()
+        
+        event.accept() 
