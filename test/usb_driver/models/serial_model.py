@@ -126,14 +126,14 @@ class SerialModel(QObject):
             if self.serial and self.serial.is_open:
                 if self.serial.in_waiting:
                     data = self.serial.read(self.serial.in_waiting)
-                if data:
-                    # 直接解码为UTF-8字符串，忽略错误的字符
-                    decoded_data = data.decode('utf-8', errors='ignore')
-                    if "\r\n" in decoded_data:
-                        self.buffer += decoded_data
-                        lines = self.buffer.split("\r\n")
-                        self.buffer = lines[-1]
-                        self.data_received.emit(lines[0])
+                    if data:
+                        # 直接解码为UTF-8字符串，忽略错误的字符
+                        decoded_data = data.decode('utf-8', errors='ignore')
+                        if "\r\n" in decoded_data:
+                            self.buffer += decoded_data
+                            lines = self.buffer.split("\r\n")
+                            self.buffer = lines[-1]
+                            self.data_received.emit(lines[0])
                         
     def send_data(self, data, encoding='string'):
         """
