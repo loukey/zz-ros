@@ -5,7 +5,7 @@
 import numpy as np
 from math import pi
 
-def trapezoidal_velocity_planning(angles, v_max=pi, t_acc=0.5, v_start=0, dt=0.01):
+def trapezoidal_velocity_planning(angles, v_max=pi/4, t_acc=8, v_start=0, dt=0.01):
     """实现梯形加减速曲线规划
     
     Args:

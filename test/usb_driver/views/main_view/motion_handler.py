@@ -105,11 +105,12 @@ class MotionHandler:
             self.main_window.data_display.append_message(f"发送角度命令异常: {str(e)}", "错误")
     
     
-    def process_differential_motion(self):
+    def process_differential_motion(self, positions):
         """处理差分运动
         
         流程：获取当前位置 -> 调用轨迹计算 -> 发送轨迹点
         """
+        self.current_position = positions
         if not self.current_position or not self.target_angles_pending:
             self.main_window.data_display.append_message("缺少当前位置或目标位置数据", "错误")
             return
@@ -234,7 +235,8 @@ class MotionHandler:
             # 获取当前轨迹点
             current_point = self.trajectory_points[self.current_trajectory_index]
             point_time = self.time_points[self.current_trajectory_index]
-
+            for i in range(len(current_point)):
+                current_point[i] += self.current_position[i]
             # 记录将要发送的数据
             self.main_window.data_display.append_message(
                 f"准备发送轨迹点 {self.current_trajectory_index+1}: {[round(a, 4) for a in current_point]}", 

@@ -106,12 +106,7 @@ class SerialHandler:
                     # 检查是否是位置响应 (msg 07)
                     if control == '07':
                         self.main_window.data_display.append_message("收到当前位置响应", "控制")
-                        
-                        # 存储当前位置
-                        self.main_window.motion_handler.current_position = positions
-                        
-                        # 处理差分运动
-                        self.main_window.motion_handler.process_differential_motion()
+                        self.main_window.motion_handler.process_differential_motion(positions)
                         return
                     
                     # # 更新曲线 - 使用plot_curves方法
