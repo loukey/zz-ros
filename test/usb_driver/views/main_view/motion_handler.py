@@ -110,7 +110,7 @@ class MotionHandler:
         
         流程：获取当前位置 -> 调用轨迹计算 -> 发送轨迹点
         """
-        if not self.main_window.current_position or not self.target_angles_pending:
+        if not self.current_position or not self.target_angles_pending:
             self.main_window.data_display.append_message("缺少当前位置或目标位置数据", "错误")
             return
         
@@ -123,7 +123,7 @@ class MotionHandler:
             
             # 将当前位置从整数值转换为弧度
             try:
-                current_angles_rad = position_to_radian(self.main_window.current_position)
+                current_angles_rad = position_to_radian(self.current_position)
             except Exception as e:
                 self.main_window.data_display.append_message(f"位置数据转换异常: {str(e)}", "错误")
                 return
