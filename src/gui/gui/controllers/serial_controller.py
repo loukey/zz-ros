@@ -515,7 +515,7 @@ class SerialController:
                 self.error_occurred.emit(f"准备轨迹线程失败: {str(e)}")
             return False
 
-    def send_control_command(self, command_type, encoding='string', mode=0x08, return_cmd=False):
+
         """
         发送控制命令
         

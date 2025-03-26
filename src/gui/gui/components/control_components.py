@@ -48,17 +48,17 @@ class ControlButtonsFrame(QGroupBox):
         mode_layout = QHBoxLayout()
         mode_layout.addWidget(QLabel("运行模式:"))
         self.run_modes = [
-            ('轮廓位置模式', '01'),
-            ('轮廓速度模式', '03'),
-            ('轮廓扭矩模式', '04'),
-            ('回零模式(暂不支持)', '06'),
-            ('位置插补模式(暂不支持)', '07'),
-            ('周期同步位置模式', '08'),
-            ('周期同步速度模式', '09'),
-            ('周期同步扭矩模式', '0A')
+            ('轮廓位置模式', 0x01),
+            ('轮廓速度模式', 0x03),
+            ('轮廓扭矩模式', 0x04),
+            ('回零模式(暂不支持)', 0x06),
+            ('位置插补模式(暂不支持)', 0x07),
+            ('周期同步位置模式', 0x08),
+            ('周期同步速度模式', 0x09),
+            ('周期同步扭矩模式', 0x0A)
         ]
         self.run_mode_combo = QComboBox()
-        self.run_mode_combo.addItems([f"{mode[0]} ({mode[1]})" for mode in self.run_modes])
+        self.run_mode_combo.addItems([f"{mode[0]} ({mode[1]:02X})" for mode in self.run_modes])
         self.run_mode_combo.setCurrentText('周期同步位置模式 (08)')
         self.run_mode_combo.setFont(default_font)
         mode_layout.addWidget(self.run_mode_combo)

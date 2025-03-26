@@ -124,19 +124,19 @@ class MotionHandler:
             
             # 将当前位置从整数值转换为弧度
             try:
-                current_angles_rad = position_to_radian(self.current_position)
+                self.current_angles_rad = position_to_radian(self.current_position)
             except Exception as e:
                 self.main_window.data_display.append_message(f"位置数据转换异常: {str(e)}", "错误")
                 return
             
-            self.main_window.data_display.append_message(f"当前角度(rad): {[round(a, 4) for a in current_angles_rad]}", "控制")
+            self.main_window.data_display.append_message(f"当前角度(rad): {[round(a, 4) for a in self.current_angles_rad]}", "控制")
             self.main_window.data_display.append_message(f"目标角度(rad): {[round(a, 4) for a in target_angles]}", "控制")
             self.main_window.data_display.append_message("开始计算轨迹...", "控制")
             
             # 检查是否需要计算完整轨迹
             if duration > 0 and frequency > 0:
                 trajectory_points, time_points = self.main_window.trajectory_controller.calculate_trajectory(
-                    start_angles=current_angles_rad,
+                    start_angles=self.current_angles_rad,
                     end_angles=target_angles,
                     duration=duration,
                     frequency=frequency,
@@ -236,7 +236,7 @@ class MotionHandler:
             current_point = self.trajectory_points[self.current_trajectory_index]
             point_time = self.time_points[self.current_trajectory_index]
             for i in range(len(current_point)):
-                current_point[i] += float(self.current_position[i])
+                current_point[i] += self.current_angles_rad[i]
             # 记录将要发送的数据
             self.main_window.data_display.append_message(
                 f"准备发送轨迹点 {self.current_trajectory_index+1}: {[round(a, 4) for a in current_point]}", 
