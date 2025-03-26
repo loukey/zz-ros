@@ -234,7 +234,6 @@ class MotionHandler:
             # 获取当前轨迹点
             current_point = self.trajectory_points[self.current_trajectory_index]
             point_time = self.time_points[self.current_trajectory_index]
-            current_point = current_point.tolist()
 
             # 记录将要发送的数据
             self.main_window.data_display.append_message(
