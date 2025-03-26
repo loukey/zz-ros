@@ -236,7 +236,7 @@ class MotionHandler:
             current_point = self.trajectory_points[self.current_trajectory_index]
             point_time = self.time_points[self.current_trajectory_index]
             for i in range(len(current_point)):
-                current_point[i] += self.current_position[i]
+                current_point[i] += float(self.current_position[i])
             # 记录将要发送的数据
             self.main_window.data_display.append_message(
                 f"准备发送轨迹点 {self.current_trajectory_index+1}: {[round(a, 4) for a in current_point]}", 
