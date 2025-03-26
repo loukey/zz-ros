@@ -29,38 +29,22 @@ class TrajectoryController(QObject):
             end_angles: 目标角度列表
             duration: 轨迹总时长(秒)
             frequency: 发送频率(秒)
-            curve_type: 轨迹类型，"Trapezoid"或"S-Curve"
+            curve_type: 轨迹类型，"trapezoidal"或"s-curve"
             
         Returns:
             Tuple[List[List[float]], List[float]]: (轨迹点列表, 时间点列表)
         """
         try:
-            print(f"开始计算轨迹: 类型={curve_type}, 持续时间={duration}秒, 频率={frequency}秒")
-            print(f"起始角度: {start_angles}")
-            print(f"目标角度: {end_angles}")
-            
-            # 计算角度差值
             angles_diff = [end - start for end, start in zip(end_angles, start_angles)]
-            print(f"角度差值: {angles_diff}")
-            
-            # 根据曲线类型选择不同的轨迹计算函数
             if curve_type.lower() == "trapezoidal":
-                # 梯形速度曲线
-                print("使用梯形速度曲线规划")
-                times, velocities, accelerations, positions = trapezoidal_velocity_planning(angles=angles_diff, dt=frequency)
+                times, velocities, accelerations, positions = trapezoidal_velocity_planning(start_angles=start_angles, target_angles=end_angles, dt=frequency)
             else:
-                # S型速度曲线
-                print("使用S型速度曲线规划")
-                times, velocities, accelerations, positions = s_curve_velocity_planning(angles=angles_diff, dt=frequency)
-            print(f"轨迹计算完成: 共{len(positions)}个点, 总时长{times[-1] if len(times) > 0 else 0}秒")
-            
+                times, velocities, accelerations, positions = s_curve_velocity_planning(start_angles=start_angles, target_angles=end_angles, dt=frequency)            
             return positions, times
             
         except Exception as e:
             import traceback
             error_msg = f"轨迹计算错误: {str(e)}"
-            print(error_msg)
-            print(traceback.format_exc())
             self.calculation_error.emit(error_msg)
             return [], []
     
