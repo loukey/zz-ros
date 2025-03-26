@@ -129,11 +129,13 @@ class SerialModel(QObject):
                     if data:
                         # 直接解码为UTF-8字符串，忽略错误的字符
                         decoded_data = data.decode('utf-8', errors='ignore')
-                        if "\r\n" in decoded_data:
+                        if '\r\n' in decoded_data:
                             self.buffer += decoded_data
-                            lines = self.buffer.split("\r\n")
+                            lines = self.buffer.split('\r\n')
                             self.buffer = lines[-1]
                             self.data_received.emit(lines[0])
+                        else:
+                            self.buffer += decoded_data
                         
     def send_data(self, data, encoding='string'):
         """

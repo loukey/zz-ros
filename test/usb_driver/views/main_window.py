@@ -1,19 +1,11 @@
 """
 主窗口视图
 """
-from PyQt5.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QTabWidget, QMessageBox, QHBoxLayout, QStatusBar, QProgressBar, QToolBar, QAction, QApplication
-from PyQt5.QtCore import QTimer, QObject, pyqtSignal
-from components.serial_components import PortSelectionFrame, SerialConfigFrame
-from components.control_components import ControlButtonsFrame, AngleControlFrame
-from components.display_components import DataDisplayFrame
-from components.kinematic_components import InverseKinematicFrame, CurvePlotFrame, EndPositionFrame
-from controllers.robot_controller import RobotController
-from controllers.serial_controller import SerialController
-from controllers.ros_controller import ROSController
-from controllers.trajectory_controller import TrajectoryController
-from views.main_view import SerialHandler, MotionHandler, KinematicHandler, TrajectoryHandler
-from views.simulation_window import SimulationWindow
-from views.camera_window import CameraWindow
+from PyQt5.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QTabWidget, QMessageBox, QHBoxLayout, QStatusBar, QProgressBar, QToolBar, QApplication
+from PyQt5.QtCore import QTimer
+from components import *
+from controllers import *
+from .main_view import *
 
 
 class MainWindow(QMainWindow):
@@ -23,7 +15,7 @@ class MainWindow(QMainWindow):
         super(MainWindow, self).__init__(parent)
         
         # 设置窗口标题和大小
-        self.setWindowTitle("USB驱动机械臂控制工具")
+        self.setWindowTitle("镇中科技机械臂控制工具v0.1.7")
         self.resize(1200, 1000)
         
         # 初始化状态变量
@@ -218,9 +210,6 @@ class MainWindow(QMainWindow):
             # 创建运动学处理器
             self.kinematic_handler = KinematicHandler(self)
             
-            # 创建轨迹处理器
-            self.trajectory_handler = TrajectoryHandler(self)
-            
             # 初始化成功消息
             self.data_display.append_message("功能处理器初始化成功", "系统")
         except Exception as e:
@@ -252,30 +241,6 @@ class MainWindow(QMainWindow):
         """切换串口连接状态"""
         self.serial_handler.toggle_connection()
     
-    def handle_data_received(self, data):
-        """处理接收到的数据"""
-        self.serial_handler.handle_data_received(data)
-    
-    def handle_connection_changed(self, connected, port=None):
-        """处理连接状态变化"""
-        self.serial_handler.handle_connection_changed(connected, port)
-    
-    def handle_error_occurred(self, error):
-        """处理错误事件"""
-        self.serial_handler.handle_error_occurred(error)
-    
-    def clear_send(self):
-        """清空发送区域"""
-        self.data_display.clear_send()
-    
-    def clear_receive(self):
-        """清空接收区域"""
-        self.data_display.clear_receive()
-    
-    def clear_all(self):
-        """清空所有区域"""
-        self.data_display.clear_all()
-    
     def send_control_command(self, command_type):
         """发送控制命令"""
         self.motion_handler.send_control_command(command_type)
@@ -291,7 +256,19 @@ class MainWindow(QMainWindow):
     def zero_angles(self):
         """归零处理"""
         self.motion_handler.zero_angles()
+
+    def clear_send(self):
+        """清空发送区域"""
+        self.data_display.clear_send()
     
+    def clear_receive(self):
+        """清空接收区域"""
+        self.data_display.clear_receive()
+    
+    def clear_all(self):
+        """清空所有区域"""
+        self.data_display.clear_all()
+
     def closeEvent(self, event=None):
         """关闭窗口事件处理"""
         # 断开串口连接
@@ -310,7 +287,18 @@ class MainWindow(QMainWindow):
         if event:
             event.accept()
 
+    def handle_data_received(self, data):
+        """处理接收到的数据"""
+        self.serial_handler.handle_data_received(data)
+    
+    def handle_connection_changed(self, connected, port=None):
+        """处理连接状态变化"""
+        self.serial_handler.handle_connection_changed(connected, port)
+    
+    def handle_error_occurred(self, error):
+        """处理错误事件"""
+        self.serial_handler.handle_error_occurred(error)
+
     def handle_calculation_error(self, error_message):
         """处理轨迹计算错误事件"""
-        if hasattr(self, 'trajectory_handler'):
-            self.trajectory_handler.handle_calculation_error(error_message)
+        self.serial_handler.handle_calculation_error(error_message)

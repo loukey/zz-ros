@@ -104,30 +104,27 @@ class SerialHandler:
                         self.main_window.data_display.append_message(f"CRC校验: 错误 (接收: {crc}, 计算: {calculated_crc_hex})", "错误")
                     
                     # 检查是否是位置响应 (msg 07)
-                    if control == '07' and hasattr(self.main_window, 'waiting_for_position') and self.main_window.waiting_for_position:
+                    if control == '07':
                         self.main_window.data_display.append_message("收到当前位置响应", "控制")
-                        # 停止计时器
-                        if hasattr(self.main_window, 'position_response_timer') and self.main_window.position_response_timer.isActive():
-                            self.main_window.position_response_timer.stop()
                         
                         # 存储当前位置
-                        self.main_window.current_position = positions
+                        self.main_window.motion_handler.current_position = positions
                         
                         # 处理差分运动
                         self.main_window.motion_handler.process_differential_motion()
                         return
                     
-                    # 更新曲线 - 使用plot_curves方法
-                    try:
-                        # 使用position_to_radian函数将位置值转换为弧度
-                        angles = position_to_radian(positions)
+                    # # 更新曲线 - 使用plot_curves方法
+                    # try:
+                    #     # 使用position_to_radian函数将位置值转换为弧度
+                    #     angles = position_to_radian(positions)
                         
-                        # 使用plot_curves方法绘制曲线
-                        self.main_window.curve_plot.plot_curves(angles, "trapezoidal", 4.0, 0.1)
-                    except ValueError as e:
-                        self.main_window.data_display.append_message(f"角度转换失败: {str(e)}", "错误")
-                    except Exception as e:
-                        self.main_window.data_display.append_message(f"曲线绘制失败: {str(e)}", "错误")
+                    #     # 使用plot_curves方法绘制曲线
+                    #     self.main_window.curve_plot.plot_curves(angles, "trapezoidal", 4.0, 0.1)
+                    # except ValueError as e:
+                    #     self.main_window.data_display.append_message(f"角度转换失败: {str(e)}", "错误")
+                    # except Exception as e:
+                    #     self.main_window.data_display.append_message(f"曲线绘制失败: {str(e)}", "错误")
             except Exception as e:
                 self.main_window.data_display.append_message(f"解析消息失败: {str(e)}", "错误")
     
@@ -157,6 +154,18 @@ class SerialHandler:
         self.main_window.data_display.append_message(f"错误: {error_message}", "错误")
         QMessageBox.critical(self.main_window, "错误", error_message)
     
+    def handle_calculation_error(self, error_message):
+        """处理轨迹计算错误
+        
+        Args:
+            error_message: 错误信息
+        """
+        self.main_window.data_display.append_message(f"轨迹计算错误: {error_message}", "错误")
+        
+        # 更新UI状态，例如禁用某些按钮或显示错误指示
+        if hasattr(self.main_window, 'status_bar'):
+            self.main_window.status_bar.showMessage("轨迹计算失败") 
+
     def is_connected(self):
         """检查串口是否已连接"""
         return (hasattr(self.serial_controller.serial_model, 'is_connected') and 

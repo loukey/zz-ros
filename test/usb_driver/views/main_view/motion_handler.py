@@ -12,7 +12,6 @@ class MotionHandler:
     def __init__(self, main_window):
         self.main_window = main_window
         # 初始化状态变量
-        self.waiting_for_position = False
         self.current_position = None
         self.target_angles_pending = None
         self.curve_params_pending = None
@@ -88,7 +87,7 @@ class MotionHandler:
             )
             
             if not success:
-                self.main_window.data_display.append_message("获取当前位置失败，无法执行差分运动", "错误")
+                self.main_window.data_display.append_message("发送POSITION命令失败", "错误")
                 return
                 
             # 记录发送的命令
@@ -96,38 +95,15 @@ class MotionHandler:
             self.main_window.data_display.append_message("等待位置数据响应...", "控制")
             
             # 保存参数等待位置响应
-            self.waiting_for_position = True
-            self.main_window.waiting_for_position = True
             self.current_position = None
-            self.main_window.current_position = None
             self.target_angles_pending = target_angles
             self.curve_params_pending = (curve_type, duration, frequency)
             self.encoding_type_pending = encoding_type
             self.run_mode_pending = run_mode
-            
-            # 设置超时计时器
-            self.position_response_timer = QTimer()
-            self.position_response_timer.setSingleShot(True)
-            self.position_response_timer.timeout.connect(self.on_position_response_timeout)
-            self.position_response_timer.start(2000)  # 2秒超时
                 
         except Exception as e:
             self.main_window.data_display.append_message(f"发送角度命令异常: {str(e)}", "错误")
     
-    def on_position_response_timeout(self):
-        """位置响应超时处理
-        
-        如果超时，使用默认位置值继续执行
-        """
-        if self.waiting_for_position:
-            self.waiting_for_position = False
-            self.main_window.waiting_for_position = False
-            self.main_window.data_display.append_message("获取当前位置超时, 自动设置为零点", "错误")
-            # 使用默认位置值（编码器零点位置）
-            self.current_position = [78623, 369707, 83986, 391414, 508006, 455123]
-            self.main_window.current_position = self.current_position
-            # 继续执行差分运动
-            self.process_differential_motion()
     
     def process_differential_motion(self):
         """处理差分运动
@@ -152,16 +128,12 @@ class MotionHandler:
                 self.main_window.data_display.append_message(f"位置数据转换异常: {str(e)}", "错误")
                 return
             
-            # 记录当前位置和目标位置
             self.main_window.data_display.append_message(f"当前角度(rad): {[round(a, 4) for a in current_angles_rad]}", "控制")
             self.main_window.data_display.append_message(f"目标角度(rad): {[round(a, 4) for a in target_angles]}", "控制")
-            
-            # 计算轨迹
             self.main_window.data_display.append_message("开始计算轨迹...", "控制")
             
             # 检查是否需要计算完整轨迹
             if duration > 0 and frequency > 0:
-                # 使用轨迹控制器计算轨迹点
                 trajectory_points, time_points = self.main_window.trajectory_controller.calculate_trajectory(
                     start_angles=current_angles_rad,
                     end_angles=target_angles,
@@ -180,8 +152,6 @@ class MotionHandler:
                 self.send_single_point(target_angles, encoding_type, run_mode)
             
             # 清除等待状态
-            self.waiting_for_position = False
-            self.main_window.waiting_for_position = False
             self.target_angles_pending = None
             self.curve_params_pending = None
             self.encoding_type_pending = None
@@ -194,41 +164,6 @@ class MotionHandler:
             # 重置状态
             self.waiting_for_position = False
             self.main_window.waiting_for_position = False
-    
-    def send_single_point(self, angles, encoding_type, run_mode):
-        """发送单个点
-        
-        Args:
-            angles: 目标角度列表
-            encoding_type: 编码类型
-            run_mode: 运行模式
-        """
-        try:
-            # 直接通过串口发送命令
-            success, cmd_str = self.main_window.serial_handler.serial_controller.send_control_command(
-                joint_angles=angles,
-                command_type='MOTION',
-                encoding=encoding_type,
-                mode=run_mode,
-                return_cmd=True
-            )
-            
-            if success:
-                # 显示发送的命令
-                self.main_window.data_display.append_message(f"{cmd_str}", "发送")
-                
-                # 更新曲线图
-                if hasattr(self.main_window, 'curve_plot') and hasattr(self.main_window.curve_plot, 'plot_angles'):
-                    self.main_window.curve_plot.plot_angles(angles)
-                
-                return True
-            else:
-                self.main_window.data_display.append_message("发送角度命令失败", "错误")
-                return False
-                
-        except Exception as e:
-            self.main_window.data_display.append_message(f"发送单点异常: {str(e)}", "错误")
-            return False
     
     def send_trajectory_points(self, trajectory_points, time_points, encoding_type, run_mode, frequency):
         """发送轨迹点序列
@@ -299,14 +234,8 @@ class MotionHandler:
             # 获取当前轨迹点
             current_point = self.trajectory_points[self.current_trajectory_index]
             point_time = self.time_points[self.current_trajectory_index]
-            
-            # 确保轨迹点是原生Python列表而不是NumPy数组
-            if hasattr(current_point, 'tolist'):
-                current_point = current_point.tolist()
-            else:
-                # 如果不是NumPy数组，确保是Python列表的深拷贝
-                current_point = list(current_point)
-            
+            current_point = current_point.tolist()
+
             # 记录将要发送的数据
             self.main_window.data_display.append_message(
                 f"准备发送轨迹点 {self.current_trajectory_index+1}: {[round(a, 4) for a in current_point]}", 
@@ -338,26 +267,26 @@ class MotionHandler:
                 self.main_window.data_display.append_message(f"关节值: [{joint_values_str}]", "轨迹")
                 self.main_window.data_display.append_message(f"{cmd_str}", "发送")
                 
-                # 更新UI显示
-                for i, angle in enumerate(current_point):
-                    if i < len(self.main_window.angle_control.angle_vars):
-                        self.main_window.angle_control.angle_vars[i].setText(f"{angle:.4f}")
+                # # 更新UI显示
+                # for i, angle in enumerate(current_point):
+                #     if i < len(self.main_window.angle_control.angle_vars):
+                #         self.main_window.angle_control.angle_vars[i].setText(f"{angle:.4f}")
                 
-                # 更新曲线图
-                if hasattr(self.main_window, 'curve_plot') and hasattr(self.main_window.curve_plot, 'plot_trajectory_point'):
-                    self.main_window.curve_plot.plot_trajectory_point(
-                        self.current_trajectory_index + 1, 
-                        point_time, 
-                        current_point
-                    )
+                # # 更新曲线图
+                # if hasattr(self.main_window, 'curve_plot') and hasattr(self.main_window.curve_plot, 'plot_trajectory_point'):
+                #     self.main_window.curve_plot.plot_trajectory_point(
+                #         self.current_trajectory_index + 1, 
+                #         point_time, 
+                #         current_point
+                #     )
                 
                 # 更新进度信息
-                progress = ((self.current_trajectory_index + 1) / len(self.trajectory_points)) * 100
-                if hasattr(self.main_window, 'status_bar'):
-                    self.main_window.status_bar.showMessage(f"轨迹进度: {progress:.1f}%")
+                # progress = ((self.current_trajectory_index + 1) / len(self.trajectory_points)) * 100
+                # if hasattr(self.main_window, 'status_bar'):
+                #     self.main_window.status_bar.showMessage(f"轨迹进度: {progress:.1f}%")
                 
-                if hasattr(self.main_window, 'progress_bar'):
-                    self.main_window.progress_bar.setValue(int(progress))
+                # if hasattr(self.main_window, 'progress_bar'):
+                #     self.main_window.progress_bar.setValue(int(progress))
                 
                 # 前进到下一个点
                 self.current_trajectory_index += 1
