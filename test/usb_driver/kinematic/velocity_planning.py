@@ -5,7 +5,7 @@
 import numpy as np
 from math import pi
 
-def trapezoidal_velocity_planning(start_angles, target_angles, v_max=[pi/4] * 6, t_acc=[8] * 6, v_start=[0] * 6, dt=0.1):
+def trapezoidal_velocity_planning(start_angles, target_angles, v_max=[pi/4] * 6, t_acc=[2] * 6, v_start=[0] * 6, dt=0.1):
     """实现梯形加减速曲线规划，专门用于6关节机器人
     
     Args:
@@ -128,7 +128,7 @@ def trapezoidal_velocity_planning(start_angles, target_angles, v_max=[pi/4] * 6,
     
     return times, velocities, accelerations, positions
 
-def s_curve_velocity_planning(start_angles, target_angles, v_max=[pi/4] * 6, t_acc=[8] * 6, v_start=[0] * 6, dt=0.1):
+def s_curve_velocity_planning(start_angles, target_angles, v_max=[pi/4] * 6, t_acc=[2] * 6, v_start=[0] * 6, dt=0.1):
     """实现S型加减速曲线规划，专门用于6关节机器人
     
     Args:

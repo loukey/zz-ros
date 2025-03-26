@@ -35,6 +35,7 @@ class MotionHandler:
             "PAUSE": "暂停"
         }.get(command_type, f"执行 {command_type} 命令")
         
+        
         # 命令为PAUSE或STOP时，我们可能需要停止正在进行的轨迹发送
         if command_type == "PAUSE" or command_type == "STOP":
             if hasattr(self, 'trajectory_timer') and self.trajectory_timer.isActive():
@@ -104,7 +105,6 @@ class MotionHandler:
         except Exception as e:
             self.main_window.data_display.append_message(f"发送角度命令异常: {str(e)}", "错误")
     
-    
     def process_differential_motion(self, positions):
         """处理差分运动
         
@@ -132,7 +132,6 @@ class MotionHandler:
             self.main_window.data_display.append_message(f"当前角度(rad): {[round(a, 4) for a in self.current_angles_rad]}", "控制")
             self.main_window.data_display.append_message(f"目标角度(rad): {[round(a, 4) for a in target_angles]}", "控制")
             self.main_window.data_display.append_message("开始计算轨迹...", "控制")
-            
             # 检查是否需要计算完整轨迹
             if duration > 0 and frequency > 0:
                 trajectory_points, time_points = self.main_window.trajectory_controller.calculate_trajectory(
@@ -162,10 +161,7 @@ class MotionHandler:
             self.main_window.data_display.append_message(f"差分运动处理异常: {str(e)}", "错误")
             import traceback
             self.main_window.data_display.append_message(f"错误详情: {traceback.format_exc()}", "错误")
-            # 重置状态
-            self.waiting_for_position = False
-            self.main_window.waiting_for_position = False
-    
+   
     def send_trajectory_points(self, trajectory_points, time_points, encoding_type, run_mode, frequency):
         """发送轨迹点序列
         
@@ -235,8 +231,6 @@ class MotionHandler:
             # 获取当前轨迹点
             current_point = self.trajectory_points[self.current_trajectory_index]
             point_time = self.time_points[self.current_trajectory_index]
-            for i in range(len(current_point)):
-                current_point[i] += self.current_angles_rad[i]
             # 记录将要发送的数据
             self.main_window.data_display.append_message(
                 f"准备发送轨迹点 {self.current_trajectory_index+1}: {[round(a, 4) for a in current_point]}", 

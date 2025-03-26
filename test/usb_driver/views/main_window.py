@@ -15,7 +15,7 @@ class MainWindow(QMainWindow):
         super(MainWindow, self).__init__(parent)
         
         # 设置窗口标题和大小
-        self.setWindowTitle("镇中科技机械臂控制工具v0.1.11")
+        self.setWindowTitle("镇中科技机械臂控制工具v0.1.16")
         self.resize(1200, 1000)
         
         # 初始化状态变量
@@ -231,7 +231,7 @@ class MainWindow(QMainWindow):
         self.data_display.clear_all_btn.clicked.connect(self.clear_all)
         
         # 设置逆运动学回调函数
-        self.inverse_kinematic.set_apply_callback(self.kinematic_handler.apply_inverse_kinematics_result)
+        # self.inverse_kinematic.set_apply_callback(self.kinematic_handler.apply_inverse_kinematics_result)
     
     def refresh_ports(self):
         """刷新串口列表"""

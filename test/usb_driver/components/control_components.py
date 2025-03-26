@@ -268,3 +268,4 @@ class AngleControlFrame(QGroupBox):
             is_connected: 是否已连接
         """
         self.send_button.setEnabled(is_connected) 
+        
