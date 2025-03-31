@@ -72,10 +72,27 @@ class MotionHandler:
             curve_type, duration, frequency = self.main_window.angle_control.get_curve_type()            
             encoding_type = self.main_window.control_buttons.get_encoding_type()            
             run_mode = self.main_window.control_buttons.get_run_mode()
-            
+
             # 记录目标角度和参数
             angles_str = ", ".join([f"{angle:.4f}" for angle in target_angles])
             self.main_window.data_display.append_message(f"目标角度: [{angles_str}]", "控制")
+            
+            if run_mode == 0x01:
+                success, cmd_str = self.main_window.serial_handler.serial_controller.send_control_command(
+                    joint_angles=target_angles,
+                    command_type="MOTION",
+                    encoding=encoding_type,
+                    mode=run_mode,
+                    return_cmd=True
+                )
+                if not success:
+                    self.main_window.data_display.append_message("轮廓位置模式位置发送失败", "错误")
+                    return
+                self.main_window.data_display.append_message(f"{cmd_str}", "发送")
+                self.main_window.data_display.append_message("轮廓位置模式位置发送成功", "控制")
+                return
+            
+
             self.main_window.data_display.append_message(f"曲线类型: {curve_type}, 时长: {duration}秒, 频率: {frequency}秒", "参数")
             
             # 获取当前位置
@@ -262,11 +279,6 @@ class MotionHandler:
                 self.main_window.data_display.append_message(f"关节值: [{joint_values_str}]", "轨迹")
                 self.main_window.data_display.append_message(f"{cmd_str}", "发送")
                 
-                # # 更新UI显示
-                # for i, angle in enumerate(current_point):
-                #     if i < len(self.main_window.angle_control.angle_vars):
-                #         self.main_window.angle_control.angle_vars[i].setText(f"{angle:.4f}")
-                
                 # # 更新曲线图
                 # if hasattr(self.main_window, 'curve_plot') and hasattr(self.main_window.curve_plot, 'plot_trajectory_point'):
                 #     self.main_window.curve_plot.plot_trajectory_point(
@@ -276,12 +288,12 @@ class MotionHandler:
                 #     )
                 
                 # 更新进度信息
-                # progress = ((self.current_trajectory_index + 1) / len(self.trajectory_points)) * 100
-                # if hasattr(self.main_window, 'status_bar'):
-                #     self.main_window.status_bar.showMessage(f"轨迹进度: {progress:.1f}%")
+                progress = ((self.current_trajectory_index + 1) / len(self.trajectory_points)) * 100
+                if hasattr(self.main_window, 'status_bar'):
+                    self.main_window.status_bar.showMessage(f"轨迹进度: {progress:.1f}%")
                 
-                # if hasattr(self.main_window, 'progress_bar'):
-                #     self.main_window.progress_bar.setValue(int(progress))
+                if hasattr(self.main_window, 'progress_bar'):
+                    self.main_window.progress_bar.setValue(int(progress))
                 
                 # 前进到下一个点
                 self.current_trajectory_index += 1

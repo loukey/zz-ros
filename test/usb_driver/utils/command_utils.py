@@ -86,7 +86,7 @@ def radian_to_position(radian, joint_index=None):
             
         positions = []
         for i, rad in enumerate(radian):
-            position = int(rad * RADIAN_TO_POS_SCALE_FACTOR + JOINT_OFFSETS[i])
+            position = int(rad * RADIAN_TO_POS_SCALE_FACTOR + JOINT_OFFSETS[i]) & 0xFFFFFF
             positions.append(position)
         return positions
     else:
@@ -94,10 +94,10 @@ def radian_to_position(radian, joint_index=None):
         if joint_index is None or not 0 <= joint_index <= 5:
             raise ValueError("处理单个弧度值时，必须提供有效的关节索引(0-5)")
             
-        return int(radian * RADIAN_TO_POS_SCALE_FACTOR + JOINT_OFFSETS[joint_index])
+        return radian * RADIAN_TO_POS_SCALE_FACTOR + JOINT_OFFSETS[joint_index]
 
 
-def format_command(joint_angles=[0.0] * 6, control=0x06, mode=0x08, result_type='string'):
+def format_command(joint_angles=[0.0] * 6, control=0x06, mode=0x08, effector_mode=0x00, effector_data=0x00000000, encoding='string'):
     """
     格式化命令
     
@@ -108,15 +108,40 @@ def format_command(joint_angles=[0.0] * 6, control=0x06, mode=0x08, result_type=
         result_type: 返回结果类型，'string'或'hex'，默认为'string'
         
     返回:
-        command: 格式化后的命令字符串
+        command: 格式化后的命令字符串或十六进制字符串
     """
     # 确保有6个关节角度
     if len(joint_angles) != 6:
         raise ValueError("必须提供6个关节角度")
-    
-    command = f"cmd {control:02X} {mode:02X} "
-    positions = radian_to_position(joint_angles)
-    command += ' '.join(str(position) for position in positions)
-    command += f" {calculate_crc16(command):04X}\r\n"
+    if encoding == 'string':
+        command = f"cmd {control:02X} {mode:02X} "
+        positions = radian_to_position(joint_angles)
+        command += ' '.join(str(position) for position in positions)
+        command += f" {calculate_crc16(command):04X}\r\n"
+    elif encoding == 'hex':
+        # 1. 构建命令头部
+        command = "AA55"  # 添加头部标识 AA55
+        command += f"{control:02X}"  # 添加控制字节
+        command += f"{mode:02X}"     # 添加模式字节
+        
+        # 2. 添加位置值
+        positions = radian_to_position(joint_angles)
+        for pos in positions:
+            # 将24位位置值转换为3个字节的十六进制
+            command += f"{(pos >> 16) & 0xFF:02X}"  # 高字节
+            command += f"{(pos >> 8) & 0xFF:02X}"   # 中字节
+            command += f"{pos & 0xFF:02X}"          # 低字节
+        
+        command += f"{effector_mode:02X}"  # 添加末端执行器模式字节
+        command += f"{effector_data:08X}"  # 添加末端执行器数据字节
+
+        # 3. 计算并添加CRC16
+        # 从控制字节开始计算CRC，不包括头部标识
+        crc = calculate_crc16(bytes.fromhex(command[4:]))  # 从控制字节开始计算
+        command += f"{(crc >> 8) & 0xFF:02X}"  # CRC高字节
+        command += f"{crc & 0xFF:02X}"         # CRC低字节
+        
+        # 4. 添加尾部标识
+        command += "0A0D"  # 添加尾部标识 0A0D
     
     return command

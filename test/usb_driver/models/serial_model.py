@@ -23,6 +23,17 @@ class SerialModel(QObject):
         self.is_connected = False
         self.stop_flag = False
         self.buffer = ""  # 添加缓冲区用于累积数据
+        self.encoding = 'string'  # 默认使用string编码
+    
+    def set_encoding(self, encoding):
+        """
+        设置编码格式
+        
+        参数:
+            encoding: 编码格式，'string' 或 'hex'
+        """
+        self.encoding = encoding
+        self.buffer = ""  # 重置缓冲区
     
     def get_available_ports(self):
         """
@@ -127,16 +138,27 @@ class SerialModel(QObject):
                 if self.serial.in_waiting:
                     data = self.serial.read(self.serial.in_waiting)
                     if data:
-                        # 直接解码为UTF-8字符串，忽略错误的字符
-                        decoded_data = data.decode('utf-8', errors='ignore')
-                        if '\r\n' in decoded_data:
-                            self.buffer += decoded_data
-                            lines = self.buffer.split('\r\n')
-                            self.buffer = lines[-1]
-                            self.data_received.emit(lines[0])
+                        if self.encoding == 'hex':
+                            # 十六进制格式：将字节转换为十六进制字符串
+                            hex_data = data.hex().upper()
+                            if '0A0D' in hex_data:
+                                self.buffer += hex_data
+                                lines = self.buffer.split('0A0D')
+                                self.buffer = lines[-1]
+                                self.data_received.emit(lines[0])
+                            else:
+                                self.buffer += hex_data
                         else:
-                            self.buffer += decoded_data
-                        
+                            # 字符串格式：解码为UTF-8字符串
+                            decoded_data = data.decode('utf-8', errors='ignore')
+                            if '\r\n' in decoded_data:
+                                self.buffer += decoded_data
+                                lines = self.buffer.split('\r\n')
+                                self.buffer = lines[-1]
+                                self.data_received.emit(lines[0])
+                            else:
+                                self.buffer += decoded_data
+    
     def send_data(self, data, encoding='string'):
         """
         发送数据

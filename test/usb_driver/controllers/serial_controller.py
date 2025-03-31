@@ -115,7 +115,7 @@ class SerialController:
         control = control_map.get(command_type)
         
         try:
-            cmd = format_command(joint_angles=joint_angles, control=control, mode=mode)
+            cmd = format_command(joint_angles=joint_angles, control=control, mode=mode, encoding=encoding)
             
             # 记录命令内容
             if hasattr(self, 'error_occurred'):
@@ -129,23 +129,12 @@ class SerialController:
                     self.error_occurred.emit(f"发送命令失败: {command_type}")
                 return (False, "") if return_cmd else False
             
-            # 获取可读的命令字符串
-            if encoding == 'string':
-                cmd_str = cmd[:-2] if isinstance(cmd, str) else cmd  # 去掉末尾的\r\n
-            else:
-                cmd_str = format_command(
-                    joint_angles,
-                    control=control,
-                    mode=mode,
-                    result_type='string'
-                )[:-2]
-            
             # 记录发送成功
             if hasattr(self, 'error_occurred'):
-                self.error_occurred.emit(f"命令发送成功: {cmd_str}")
+                self.error_occurred.emit(f"命令发送成功: {cmd}")
             
             if return_cmd:
-                return True, cmd_str
+                return True, cmd
             return True
             
         except Exception as e:
