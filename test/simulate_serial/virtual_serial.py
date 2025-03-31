@@ -1,9 +1,8 @@
 """
-虚拟串口模块 - 仅处理文本格式数据
+虚拟串口模块 - 支持十六进制数据收发
 - 创建虚拟串口对
-- 使用UTF-8编码处理所有文本
-- 以空格分割命令部分
-- 以\r\n分隔不同行
+- 支持十六进制数据的收发
+- 支持文本格式数据的收发
 """
 import os
 import pty
@@ -13,7 +12,7 @@ import logging
 import select
 
 class VirtualSerial:
-    """虚拟串口类 - 专注于文本格式数据处理"""
+    """虚拟串口类 - 支持十六进制和文本格式数据处理"""
     
     def __init__(self):
         """初始化虚拟串口"""
@@ -23,6 +22,7 @@ class VirtualSerial:
         self.running = False
         self.read_thread = None
         self.callback = None
+        self.hex_mode = False  # 是否使用十六进制模式
         
         # 设置日志记录器
         self.logger = self._setup_logger()
@@ -80,8 +80,17 @@ class VirtualSerial:
         self.slave_name = None
         self.logger.info("虚拟串口已关闭")
     
+    def set_hex_mode(self, enabled):
+        """设置是否使用十六进制模式
+        
+        参数:
+            enabled: 是否启用十六进制模式
+        """
+        self.hex_mode = enabled
+        self.logger.info(f"十六进制模式: {'启用' if enabled else '禁用'}")
+    
     def _read_loop(self):
-        """读取数据循环 - 处理文本数据"""
+        """读取数据循环 - 支持十六进制和文本数据"""
         buffer_size = 1024
         # 缓存未完成行的数据
         incomplete_line = bytearray()
@@ -93,16 +102,21 @@ class VirtualSerial:
                 if self.master_fd in r:
                     data = os.read(self.master_fd, buffer_size)
                     if data:
-                        # 将新数据添加到不完整行缓冲区
-                        incomplete_line.extend(data)
-                        
-                        # 检查是否有完整行 (\r\n)
-                        while b'\r\n' in incomplete_line:
-                            # 分割一个完整行和剩余部分
-                            line, incomplete_line = incomplete_line.split(b'\r\n', 1)
+                        if self.hex_mode:
+                            # 十六进制模式：直接处理原始数据
+                            if self.callback:
+                                self.callback(data)
+                        else:
+                            # 文本模式：按行处理
+                            incomplete_line.extend(data)
                             
-                            # 处理完整行
-                            self._process_complete_line(line + b'\r\n')  # 添加回行尾
+                            # 检查是否有完整行 (\r\n)
+                            while b'\r\n' in incomplete_line:
+                                # 分割一个完整行和剩余部分
+                                line, incomplete_line = incomplete_line.split(b'\r\n', 1)
+                                
+                                # 处理完整行
+                                self._process_complete_line(line + b'\r\n')  # 添加回行尾
                 
             except Exception as e:
                 self.logger.error(f"读取数据错误: {str(e)}")
@@ -132,7 +146,7 @@ class VirtualSerial:
         """向虚拟串口写入数据
         
         参数:
-            data: 要写入的数据 (字符串或字节)
+            data: 要写入的数据 (字符串、字节或十六进制字符串)
             
         返回:
             bool: 是否成功
@@ -142,13 +156,31 @@ class VirtualSerial:
             return False
         
         try:
-            # 确保数据是字节类型
-            if isinstance(data, str):
-                self.logger.debug(f"发送文本: '{data}'")
-                data = data.encode('utf-8')
+            if self.hex_mode:
+                # 十六进制模式
+                if isinstance(data, str):
+                    # 如果是十六进制字符串，转换为字节
+                    try:
+                        # 移除所有空格
+                        hex_str = data.replace(" ", "")
+                        # 确保字符串长度为偶数
+                        if len(hex_str) % 2 != 0:
+                            hex_str = "0" + hex_str
+                        # 转换为字节
+                        data = bytes.fromhex(hex_str)
+                    except ValueError as e:
+                        self.logger.error(f"无效的十六进制字符串: {str(e)}")
+                        return False
+                
+                # 记录十六进制数据
+                self.logger.debug(f"发送十六进制数据: {data.hex().upper()}")
             else:
-                # 简单记录二进制数据长度
-                self.logger.debug(f"发送二进制数据: {len(data)}字节")
+                # 文本模式
+                if isinstance(data, str):
+                    self.logger.debug(f"发送文本: '{data}'")
+                    data = data.encode('utf-8')
+                else:
+                    self.logger.debug(f"发送二进制数据: {len(data)}字节")
             
             # 写入数据到主设备
             os.write(self.master_fd, data)

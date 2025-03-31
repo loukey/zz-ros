@@ -137,6 +137,7 @@ class SerialModel(QObject):
             if self.serial and self.serial.is_open:
                 if self.serial.in_waiting:
                     data = self.serial.read(self.serial.in_waiting)
+                    self.data_received.emit(data.hex().upper())
                     if data:
                         if self.encoding == 'hex':
                             # 十六进制格式：将字节转换为十六进制字符串

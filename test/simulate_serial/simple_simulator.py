@@ -1,18 +1,16 @@
 #!/usr/bin/env python3
 """
-文本串口模拟器
-- 创建虚拟串口
-- 按行(\r\n)接收文本命令
-- 按空格分割命令部分
-- 使用UTF-8编码
-- 收到消息后原样回显
+串口模拟器
+- 支持十六进制和文本格式数据收发
+- 支持十六进制数据的显示和输入
+- 支持文本格式数据的显示和输入
 """
 import sys
 import os
 import time
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                             QHBoxLayout, QLabel, QPushButton, QTextEdit, 
-                            QGroupBox, QLineEdit)
+                            QGroupBox, QLineEdit, QCheckBox)
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QTextCursor, QFont
 
@@ -24,8 +22,8 @@ from virtual_serial import VirtualSerial
 from crc import calculate_crc16
 
 
-class TextCommandSimulator(QMainWindow):
-    """文本命令串口模拟器窗口"""
+class SerialSimulator(QMainWindow):
+    """串口模拟器窗口"""
     
     def __init__(self):
         super().__init__()
@@ -33,7 +31,7 @@ class TextCommandSimulator(QMainWindow):
         # 初始化虚拟串口
         self.virtual_serial = VirtualSerial()
         
-        self.setWindowTitle("文本串口模拟器")
+        self.setWindowTitle("串口模拟器")
         self.setMinimumSize(800, 600)
         
         self._init_ui()
@@ -69,19 +67,30 @@ class TextCommandSimulator(QMainWindow):
         status_group.setLayout(status_layout)
         main_layout.addWidget(status_group)
         
-        # 命令输入区域
-        input_group = QGroupBox("命令输入")
-        input_layout = QHBoxLayout()
+        # 数据输入区域
+        input_group = QGroupBox("数据输入")
+        input_layout = QVBoxLayout()
         
-        self.command_input = QLineEdit()
-        self.command_input.setPlaceholderText("输入命令，按回车发送 (例如: cmd 01 08 78623 369707 83986 391414 508006 455123 B9FC)")
-        self.command_input.returnPressed.connect(self.send_command)
-        input_layout.addWidget(self.command_input)
+        # 十六进制模式选择
+        hex_mode_layout = QHBoxLayout()
+        self.hex_mode_checkbox = QCheckBox("十六进制模式")
+        self.hex_mode_checkbox.stateChanged.connect(self.toggle_hex_mode)
+        hex_mode_layout.addWidget(self.hex_mode_checkbox)
+        hex_mode_layout.addStretch()
+        input_layout.addLayout(hex_mode_layout)
+        
+        # 数据输入框
+        data_input_layout = QHBoxLayout()
+        self.data_input = QLineEdit()
+        self.data_input.setPlaceholderText("输入数据 (十六进制模式: 例如 '01 02 03 04', 文本模式: 例如 'cmd 01 08 78623 369707 83986 391414 508006 455123 B9FC')")
+        self.data_input.returnPressed.connect(self.send_data)
+        data_input_layout.addWidget(self.data_input)
         
         send_button = QPushButton("发送")
-        send_button.clicked.connect(self.send_command)
-        input_layout.addWidget(send_button)
+        send_button.clicked.connect(self.send_data)
+        data_input_layout.addWidget(send_button)
         
+        input_layout.addLayout(data_input_layout)
         input_group.setLayout(input_layout)
         main_layout.addWidget(input_group)
         
@@ -102,6 +111,12 @@ class TextCommandSimulator(QMainWindow):
         
         log_group.setLayout(log_layout)
         main_layout.addWidget(log_group)
+    
+    def toggle_hex_mode(self, state):
+        """切换十六进制模式"""
+        is_hex_mode = state == Qt.Checked
+        self.virtual_serial.set_hex_mode(is_hex_mode)
+        self.log_message("系统", f"十六进制模式: {'启用' if is_hex_mode else '禁用'}")
     
     def toggle_virtual_serial(self):
         """切换虚拟串口状态"""
@@ -125,117 +140,61 @@ class TextCommandSimulator(QMainWindow):
             self.create_button.setText("创建串口")
             self.log_message("系统", "虚拟串口已关闭")
     
-    def send_command(self):
-        """发送命令"""
+    def send_data(self):
+        """发送数据"""
         if not hasattr(self.virtual_serial, 'running') or not self.virtual_serial.running:
             self.log_message("错误", "虚拟串口未创建，无法发送")
             return
         
-        # 获取命令文本
-        command = self.command_input.text().strip()
-        if not command:
+        # 获取输入数据
+        data = self.data_input.text().strip()
+        if not data:
             return
         
-        # 发送命令
-        self.virtual_serial.write(command)
-        self.log_message("发送", f"'{command.strip()}'")
+        # 发送数据
+        if self.virtual_serial.hex_mode:
+            # 十六进制模式
+            try:
+                # 移除所有空格
+                hex_str = data.replace(" ", "")
+                # 确保字符串长度为偶数
+                if len(hex_str) % 2 != 0:
+                    hex_str = "0" + hex_str
+                # 转换为字节
+                bytes_data = bytes.fromhex(hex_str)
+                self.virtual_serial.write(bytes_data)
+                self.log_message("发送", f"十六进制: {hex_str.upper()}")
+            except ValueError as e:
+                self.log_message("错误", f"无效的十六进制字符串: {str(e)}")
+        else:
+            # 文本模式
+            self.virtual_serial.write(data)
+            self.log_message("发送", f"文本: '{data}'")
         
         # 清空输入框
-        self.command_input.clear()
+        self.data_input.clear()
     
     def handle_received_data(self, data):
         """处理接收到的数据"""
-        # 强制解码为UTF-8文本，出错时替换为问号
-        text_data = data.decode('utf-8', errors='replace')
-        self.log_message("接收", f"'{text_data.strip()}'")
-        
-        # 如果以cmd或msg开头，按空格分割解析命令
-        if text_data.lower().startswith('cmd') or text_data.lower().startswith('msg'):
-            self.parse_text_command(text_data)
-            
-            # 构造修改后的回显消息
-            parts = text_data.strip().split()
-            if len(parts) >= 9:  # cmd/msg + 控制 + 模式 + 6个位置值
-                # 构建新消息：msg + 控制字节 + 模式字节 + 6个位置值 + 6个状态字 + 6个异常值 + CRC
-                new_parts = ['msg', parts[1], parts[2]]  # 替换为msg，保留控制字节和模式字节
-                new_parts.extend(parts[3:9])  # 添加6个位置值
-                
-                # 添加6个状态字，均为1250
-                new_parts.extend(['1250'] * 6)
-                
-                # 添加6个异常值，均为0
-                new_parts.extend(['0'] * 6)
-                
-                # 计算CRC - 使用纯文本字符串
-                # 构造待计算CRC的消息字符串（不包含CRC部分）
-                crc_message = ' '.join(new_parts)
-                # 使用CRC模块计算CRC-16
-                crc_value = calculate_crc16(crc_message)
-                # 将CRC值转换为4位十六进制字符串，大写
-                crc_hex = f"{crc_value:04X}"
-                # 添加CRC到消息
-                new_parts.append(crc_hex)
-                
-                # 构造新消息（确保使用正确的行尾符号）
-                new_message = ' '.join(new_parts)
-                # 直接添加实际的CR和LF字符
-                message_with_crlf = new_message + '\r\n'
-                
-                # 简化日志，移除十六进制调试
-                self.log_message("调试", f"构造的消息: '{new_message}'")
-                
-                # 回显修改后的消息 - 使用纯文本字符串
-                self.virtual_serial.write(message_with_crlf.encode('utf-8'))
-                self.log_message("回显", f"'{new_message}'")
-                return  # 已经处理完毕，不执行原来的回显代码
-        
-        # 如果不是以cmd或msg开头，原样回显
-        self.virtual_serial.write(data)
-        self.log_message("回显", "已回显接收到的数据")
-    
-    def parse_text_command(self, command_text):
-        """解析文本命令
-        
-        参数:
-            command_text: 文本命令字符串
-        """
-        # 去除行尾，按空格分割
-        parts = command_text.strip().split()
-        if len(parts) < 3:
-            self.log_message("解析", "命令格式不完整")
-            return
-        
-        # 提取命令各部分
-        prefix = parts[0]           # 命令前缀 (cmd 或 msg)
-        control = parts[1]          # 控制字节
-        mode = parts[2]             # 模式字节
-        
-        self.log_message("解析", f"命令: {prefix}")
-        self.log_message("解析", f"控制字节: {control}")
-        self.log_message("解析", f"模式字节: {mode}")
-        
-        # 提取位置数据（如果有）
-        if len(parts) >= 9:  # cmd/msg + 控制 + 模式 + 6个位置值
-            positions = parts[3:9]  # 直接提取原始字符串
-            self.log_message("解析", f"位置数据: {positions}")
-        
-        # 提取状态字（如果有）
-        if len(parts) >= 15:  # cmd/msg + 控制 + 模式 + 6个位置值 + 6个状态字
-            status = parts[9:15]  # 提取状态字
-            self.log_message("解析", f"状态字: {status}")
-        
-        # 提取异常值（如果有）
-        if len(parts) >= 21:  # cmd/msg + 控制 + 模式 + 6个位置值 + 6个状态字 + 6个异常值
-            errors = parts[15:21]  # 提取异常值
-            self.log_message("解析", f"异常值: {errors}")
-        
-        # 提取CRC（如果有）
-        if len(parts) >= 22:
-            crc = parts[21]
-            self.log_message("解析", f"CRC16: {crc}")
-        elif len(parts) >= 10 and len(parts) < 15:
-            crc = parts[9]
-            self.log_message("解析", f"CRC16: {crc}")
+        if self.virtual_serial.hex_mode:
+            # 十六进制模式：显示十六进制数据
+            hex_data = data.hex().upper()
+            # 每两个字符添加一个空格
+            hex_data = ' '.join(hex_data[i:i+2] for i in range(0, len(hex_data), 2))
+            self.log_message("接收", f"十六进制: {hex_data}")
+            # 直接回显原始数据
+            self.virtual_serial.write(data)
+            self.log_message("回显", f"十六进制: {hex_data}")
+        else:
+            # 文本模式：显示文本数据
+            try:
+                text_data = data.decode('utf-8', errors='replace')
+                self.log_message("接收", f"文本: '{text_data.strip()}'")
+                # 直接回显原始数据
+                self.virtual_serial.write(data)
+                self.log_message("回显", f"文本: '{text_data.strip()}'")
+            except Exception as e:
+                self.log_message("错误", f"解码数据失败: {str(e)}")
     
     def log_message(self, category, message):
         """记录消息到日志区域"""
@@ -263,6 +222,6 @@ class TextCommandSimulator(QMainWindow):
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    window = TextCommandSimulator()
+    window = SerialSimulator()
     window.show()
     sys.exit(app.exec_()) 
