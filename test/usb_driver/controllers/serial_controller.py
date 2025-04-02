@@ -79,10 +79,19 @@ class SerialController:
         """
         return self.serial_model.send_data(data, encoding)
     
-    def send_control_command(self, joint_angles=[0.0] * 6, command_type='ENABLE', encoding='string', mode=0x08, return_cmd=False):
+    def send_control_command(self, 
+                             joint_angles=[0.0] * 6, 
+                             command_type='NONE', 
+                             mode=0x08, 
+                             contour_speed=[0.0] * 6, 
+                             contour_acceleration=[0.0] * 6, 
+                             contour_deceleration=[0.0] * 6, 
+                             effector_mode=0x00, 
+                             effector_data=0.0, 
+                             encoding='string', 
+                             return_cmd=False):
         """
         发送控制命令
-        
         参数:
             joint_angles: 关节角度列表，包含6个关节角度
             command_type: 控制命令类型（如 'ENABLE', 'DISABLE' 等）
@@ -101,6 +110,7 @@ class SerialController:
         
         # 命令类型到控制字节的映射
         control_map = {
+            'NONE': 0x00,      # 无
             'ENABLE': 0x01,    # 使能
             'DISABLE': 0x02,   # 取消使能
             'RELEASE': 0x03,   # 释放刹车
@@ -115,7 +125,15 @@ class SerialController:
         control = control_map.get(command_type)
         
         try:
-            cmd = format_command(joint_angles=joint_angles, control=control, mode=mode, encoding=encoding)
+            cmd = format_command(joint_angles=joint_angles, 
+                                 control=control, 
+                                 mode=mode, 
+                                 contour_speed=contour_speed, 
+                                 contour_acceleration=contour_acceleration, 
+                                 contour_deceleration=contour_deceleration, 
+                                 effector_mode=effector_mode, 
+                                 effector_data=effector_data, 
+                                 encoding=encoding)
             
             # 记录命令内容
             if hasattr(self, 'error_occurred'):

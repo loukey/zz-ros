@@ -69,7 +69,9 @@ class MotionHandler:
         try:
             # 获取参数
             target_angles = self.main_window.angle_control.get_angles()            
-            curve_type, duration, frequency = self.main_window.angle_control.get_curve_type()            
+            curve_type, duration, frequency = self.main_window.angle_control.get_curve_type()
+            contour_speed, contour_acceleration, contour_deceleration = self.main_window.contour_settings.get_contour_params()
+            self.main_window.data_display.append_message(f"轮廓速度: {contour_speed}, 轮廓加速度: {contour_acceleration}, 轮廓减速度: {contour_deceleration}", "控制")
             encoding_type = self.main_window.control_buttons.get_encoding_type()            
             run_mode = self.main_window.control_buttons.get_run_mode()
 
@@ -81,8 +83,11 @@ class MotionHandler:
                 success, cmd_str = self.main_window.serial_handler.serial_controller.send_control_command(
                     joint_angles=target_angles,
                     command_type="MOTION",
-                    encoding=encoding_type,
                     mode=run_mode,
+                    contour_speed=contour_speed,
+                    contour_acceleration=contour_acceleration,
+                    contour_deceleration=contour_deceleration,
+                    encoding=encoding_type,
                     return_cmd=True
                 )
                 if not success:
@@ -99,8 +104,8 @@ class MotionHandler:
             self.main_window.data_display.append_message("正在获取当前位置...", "控制")
             success, cmd_str = self.main_window.serial_handler.serial_controller.send_control_command(
                 command_type="POSITION", 
-                encoding=encoding_type,
                 mode=run_mode,
+                encoding=encoding_type,
                 return_cmd=True
             )
             

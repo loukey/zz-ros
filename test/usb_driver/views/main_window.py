@@ -6,6 +6,9 @@ from PyQt5.QtCore import QTimer
 from components import *
 from controllers import *
 from .main_view import *
+from components.effector_components import EffectorSettings
+from components.contour_components import ContourSettings
+from views.main_view.effector_handler import EffectorHandler
 
 
 class MainWindow(QMainWindow):
@@ -15,7 +18,7 @@ class MainWindow(QMainWindow):
         super(MainWindow, self).__init__(parent)
         
         # 设置窗口标题和大小
-        self.setWindowTitle("镇中科技机械臂控制工具v0.1.21")
+        self.setWindowTitle("镇中科技机械臂控制工具v0.1.22")
         self.resize(1200, 1000)
         
         # 初始化状态变量
@@ -181,6 +184,17 @@ class MainWindow(QMainWindow):
         )
         self.tab_widget.addTab(self.inverse_kinematic, "逆运动学")
         
+        # 创建轮廓设置Tab
+        self.contour_settings = ContourSettings(self)
+        self.tab_widget.addTab(self.contour_settings, "轮廓模式参数")
+        
+        # 创建执行器设置Tab
+        self.effector_settings = EffectorSettings(
+            self,
+            send_effector_command_callback=self.send_effector_command
+        )
+        self.tab_widget.addTab(self.effector_settings, "夹爪设置")
+        
         # 添加Tab控件到主布局（占60%的空间）
         main_layout.addWidget(self.tab_widget, 6)  # 权重从5增加到6（60%）
     
@@ -209,6 +223,9 @@ class MainWindow(QMainWindow):
             
             # 创建运动学处理器
             self.kinematic_handler = KinematicHandler(self)
+            
+            # 创建执行器处理器
+            self.effector_handler = EffectorHandler(self)
             
             # 初始化成功消息
             self.data_display.append_message("功能处理器初始化成功", "系统")
@@ -256,6 +273,10 @@ class MainWindow(QMainWindow):
     def zero_angles(self):
         """归零处理"""
         self.motion_handler.zero_angles()
+
+    def send_effector_command(self):
+        """发送执行器命令"""
+        self.effector_handler.handle_send_clicked()
 
     def clear_send(self):
         """清空发送区域"""

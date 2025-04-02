@@ -10,4 +10,5 @@ dependencies = [
     "pyqt5-qt5==5.15.15 ; platform_system != 'Windows'",
     "pyqt5-qt5==5.15.2 ; platform_system == 'Windows'",
     "pyserial>=3.5",
+    "ultralytics>=8.3.100",
 ]
