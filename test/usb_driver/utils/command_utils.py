@@ -137,8 +137,11 @@ def format_command(joint_angles=[0.0] * 6,
     if encoding == 'string':
         command = f"cmd {control:02X} {mode:02X} "
         positions = radian_to_position(joint_angles)
+        contour_speed = speed_to_position(contour_speed)
+        contour_acceleration = speed_to_position(contour_acceleration)
+        contour_deceleration = speed_to_position(contour_deceleration)
         command += ' '.join(str(position) for position in positions) + ' '
-        command += ' '.join(str(position) for position in speed_to_position(contour_speed)) + ' '
+        command += ' '.join(str(position) for position in contour_speed) + ' '
         command += ' '.join(str(position) for position in contour_acceleration) + ' '
         command += ' '.join(str(position) for position in contour_deceleration)
         command += f" {effector_mode:02X} {effector_data}"

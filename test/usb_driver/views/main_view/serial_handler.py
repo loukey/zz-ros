@@ -80,19 +80,24 @@ class SerialHandler:
                 # 按空格分割
                 parts = clean_data.split()
                 if len(parts) >= 22:  # msg命令完整格式 (msg + 控制 + 模式 + 6个位置 + 6个状态 + 6个异常 + CRC)
-                    control = parts[1]
-                    mode = parts[2]
-                    positions = parts[3:9]
-                    status = parts[9:15]
-                    errors = parts[15:21]
-                    crc = parts[21]
+                    init_status = parts[1]
+                    control = parts[2]
+                    mode = parts[3]
+                    positions = parts[4:10]
+                    status = parts[10:16]
+                    speeds = parts[16:22]
+                    errors = parts[22:28]
+                    effector_data = parts[28]
+                    crc = parts[29]
                     
                     # 记录解析后的详细信息
-                    self.main_window.data_display.append_message(f"控制字节: {control}, 模式: {mode}", "接收")
+                    self.main_window.data_display.append_message(f"初始状态: {init_status}, 控制字节: {control}, 模式: {mode}", "接收")
                     self.main_window.data_display.append_message(f"位置数据: {positions}", "接收")
                     self.main_window.data_display.append_message(f"状态字: {status}", "接收")
+                    self.main_window.data_display.append_message(f"速度: {speeds}", "接收")
                     self.main_window.data_display.append_message(f"异常值: {errors}", "接收")
-                    
+                    self.main_window.data_display.append_message(f"夹爪数据: {effector_data}", "接收")
+
                     # 验证CRC16校验
                     crc_message = ' '.join(parts[:-1])
                     calculated_crc = calculate_crc16(crc_message)
