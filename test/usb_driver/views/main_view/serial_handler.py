@@ -71,7 +71,7 @@ class SerialHandler:
         clean_data = data.strip()
         self.main_window.data_display.append_message(f"接收数据: '{clean_data}'", "接收")
         
-        encoding = self.main_window.serial_config.get_encoding()
+        encoding = self.main_window.control_buttons.get_encoding_type()    
         if encoding == 'hex':
             self.buffer += clean_data
             if "0A0D" in self.buffer:

@@ -11,7 +11,7 @@ import time
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                             QHBoxLayout, QLabel, QPushButton, QTextEdit, 
                             QGroupBox, QLineEdit, QCheckBox)
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, pyqtSignal, QObject
 from PyQt5.QtGui import QTextCursor, QFont
 
 # 添加当前目录到Python路径
@@ -22,6 +22,10 @@ from virtual_serial import VirtualSerial
 from crc import calculate_crc16
 
 
+class LogSignals(QObject):
+    """用于跨线程更新日志的信号类"""
+    log_message = pyqtSignal(str, str, str)  # category, message, time_str
+
 class SerialSimulator(QMainWindow):
     """串口模拟器窗口"""
     
@@ -30,6 +34,10 @@ class SerialSimulator(QMainWindow):
         
         # 初始化虚拟串口
         self.virtual_serial = VirtualSerial()
+        
+        # 初始化日志信号
+        self.log_signals = LogSignals()
+        self.log_signals.log_message.connect(self._update_log)
         
         self.setWindowTitle("串口模拟器")
         self.setMinimumSize(800, 600)
@@ -181,31 +189,34 @@ class SerialSimulator(QMainWindow):
             hex_data = data.hex().upper()
             # 每两个字符添加一个空格
             hex_data = ' '.join(hex_data[i:i+2] for i in range(0, len(hex_data), 2))
-            self.log_message("接收", f"十六进制: {hex_data}")
+            self.log_signals.log_message.emit("接收", f"十六进制: {hex_data}", time.strftime('%H:%M:%S', time.localtime()))
             # 直接回显原始数据
             self.virtual_serial.write(data)
-            self.log_message("回显", f"十六进制: {hex_data}")
+            self.log_signals.log_message.emit("回显", f"十六进制: {hex_data}", time.strftime('%H:%M:%S', time.localtime()))
         else:
             # 文本模式：显示文本数据
             try:
                 text_data = data.decode('utf-8', errors='replace')
-                self.log_message("接收", f"文本: '{text_data.strip()}'")
+                self.log_signals.log_message.emit("接收", f"文本: '{text_data.strip()}'", time.strftime('%H:%M:%S', time.localtime()))
                 # 直接回显原始数据
                 self.virtual_serial.write(data)
-                self.log_message("回显", f"文本: '{text_data.strip()}'")
+                self.log_signals.log_message.emit("回显", f"文本: '{text_data.strip()}'", time.strftime('%H:%M:%S', time.localtime()))
             except Exception as e:
-                self.log_message("错误", f"解码数据失败: {str(e)}")
+                self.log_signals.log_message.emit("错误", f"解码数据失败: {str(e)}", time.strftime('%H:%M:%S', time.localtime()))
     
-    def log_message(self, category, message):
-        """记录消息到日志区域"""
-        time_str = time.strftime('%H:%M:%S', time.localtime())
+    def _update_log(self, category, message, time_str):
+        """安全地更新日志显示"""
         full_message = f"[{time_str}] [{category}] {message}"
-        
         self.log_text.append(full_message)
         # 滚动到底部
         cursor = self.log_text.textCursor()
         cursor.movePosition(QTextCursor.End)
         self.log_text.setTextCursor(cursor)
+    
+    def log_message(self, category, message):
+        """记录消息到日志区域"""
+        time_str = time.strftime('%H:%M:%S', time.localtime())
+        self.log_signals.log_message.emit(category, message, time_str)
     
     def clear_log(self):
         """清除日志"""
