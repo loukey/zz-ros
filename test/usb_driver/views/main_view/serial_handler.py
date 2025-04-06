@@ -68,13 +68,12 @@ class SerialHandler:
     
     def handle_data_received(self, data):
         """处理接收到的数据"""
-        clean_data = data.strip()
-        self.main_window.data_display.append_message(f"接收数据: '{clean_data}'", "接收")
-        
+        clean_data = data.strip()        
         encoding = self.main_window.control_buttons.get_encoding_type()    
         if encoding == 'hex':
             self.buffer += clean_data
             if "0A0D" in self.buffer:
+                self.main_window.data_display.append_message(f"接收数据: '{self.buffer}'", "接收")
                 lines = self.buffer.split("0A0D")
                 self.buffer = lines[-1]
                 command_line = lines[0]
