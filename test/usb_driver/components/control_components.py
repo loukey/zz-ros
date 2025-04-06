@@ -88,6 +88,7 @@ class ControlButtonsFrame(QGroupBox):
             button = QPushButton(text)
             button.setFont(default_font)
             button.clicked.connect(lambda checked, cmd=command: self.send_control_command_callback(cmd))
+            button.setEnabled(False)
             button_layout.addWidget(button)
             self.buttons.append(button)
         
@@ -123,7 +124,7 @@ class ControlButtonsFrame(QGroupBox):
         for mode_name, mode_code in self.run_modes:
             if mode_name in selected:
                 return mode_code
-        return '01'  # 默认返回轮廓位置模式
+        return '0x01'  # 默认返回轮廓位置模式
 
 
 class AngleControlFrame(QGroupBox):
@@ -259,13 +260,8 @@ class AngleControlFrame(QGroupBox):
         for i, angle in enumerate(angles):
             if i < len(self.angle_vars):
                 self.angle_vars[i].setText(f"{angle:.6f}")
-    
-    def set_send_button_state(self, is_connected):
-        """
-        设置发送按钮状态
         
-        参数:
-            is_connected: 是否已连接
-        """
-        self.send_button.setEnabled(is_connected) 
-        
+    def update_connection_status(self, connected):
+        """更新连接状态"""
+        self.send_button.setEnabled(connected)
+

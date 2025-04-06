@@ -284,13 +284,13 @@ class MotionHandler:
                 self.main_window.data_display.append_message(f"关节值: [{joint_values_str}]", "轨迹")
                 self.main_window.data_display.append_message(f"{cmd_str}", "发送")
                 
-                # # 更新曲线图
-                # if hasattr(self.main_window, 'curve_plot') and hasattr(self.main_window.curve_plot, 'plot_trajectory_point'):
-                #     self.main_window.curve_plot.plot_trajectory_point(
-                #         self.current_trajectory_index + 1, 
-                #         point_time, 
-                #         current_point
-                #     )
+                # 更新曲线图
+                if hasattr(self.main_window, 'curve_plot') and hasattr(self.main_window.curve_plot, 'plot_trajectory_point'):
+                    self.main_window.curve_plot.plot_trajectory_point(
+                        self.current_trajectory_index + 1, 
+                        point_time, 
+                        current_point
+                    )
                 
                 # 更新进度信息
                 progress = ((self.current_trajectory_index + 1) / len(self.trajectory_points)) * 100

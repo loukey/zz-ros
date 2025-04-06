@@ -23,7 +23,7 @@ class SerialModel(QObject):
         self.is_connected = False
         self.stop_flag = False
         self.buffer = ""  # 添加缓冲区用于累积数据
-        self.encoding = 'string'  # 默认使用string编码
+        self.encoding = 'hex'  # 默认使用string编码
         self.auto_detect = True  # 是否自动检测数据格式
     
     def set_encoding(self, encoding):
@@ -139,37 +139,29 @@ class SerialModel(QObject):
                 if self.serial.in_waiting:
                     data = self.serial.read(self.serial.in_waiting)
                     if data:                      
-                        # 字符串格式：解码为UTF-8字符串
-                        decoded_data = data.decode('utf-8', errors='ignore')
-                        if '\r\n' in decoded_data:
-                            self.buffer += decoded_data
-                            lines = self.buffer.split('\r\n')
-                            self.buffer = lines[-1]
-                            self.data_received.emit(lines[0])
-                        else:
-                            self.buffer += decoded_data  
-                        # if self.encoding == 'hex':
-                        #     # 十六进制格式：将字节转换为十六进制字符串
-                        #     hex_data = data.hex().upper()
-                        #     # 每两个字符添加一个空格，使显示更易读
-                        #     hex_data = ' '.join(hex_data[i:i+2] for i in range(0, len(hex_data), 2))
-                        #     if '0A 0D' in hex_data:
-                        #         self.buffer += hex_data
-                        #         lines = self.buffer.split('0A 0D')
-                        #         self.buffer = lines[-1]
-                        #         self.data_received.emit(lines[0])
-                        #     else:
-                        #         self.buffer += hex_data
+                        # # 字符串格式：解码为UTF-8字符串
+                        # decoded_data = data.decode('utf-8', errors='ignore')
+                        # if '\r\n' in decoded_data:
+                        #     self.buffer += decoded_data
+                        #     lines = self.buffer.split('\r\n')
+                        #     self.buffer = lines[-1]
+                        #     self.data_received.emit(lines[0])
                         # else:
-                        #     # 字符串格式：解码为UTF-8字符串
-                        #     decoded_data = data.decode('utf-8', errors='ignore')
-                        #     if '\r\n' in decoded_data:
-                        #         self.buffer += decoded_data
-                        #         lines = self.buffer.split('\r\n')
-                        #         self.buffer = lines[-1]
-                        #         self.data_received.emit(lines[0])
-                        #     else:
-                        #         self.buffer += decoded_data
+                        #     self.buffer += decoded_data  
+                        if self.encoding == 'hex':
+                            # 十六进制格式：将字节转换为十六进制字符串
+                            hex_data = data.hex().upper()
+                            self.data_received.emit(hex_data)
+                        else:
+                            # 字符串格式：解码为UTF-8字符串
+                            decoded_data = data.decode('utf-8', errors='ignore')
+                            if '\r\n' in decoded_data:
+                                self.buffer += decoded_data
+                                lines = self.buffer.split('\r\n')
+                                self.buffer = lines[-1]
+                                self.data_received.emit(lines[0])
+                            else:
+                                self.buffer += decoded_data
     
     def send_data(self, data, encoding='string'):
         """

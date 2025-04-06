@@ -85,6 +85,9 @@ def trapezoidal_velocity_planning(start_angles, target_angles, v_max=[pi/4] * 6,
         # 计算匀速阶段的位移（弧度）
         const_displacement = total_displacement - acc_displacement - dec_displacement
         
+        # 初始化 t_acc_actual
+        t_acc_actual = curr_t_acc
+
         # 判断是否需要匀速阶段
         if const_displacement > 0:
             # 有匀速阶段的情况
@@ -207,6 +210,9 @@ def s_curve_velocity_planning(start_angles, target_angles, v_max=[pi/4] * 6, t_a
         
         # 计算匀速阶段的位移（弧度）
         const_displacement = total_displacement - acc_displacement - dec_displacement
+
+        # 初始化 t_acc_actual
+        t_acc_actual = curr_t_acc
         
         # 判断是否需要匀速阶段
         if const_displacement > 0:
