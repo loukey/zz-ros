@@ -195,6 +195,6 @@ def format_command(joint_angles=[0.0] * 6,
         command += f"{crc & 0xFF:02X}"         # CRC低字节
         
         # 9. 添加尾部标识
-        command += "0A0D"  # 添加尾部标识 0A0D
+        command += "0D0A"  # 添加尾部标识 0D0A
     
     return command

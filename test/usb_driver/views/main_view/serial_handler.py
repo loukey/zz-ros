@@ -72,9 +72,9 @@ class SerialHandler:
         encoding = self.main_window.control_buttons.get_encoding_type()    
         if encoding == 'hex':
             self.buffer += clean_data
-            if "0A0D" in self.buffer:
+            if "0D0A" in self.buffer:
                 self.main_window.data_display.append_message(f"接收数据: '{self.buffer}'", "接收")
-                lines = self.buffer.split("0A0D")
+                lines = self.buffer.split("0D0A")
                 self.buffer = lines[-1]
                 command_line = lines[0]
                 
@@ -140,7 +140,7 @@ class SerialHandler:
                         # 记录解析后的详细信息
                         return_msg = f"帧头: {header}, 初始状态: {init_status}, 当前命令: {current_command}, 运行模式: {run_mode}, 位置数据: {positions}, 状态字: {status}, 实际速度: {speeds}, 错误码: {errors}, 夹爪数据: {effector_data}, CRC16: {crc}"
                         self.main_window.data_display.append_message(return_msg, "接收")
-                        if run_mode == "07":
+                        if current_command == "07":
                             self.main_window.data_display.append_message("收到当前位置响应", "控制")
                             self.main_window.motion_handler.process_differential_motion(positions)
                             return

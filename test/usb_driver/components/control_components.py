@@ -37,10 +37,10 @@ class ControlButtonsFrame(QGroupBox):
         encoding_layout = QHBoxLayout()
         encoding_layout.addWidget(QLabel("编码格式:"))
         self.encoding_combo = QComboBox()
-        self.encoding_combo.addItems(['string', 'hex'])
+        self.encoding_combo.addItems(['hex', 'string'])
         self.encoding_combo.setFont(default_font)
         encoding_layout.addWidget(self.encoding_combo)
-        encoding_layout.addWidget(QLabel("(string: 字符串格式, hex: 十六进制格式)"))
+        encoding_layout.addWidget(QLabel("(hex: 十六进制格式, string: 字符串格式)"))
         encoding_layout.addStretch()
         config_layout.addLayout(encoding_layout)
         
