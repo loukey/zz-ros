@@ -3,7 +3,7 @@
 """
 from PyQt5.QtWidgets import QMessageBox
 from PyQt5.QtCore import QTimer
-from utils.command_utils import position_to_radian
+from utils import *
 
 
 class MotionHandler:
@@ -282,6 +282,8 @@ class MotionHandler:
                     "轨迹"
                 )
                 self.main_window.data_display.append_message(f"关节值: [{joint_values_str}]", "轨迹")
+                current_point_position = radian_to_position(current_point)
+                self.main_window.data_display.append_message(f"关节位置: [{current_point_position}]", "轨迹")
                 self.main_window.data_display.append_message(f"{cmd_str}", "发送")
                 
                 # 更新曲线图
@@ -307,12 +309,6 @@ class MotionHandler:
                 self.main_window.data_display.append_message(
                     f"发送轨迹点 {self.current_trajectory_index+1} 失败，类型：{type(current_point)}", 
                     "错误"
-                )
-                # 尝试延长下一次发送的时间，可能是发送太快
-                self.trajectory_timer.setInterval(self.trajectory_timer.interval() * 1.5)
-                self.main_window.data_display.append_message(
-                    f"增加发送间隔至 {self.trajectory_timer.interval()}ms", 
-                    "控制"
                 )
                 self.current_trajectory_index += 1
                 

@@ -35,7 +35,6 @@ class TrajectoryController(QObject):
             Tuple[List[List[float]], List[float]]: (轨迹点列表, 时间点列表)
         """
         try:
-            angles_diff = [end - start for end, start in zip(end_angles, start_angles)]
             if curve_type.lower() == "trapezoidal":
                 times, velocities, accelerations, positions = trapezoidal_velocity_planning(start_angles=start_angles, target_angles=end_angles, dt=frequency)
             else:

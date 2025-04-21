@@ -73,10 +73,10 @@ class SerialHandler:
         if encoding == 'hex':
             self.buffer += clean_data
             if "0D0A" in self.buffer:
-                self.main_window.data_display.append_message(f"接收数据: '{self.buffer}'", "接收")
                 lines = self.buffer.split("0D0A")
                 self.buffer = lines[-1]
                 command_line = lines[0]
+                self.main_window.data_display.append_message(f"接收数据: '{command_line}'", "接收")
                 
                 if command_line.startswith("AA55"):
                     try:
@@ -107,19 +107,21 @@ class SerialHandler:
                             status.append(stat)
                             start += 4
                         
-                        # 实际速度1-6 (每个3字节，共18字节)
+                        # 实际速度1-6 (每个4字节，24字节)
                         speeds = []
                         for i in range(6):
-                            speed = int(command_line[start:start+6], 16)
+                            speed = int(command_line[start:start+8], 16)
+                            if speed & 0x80000000:
+                                speed = speed - 0x100000000
                             speeds.append(speed)
-                            start += 6
+                            start += 8
                         
-                        # 错误码1-6 (每个2字节，共12字节)
-                        errors = []
-                        for i in range(6):
-                            error = command_line[start:start+4]
-                            errors.append(error)
-                            start += 4
+                        # # 错误码1-6 (每个2字节，共12字节)
+                        # errors = []
+                        # for i in range(6):
+                        #     error = command_line[start:start+4]
+                        #     errors.append(error)
+                        #     start += 4
                         
                         # 夹爪数据 (4字节)
                         effector_data_1 = int(command_line[start:start+4], 16)
@@ -138,7 +140,7 @@ class SerialHandler:
                             self.main_window.data_display.append_message(f"CRC校验: 错误 (接收: {crc}, 计算: {calculated_crc_hex})", "错误")
                         
                         # 记录解析后的详细信息
-                        return_msg = f"帧头: {header}, 初始状态: {init_status}, 当前命令: {current_command}, 运行模式: {run_mode}, 位置数据: {positions}, 状态字: {status}, 实际速度: {speeds}, 错误码: {errors}, 夹爪数据: {effector_data}, CRC16: {crc}"
+                        return_msg = f"帧头: {header}, 初始状态: {init_status}, 当前命令: {current_command}, 运行模式: {run_mode}, 位置数据: {positions}, 状态字: {status}, 实际速度: {speeds}, 夹爪数据: {effector_data}, CRC16: {crc}"
                         self.main_window.data_display.append_message(return_msg, "接收")
                         if current_command == "07":
                             self.main_window.data_display.append_message("收到当前位置响应", "控制")

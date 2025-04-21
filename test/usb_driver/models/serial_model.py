@@ -162,10 +162,11 @@ class SerialModel(QObject):
                     self.error_occurred.emit(f"检查串口状态时出错，尝试重新连接: {str(e)}")
                     try:
                         if self.serial:
+                            continue
+                        else:
                             self.serial.close()
                             time.sleep(0.1)
                             self.serial.open()
-                            continue
                     except:
                         self.disconnect()
                         break

@@ -2,6 +2,7 @@
 命令格式化工具模块
 """
 import math
+import struct
 JOINT_OFFSETS = [78623, 369707, 83986, 391414, 508006, 455123]
 RADIAN_TO_POS_SCALE_FACTOR = (2**19) / (2 * math.pi)  # 弧度转位置值的系数
 POS_TO_RADIAN_SCALE_FACTOR = (2 * math.pi) / (2**19)  # 位置值转弧度的系数
@@ -18,8 +19,7 @@ def calculate_crc16(data):
         crc16: 16位校验和
     """
     if isinstance(data, str):
-        # 将字符串转换为ASCII字节
-        data = data.encode('ascii')
+        data = bytes.fromhex(data.strip())
         
     # 计算CRC16-CCITT
     crc = 0xFFFF
@@ -185,12 +185,12 @@ def format_command(joint_angles=[0.0] * 6,
         command += f"{effector_mode:02X}"  # 添加末端执行器模式字节
 
         # 7. 添加末端执行器数据字节
-        effector_data_hex = effector_data_to_hex(effector_data)
-        command += f"{effector_data_hex[0]}{effector_data_hex[1]}"  # 添加末端执行器数据字节
+        effector_data_bytes = struct.pack('>f', effector_data)
+        command += f"{effector_data_bytes[0]:02X}{effector_data_bytes[1]:02X}{effector_data_bytes[2]:02X}{effector_data_bytes[3]:02X}"  # 添加末端执行器数据字节
 
         # 8. 计算并添加CRC16
         # 从控制字节开始计算CRC，不包括头部标识
-        crc = calculate_crc16(bytes.fromhex(command[4:]))  # 从控制字节开始计算
+        crc = calculate_crc16(bytes.fromhex(command))  # 从控制字节开始计算
         command += f"{(crc >> 8) & 0xFF:02X}"  # CRC高字节
         command += f"{crc & 0xFF:02X}"         # CRC低字节
         

@@ -405,3 +405,4 @@ class EndPositionFrame(QGroupBox):
         """更新所有位置和姿态"""
         self.update_theoretical_position(x, y, z)
         self.update_theoretical_attitude(roll, pitch, yaw) 
+        
