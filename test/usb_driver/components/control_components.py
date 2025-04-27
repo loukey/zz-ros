@@ -168,7 +168,7 @@ class AngleControlFrame(QGroupBox):
         curve_group = QButtonGroup()
         self.trapezoidal = QRadioButton("梯形")  # 保存为实例变量
         self.s_curve = QRadioButton("S形")      # 保存为实例变量
-        self.trapezoidal.setChecked(True)
+        self.s_curve.setChecked(True)
         curve_group.addButton(self.trapezoidal)
         curve_group.addButton(self.s_curve)
         control_layout.addWidget(self.trapezoidal)

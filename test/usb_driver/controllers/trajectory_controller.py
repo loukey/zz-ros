@@ -4,7 +4,7 @@
 """
 from PyQt5.QtCore import QObject, pyqtSignal
 from typing import List, Tuple
-from kinematic.velocity_planning import trapezoidal_velocity_planning, s_curve_velocity_planning
+from kinematic import *
 import numpy as np
 
 class TrajectoryController(QObject):
@@ -38,7 +38,8 @@ class TrajectoryController(QObject):
             if curve_type.lower() == "trapezoidal":
                 times, velocities, accelerations, positions = trapezoidal_velocity_planning(start_angles=start_angles, target_angles=end_angles, dt=frequency)
             else:
-                times, velocities, accelerations, positions = s_curve_velocity_planning(start_angles=start_angles, target_angles=end_angles, dt=frequency)            
+                s_curve = SCurve()
+                times, velocities, accelerations, positions = s_curve.planning(start_angles=start_angles, target_angles=end_angles, dt=frequency)            
             return positions, times
             
         except Exception as e:

@@ -1,10 +1,9 @@
 """
 机器人控制器
 """
-from PyQt5.QtCore import QTimer
 from models.robot_model import RobotModel
 from controllers.serial_controller import SerialController
-from kinematic.velocity_planning import trapezoidal_velocity_planning, s_curve_velocity_planning
+from kinematic import *
 
 
 class RobotController:

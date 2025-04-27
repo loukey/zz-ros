@@ -87,9 +87,6 @@ class MainWindow(QMainWindow):
         self.data_display = DataDisplayFrame(self)
         self.tab_widget.addTab(self.data_display, "数据显示")
         
-        self.curve_plot = CurvePlotFrame(self)
-        self.tab_widget.addTab(self.curve_plot, "曲线显示")
-        
         self.inverse_kinematic = InverseKinematicFrame(self)
         self.tab_widget.addTab(self.inverse_kinematic, "逆运动学")
         
