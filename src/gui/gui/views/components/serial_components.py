@@ -4,15 +4,16 @@
 from PyQt5.QtWidgets import (QWidget, QLabel, QPushButton, QComboBox, QVBoxLayout, 
                             QHBoxLayout, QGroupBox, QRadioButton, QButtonGroup)
 from PyQt5.QtCore import Qt
-from gui.components.base_components import default_font
+from .base_components import default_font
 
 
 class PortSelectionFrame(QWidget):
     """串口选择框架"""
     
-    def __init__(self, parent=None, refresh_callback=None):
+    def __init__(self, parent=None, refresh_callback=None, connect_callback=None):
         super().__init__(parent)
         self.refresh_callback = refresh_callback
+        self.connect_callback = connect_callback
         self._init_ui()
     
     def _init_ui(self):
@@ -31,6 +32,12 @@ class PortSelectionFrame(QWidget):
         self.refresh_button.setFont(default_font)
         self.refresh_button.clicked.connect(self.refresh_callback)
         layout.addWidget(self.refresh_button)
+        
+        # 创建连接按钮
+        self.connect_button = QPushButton("连接串口")
+        self.connect_button.setFont(default_font)
+        self.connect_button.clicked.connect(self.connect_callback)
+        layout.addWidget(self.connect_button)
         
         layout.addStretch()
         self.setLayout(layout)
@@ -76,14 +83,14 @@ class PortSelectionFrame(QWidget):
         """
         self.refresh_button.setEnabled(not is_connected)
         self.port_combobox.setEnabled(not is_connected)
+        self.connect_button.setText("断开连接" if is_connected else "连接串口")
 
 
 class SerialConfigFrame(QGroupBox):
     """串口参数配置框架"""
     
-    def __init__(self, parent=None, connect_callback=None):
+    def __init__(self, parent=None):
         super().__init__("串口通信参数配置", parent)
-        self.connect_callback = connect_callback
         self._init_ui()
     
     def _init_ui(self):
@@ -165,12 +172,6 @@ class SerialConfigFrame(QGroupBox):
         row4_layout.addStretch()
         layout.addLayout(row4_layout)
         
-        # 连接按钮
-        self.connect_button = QPushButton("连接串口")
-        self.connect_button.setFont(default_font)
-        self.connect_button.clicked.connect(self.connect_callback)
-        layout.addWidget(self.connect_button)
-        
         self.setLayout(layout)
     
     def get_config(self):
@@ -188,15 +189,6 @@ class SerialConfigFrame(QGroupBox):
             'flow_control': self.flow_control_group.checkedButton().property('flow_control_value')
         }
     
-    def set_connect_button_state(self, is_connected):
-        """
-        设置连接按钮状态
-        
-        参数:
-            is_connected: 是否已连接
-        """
-        self.connect_button.setText("断开连接" if is_connected else "连接串口")
-        
     def update_connection_status(self, is_connected):
         """
         更新连接状态
@@ -204,7 +196,6 @@ class SerialConfigFrame(QGroupBox):
         参数:
             is_connected: 是否已连接
         """
-        self.set_connect_button_state(is_connected)
         self.baud_rate.setEnabled(not is_connected)
         self.data_bit.setEnabled(not is_connected)
         

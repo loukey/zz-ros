@@ -4,7 +4,7 @@
 from PyQt5.QtWidgets import (QWidget, QLabel, QTextEdit, QPushButton, 
                            QVBoxLayout, QHBoxLayout, QSplitter, QGroupBox)
 from PyQt5.QtCore import Qt, QDateTime
-from gui.components.base_components import default_font, text_font, GroupFrame
+from .base_components import default_font, text_font, GroupFrame
 
 
 class DataDisplayFrame(QGroupBox):
@@ -56,12 +56,16 @@ class DataDisplayFrame(QGroupBox):
         timestamp = QDateTime.currentDateTime().toString("HH:mm:ss.zzz")
         
         # 使用[类型]格式显示不同类型的消息，每种类型对应不同颜色
-        if message_type in ["发送", "控制", "参数"]:  # 这些类型显示在发送区
+        if message_type in ["发送", "控制", "参数", "调试", "轨迹"]:  # 这些类型显示在发送区
             # 根据消息类型设置颜色
             if message_type == "发送":
                 color = "#007ACC"  # 蓝色
             elif message_type == "控制":
                 color = "#E91E63"  # 粉色
+            elif message_type == "调试":
+                color = "#FF9800"  # 橙色 
+            elif message_type == "轨迹":
+                color = "#FF9800"  # 橙色
             else:  # 参数
                 color = "#FF9800"  # 橙色
                 

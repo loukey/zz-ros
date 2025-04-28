@@ -16,7 +16,7 @@ setup(
     maintainer='za',
     maintainer_email='529768926@qq.com',
     description='TODO: Package description',
-    license='Apache-2.0',
+    license='TODO: License declaration',
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [

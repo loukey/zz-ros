@@ -1,3 +1,3 @@
-"""
-数据模型模块
-""" 
+from .serial_model import SerialModel
+
+__all__ = ['SerialModel']

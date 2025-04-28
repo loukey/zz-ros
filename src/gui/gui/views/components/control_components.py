@@ -6,7 +6,7 @@ from PyQt5.QtWidgets import (QWidget, QLabel, QLineEdit, QPushButton, QRadioButt
                            QGroupBox, QFrame)
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QDoubleValidator
-from gui.components.base_components import default_font, GroupFrame
+from .base_components import default_font, GroupFrame
 from math import pi
 
 
@@ -37,10 +37,10 @@ class ControlButtonsFrame(QGroupBox):
         encoding_layout = QHBoxLayout()
         encoding_layout.addWidget(QLabel("编码格式:"))
         self.encoding_combo = QComboBox()
-        self.encoding_combo.addItems(['string', 'hex'])
+        self.encoding_combo.addItems(['hex', 'string'])
         self.encoding_combo.setFont(default_font)
         encoding_layout.addWidget(self.encoding_combo)
-        encoding_layout.addWidget(QLabel("(string: 字符串格式, hex: 十六进制格式)"))
+        encoding_layout.addWidget(QLabel("(hex: 十六进制格式, string: 字符串格式)"))
         encoding_layout.addStretch()
         config_layout.addLayout(encoding_layout)
         
@@ -88,6 +88,7 @@ class ControlButtonsFrame(QGroupBox):
             button = QPushButton(text)
             button.setFont(default_font)
             button.clicked.connect(lambda checked, cmd=command: self.send_control_command_callback(cmd))
+            button.setEnabled(False)
             button_layout.addWidget(button)
             self.buttons.append(button)
         
@@ -123,7 +124,7 @@ class ControlButtonsFrame(QGroupBox):
         for mode_name, mode_code in self.run_modes:
             if mode_name in selected:
                 return mode_code
-        return '01'  # 默认返回轮廓位置模式
+        return '0x01'  # 默认返回轮廓位置模式
 
 
 class AngleControlFrame(QGroupBox):
@@ -167,7 +168,7 @@ class AngleControlFrame(QGroupBox):
         curve_group = QButtonGroup()
         self.trapezoidal = QRadioButton("梯形")  # 保存为实例变量
         self.s_curve = QRadioButton("S形")      # 保存为实例变量
-        self.trapezoidal.setChecked(True)
+        self.s_curve.setChecked(True)
         curve_group.addButton(self.trapezoidal)
         curve_group.addButton(self.s_curve)
         control_layout.addWidget(self.trapezoidal)
@@ -259,12 +260,8 @@ class AngleControlFrame(QGroupBox):
         for i, angle in enumerate(angles):
             if i < len(self.angle_vars):
                 self.angle_vars[i].setText(f"{angle:.6f}")
-    
-    def set_send_button_state(self, is_connected):
-        """
-        设置发送按钮状态
         
-        参数:
-            is_connected: 是否已连接
-        """
-        self.send_button.setEnabled(is_connected) 
+    def update_connection_status(self, connected):
+        """更新连接状态"""
+        self.send_button.setEnabled(connected)
+

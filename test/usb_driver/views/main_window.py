@@ -107,7 +107,6 @@ class MainWindow(QMainWindow):
     def init_controllers(self):
         self.serial_controller = SerialController()
         self.trajectory_controller = TrajectoryController()
-        self.ros_controller = ROSController()
 
     def init_handlers(self):
         self.serial_handler = SerialHandler(self)

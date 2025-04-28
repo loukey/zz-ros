@@ -1,8 +1,7 @@
 """
 控制器模块
 """
-from gui.controllers.serial_controller import SerialController
-from gui.controllers.robot_controller import RobotController
-from gui.controllers.ros_controller import ROSController
+from .serial_controller import SerialController
+from .trajectory_controller import TrajectoryController
 
-__all__ = ['SerialController', 'RobotController', 'ROSController'] 
+__all__ = ['SerialController', 'TrajectoryController'] 
