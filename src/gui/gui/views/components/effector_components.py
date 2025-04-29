@@ -7,11 +7,12 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QDoubleValidator
 from .base_components import default_font, GroupFrame, LabeledComboBox, LabeledButton
 
-class EffectorSettings(QGroupBox):
+class EffectorFrame(QGroupBox):
     """执行器设置组件"""
     
-    def __init__(self, parent=None, send_callback=None):
+    def __init__(self, parent=None, get_encoding_type=None, send_callback=None):
         super().__init__("夹爪设置", parent)
+        self.get_encoding_type = get_encoding_type
         self.send_callback = send_callback
         self._init_ui()
 
@@ -69,7 +70,8 @@ class EffectorSettings(QGroupBox):
         
         self.send_button = QPushButton("发送")
         self.send_button.setFont(default_font)
-        self.send_button.clicked.connect(self.send_callback)
+        self.send_button.clicked.connect(lambda: self.send_callback(self.get_encoding_type(),
+                                                                    self.get_effector_params()))
         self.send_button.setEnabled(False)  # 初始状态为禁用
         button_layout.addWidget(self.send_button)
         
@@ -85,7 +87,7 @@ class EffectorSettings(QGroupBox):
         try:
             command_text = self.command_combo.get_selected_item()
             command = self.command_mode[command_text]
-            return command, float(self.param_edit.text())
+            return [command, float(self.param_edit.text())]
         except (ValueError, KeyError):
             return None
             

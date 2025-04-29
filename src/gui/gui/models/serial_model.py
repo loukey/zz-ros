@@ -208,7 +208,7 @@ class SerialModel(QObject):
             # 添加短暂延时，避免过于频繁的访问
             time.sleep(0.01)
     
-    def send_data(self, data, encoding='string'):
+    def send_data(self, data, encoding='hex'):
         """
         发送数据
         

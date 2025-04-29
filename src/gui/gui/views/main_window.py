@@ -5,8 +5,7 @@ from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QTabWidget, QMes
                            QHBoxLayout, QStatusBar, QProgressBar, QToolBar, QApplication,
                            QMenu, QAction, QPushButton)
 from .components import *
-from .main_view import *
-from gui.controllers import *
+from controllers import *
 
 
 class MainWindow(QMainWindow):
@@ -20,8 +19,6 @@ class MainWindow(QMainWindow):
         self.resize(1200, 1400)
         self.init_controllers()
         self.init_ui()
-        self.init_handlers()
-        self._connect_controllers()
     
         # 添加窗口关闭事件处理
         app = QApplication.instance()
@@ -36,45 +33,49 @@ class MainWindow(QMainWindow):
         self._init_serial_config()
         self._init_contour_settings()
         self._create_toolbar()
-        
+
         # ===== 上半部分 =====
         top_panel = QVBoxLayout()
 
         first_row = QHBoxLayout()
         self.port_frame = PortSelectionFrame(
             parent=self,
-            refresh_callback=self.refresh_ports,
-            connect_callback=self.toggle_connection
+            refresh_callback=self.serial_controller.refresh_ports,
+            get_config=self.serial_config.get_config,
+            connect_callback=self.serial_controller.connect,
+            disconnect_callback=self.serial_controller.disconnect
         )
         first_row.addWidget(self.port_frame)
         top_panel.addLayout(first_row)
         
         second_row = QHBoxLayout()
-        self.control_buttons = ControlButtonsFrame(
-            send_control_command_callback=self.send_control_command,
-            parent=self
+        self.control_frame = ControlButtonsFrame(
+            parent=self,
+            send_control_callback=self.motion_controller.send_control_command,
         )
-        second_row.addWidget(self.control_buttons)
+        second_row.addWidget(self.control_frame)
         top_panel.addLayout(second_row)
         
         third_row = QHBoxLayout()
-        self.angle_control = AngleControlFrame(
+        self.angle_control_frame = AngleControlFrame(
             parent=self,
-            send_callback=self.send_angles,
-            convert_callback=self.convert_angles,
-            zero_callback=self.zero_angles
+            send_callback=self.motion_controller.send_angles,
+            get_contour=self.contour_settings.get_contour_params,
+            get_encoding_type=self.control_frame.get_encoding_type,
+            get_run_mode=self.control_frame.get_run_mode
         )
-        third_row.addWidget(self.angle_control)
+        third_row.addWidget(self.angle_control_frame)
         self.end_position = EndPositionFrame(self)
         third_row.addWidget(self.end_position)
         top_panel.addLayout(third_row)
         
         fourth_row = QHBoxLayout()
-        self.effector_settings = EffectorSettings(
+        self.effector_frame = EffectorFrame(
             self,
-            send_callback=self.send_effector_command
+            get_encoding_type=self.control_frame.get_encoding_type,
+            send_callback=self.effector_controller.send_effector_command
         )
-        fourth_row.addWidget(self.effector_settings)
+        fourth_row.addWidget(self.effector_frame)
         top_panel.addLayout(fourth_row)
         
         top_widget = QWidget()
@@ -91,28 +92,16 @@ class MainWindow(QMainWindow):
         self.tab_widget.addTab(self.inverse_kinematic, "逆运动学")
         
         main_layout.addWidget(self.tab_widget, 6) 
-    
-    def _connect_controllers(self):
-        self.serial_controller.register_data_received_callback(self.handle_data_received)
-        self.serial_controller.register_connection_changed_callback(self.handle_connection_changed)
-        self.serial_controller.register_error_occurred_callback(self.handle_error_occurred)
-        self.trajectory_controller.calculation_error.connect(self.handle_calculation_error)
-        self.data_display.clear_send_btn.clicked.connect(self.clear_send)
-        self.data_display.clear_receive_btn.clicked.connect(self.clear_receive)
-        self.data_display.clear_all_btn.clicked.connect(self.clear_all)
-        # 设置逆运动学回调函数
-        # self.inverse_kinematic.set_apply_callback(self.kinematic_handler.apply_inverse_kinematics_result)
-        
-    
-    def init_controllers(self):
-        self.serial_controller = SerialController()
-        self.trajectory_controller = TrajectoryController()
 
-    def init_handlers(self):
-        self.serial_handler = SerialHandler(self)
-        self.motion_handler = MotionHandler(self)
-        self.kinematic_handler = KinematicHandler(self)
-        self.effector_handler = EffectorHandler(self)
+    def init_controllers(self):
+        self.serial_controller = SerialController(display_callback=self.display_data, 
+                                                  update_connection_status_callback=self.handle_connection_changed)
+        self.motion_controller = MotionController(send_callback=self.serial_controller.send_control_command, 
+                                                  display_callback=self.display_data,
+                                                  motion_model=self.serial_controller.motion_model)
+        self.effector_controller = EffectorController(send_data_callback=self.serial_controller.send_control_command, 
+                                                      display_callback=self.display_data)
+        self.trajectory_controller = TrajectoryController()
 
     def _create_toolbar(self):
         toolbar = QToolBar()
@@ -160,77 +149,23 @@ class MainWindow(QMainWindow):
     def show_contour_settings(self):
         """显示轮廓模式参数配置对话框"""
         self.contour_settings_dialog.show()
-    
-    def refresh_ports(self):
-        """刷新串口列表"""
-        self.serial_handler.refresh_ports()
-    
-    def toggle_connection(self):
-        """切换串口连接状态"""
-        self.serial_handler.toggle_connection()
-    
-    def send_control_command(self, command_type):
-        """发送控制命令"""
-        self.motion_handler.send_control_command(command_type)
-    
-    def send_angles(self):
-        """发送角度命令"""
-        self.motion_handler.send_angles()
-    
-    def convert_angles(self):
-        """将角度值转换为弧度值"""
-        self.motion_handler.convert_angles()
-    
-    def zero_angles(self):
-        """归零处理"""
-        self.motion_handler.zero_angles()
 
-    def send_effector_command(self):
-        """发送执行器命令"""
-        self.effector_handler.handle_send_clicked()
+    def handle_connection_changed(self, connected):
+        self.port_frame.update_connection_status(connected)
+        self.control_frame.update_connection_status(connected)
+        self.effector_frame.update_connection_status(connected)
+        self.serial_config.update_connection_status(connected)
+        self.angle_control_frame.update_connection_status(connected)
 
-    def clear_send(self):
-        """清空发送区域"""
-        self.data_display.clear_send()
-    
-    def clear_receive(self):
-        """清空接收区域"""
-        self.data_display.clear_receive()
-    
-    def clear_all(self):
-        """清空所有区域"""
-        self.data_display.clear_all()
+    def display_data(self, message, message_type):
+        self.data_display.append_message(message, message_type)
 
     def closeEvent(self, event=None):
         """关闭窗口事件处理"""
         # 断开串口连接
         if hasattr(self, 'serial_controller') and self.serial_controller:
             self.serial_controller.disconnect()
-        
-        # 关闭ROS控制器
-        if hasattr(self, 'ros_controller') and self.ros_controller:
-            self.ros_controller.shutdown()
-        
-        # 停止定时器
-        if hasattr(self, 'refresh_timer') and self.refresh_timer:
-            self.refresh_timer.stop()
             
         # 允许默认关闭行为
         if event:
             event.accept()
-
-    def handle_data_received(self, data):
-        """处理接收到的数据"""
-        self.serial_handler.handle_data_received(data)
-    
-    def handle_connection_changed(self, connected):
-        """处理连接状态变化"""
-        self.serial_handler.handle_connection_changed(connected)
-    
-    def handle_error_occurred(self, error):
-        """处理错误事件"""
-        self.serial_handler.handle_error_occurred(error)
-
-    def handle_calculation_error(self, error_message):
-        """处理轨迹计算错误事件"""
-        self.serial_handler.handle_calculation_error(error_message)

@@ -4,7 +4,6 @@
 """
 from PyQt5.QtCore import QObject, pyqtSignal
 from typing import List, Tuple
-from kinematic import *
 import numpy as np
 
 class TrajectoryController(QObject):

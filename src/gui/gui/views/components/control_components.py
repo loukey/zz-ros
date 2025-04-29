@@ -13,7 +13,7 @@ from math import pi
 class ControlButtonsFrame(QGroupBox):
     """控制按钮框架"""
     
-    def __init__(self, send_control_command_callback, parent=None):
+    def __init__(self, parent=None, send_control_callback=None):
         """
         初始化控制按钮框架
         
@@ -22,7 +22,7 @@ class ControlButtonsFrame(QGroupBox):
             parent: 父控件
         """
         super().__init__("参数配置和控制命令", parent)
-        self.send_control_command_callback = send_control_command_callback
+        self.send_control_callback = send_control_callback
         self.buttons = []
         self._init_ui()
     
@@ -76,34 +76,24 @@ class ControlButtonsFrame(QGroupBox):
         # 创建控制按钮
         button_layout = QHBoxLayout()
         commands = [
-            ("使能", "ENABLE"),
-            ("取消使能", "DISABLE"),
-            ("释放刹车", "RELEASE"),
-            ("锁止刹车", "LOCK"),
-            ("立刻停止", "STOP"),
-            ("暂停", "PAUSE")
+            ("使能", 0x01),
+            ("取消使能", 0x02),
+            ("释放刹车", 0x03),
+            ("锁止刹车", 0x04),
+            ("立刻停止", 0x05),
+            ("暂停", 0x06)
         ]
         
         for text, command in commands:
             button = QPushButton(text)
             button.setFont(default_font)
-            button.clicked.connect(lambda checked, cmd=command: self.send_control_command_callback(cmd))
+            button.clicked.connect(lambda checked, cmd=command: self.send_control_callback(cmd))
             button.setEnabled(False)
             button_layout.addWidget(button)
             self.buttons.append(button)
         
         layout.addLayout(button_layout)
         self.setLayout(layout)
-    
-    def set_buttons_state(self, is_connected):
-        """
-        设置按钮状态
-        
-        参数:
-            is_connected: 是否已连接
-        """
-        for button in self.buttons:
-            button.setEnabled(is_connected)
     
     def update_connection_status(self, connected):
         """
@@ -112,7 +102,8 @@ class ControlButtonsFrame(QGroupBox):
         参数:
             connected: 是否已连接
         """
-        self.set_buttons_state(connected)
+        for button in self.buttons:
+            button.setEnabled(connected)
     
     def get_encoding_type(self):
         """获取当前选择的编码格式"""
@@ -130,11 +121,16 @@ class ControlButtonsFrame(QGroupBox):
 class AngleControlFrame(QGroupBox):
     """角度控制框架"""
     
-    def __init__(self, parent=None, send_callback=None, convert_callback=None, zero_callback=None):
+    def __init__(self, parent=None, 
+                 send_callback=None, 
+                 get_contour=None,
+                 get_encoding_type=None,
+                 get_run_mode=None):
         super().__init__("角度控制 (弧度值)", parent)
         self.send_callback = send_callback
-        self.convert_callback = convert_callback
-        self.zero_callback = zero_callback
+        self.get_contour = get_contour
+        self.get_encoding_type = get_encoding_type
+        self.get_run_mode = get_run_mode
         self.angle_vars = []
         self._init_ui()
     
@@ -206,18 +202,23 @@ class AngleControlFrame(QGroupBox):
         
         self.send_button = QPushButton("发送角度")
         self.send_button.setFont(default_font)
-        self.send_button.clicked.connect(self.send_callback)
+        self.send_button.clicked.connect(lambda: self.send_callback(self.get_angles(), 
+                                                                    self.get_curve_type(), 
+                                                                    self.get_frequency(),
+                                                                    self.get_contour(),
+                                                                    self.get_encoding_type(),
+                                                                    self.get_run_mode()))
         self.send_button.setEnabled(False)
         button_layout.addWidget(self.send_button)
         
         convert_button = QPushButton("度数转弧度")
         convert_button.setFont(default_font)
-        convert_button.clicked.connect(self.convert_callback)
+        convert_button.clicked.connect(self.convert_angles)
         button_layout.addWidget(convert_button)
         
         zero_button = QPushButton("全部归零")
         zero_button.setFont(default_font)
-        zero_button.clicked.connect(self.zero_callback)
+        zero_button.clicked.connect(self.zero_angles)
         button_layout.addWidget(zero_button)
         
         layout.addLayout(button_layout)
@@ -250,6 +251,10 @@ class AngleControlFrame(QGroupBox):
         except ValueError:
             return "trapezoidal", 4.0, 0.1
     
+    def get_frequency(self):
+        """获取当前的发送频率"""
+        return float(self.frequency_var.text())
+
     def set_angles(self, angles):
         """
         设置角度值
@@ -264,4 +269,31 @@ class AngleControlFrame(QGroupBox):
     def update_connection_status(self, connected):
         """更新连接状态"""
         self.send_button.setEnabled(connected)
+    
+    def convert_angles(self):
+        angle_values = []
+        for angle_var in self.angle_vars:
+            try:
+                angle_degrees = float(angle_var.text())
+                angle_values.append(angle_degrees)
+            except ValueError:
+                # 转换失败时使用0.0作为默认值
+                angle_values.append(0.0)
+        
+        # 将角度转换为弧度 (角度 * pi / 180)
+        from math import pi
+        radian_values = [angle * (pi / 180) for angle in angle_values]
+        
+        # 更新输入框显示弧度值
+        for i, radian in enumerate(radian_values):
+            self.angle_vars[i].setText(f"{radian:.4f}")
+    
+    def zero_angles(self):
+        """归零处理"""
+        # 将所有角度值设置为0
+        for angle_var in self.angle_vars:
+            angle_var.setText("0.0")
+        
+        # 显示归零信息
+        self.display_callback("角度值归零", "控制") 
 

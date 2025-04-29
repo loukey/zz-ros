@@ -1,32 +1,29 @@
 """
 串口通信控制器
 """
-from PyQt5.QtCore import QThread, pyqtSignal
-from models.serial_model import SerialModel
-from utils.command_utils import format_command
-import time
+from PyQt5.QtCore import QThread
+from models import *
+from .utils import *
 
 
 class SerialController:
-    """串口通信控制器，仅负责串口连接和原始命令发送"""
-    
-    def __init__(self):
+    def __init__(self, display_callback, update_connection_status_callback):
+        self.display_callback = display_callback
+        self.update_connection_status_callback = update_connection_status_callback
         self.serial_model = SerialModel()
+        self.motion_model = MotionModel()
         self.read_thread = QThread()
         
         # 将串口模型移动到读取线程中
         self.serial_model.moveToThread(self.read_thread)
         self.read_thread.started.connect(self.serial_model.read_data)
+        self.serial_model.data_received.connect(self.handle_data_received)
+        self.serial_model.connection_changed.connect(self.update_connection_status_callback)
+        self.serial_model.error_occurred.connect(self.handle_error_occurred)
     
-    def get_available_ports(self):
-        """
-        获取可用的串口列表
-        
-        返回:
-            list: 包含(port, description)元组的列表
-        """
+    def refresh_ports(self):
         return self.serial_model.get_available_ports()
-    
+
     def connect(self, port, baud_rate=115200, data_bits=8, parity='N', stop_bits=1, flow_control=None):
         """
         连接到串口
@@ -42,6 +39,8 @@ class SerialController:
         返回:
             bool: 是否连接成功
         """
+        config_str = f"波特率:{baud_rate}, 数据位:{data_bits}, 校验位:{parity}, 停止位:{stop_bits}, 流控制:{flow_control}"
+        self.display_callback(config_str, "参数")
         success = self.serial_model.connect(
             port=port,
             baud_rate=baud_rate,
@@ -54,6 +53,10 @@ class SerialController:
         if success:
             # 启动读取线程
             self.read_thread.start()
+            self.display_callback(f"已连接到串口 {port}", "串口")
+            self.update_connection_status_callback(True)
+        else:
+            self.display_callback("连接串口失败", "错误")
         
         return success
     
@@ -65,7 +68,9 @@ class SerialController:
             self.read_thread.wait()
         
         self.serial_model.disconnect()
-    
+        self.update_connection_status_callback(False)
+        self.display_callback("已断开串口连接", "串口")
+
     def send_data(self, data, encoding='string'):
         """
         发送数据
@@ -81,7 +86,7 @@ class SerialController:
     
     def send_control_command(self, 
                              joint_angles=[0.0] * 6, 
-                             command_type='NONE', 
+                             control=0x00, 
                              mode=0x08, 
                              contour_speed=[0.0] * 6, 
                              contour_acceleration=[0.0] * 6, 
@@ -90,40 +95,7 @@ class SerialController:
                              effector_data=0.0, 
                              encoding='string', 
                              return_cmd=False):
-        """
-        发送控制命令
-        参数:
-            joint_angles: 关节角度列表，包含6个关节角度
-            command_type: 控制命令类型（如 'ENABLE', 'DISABLE' 等）
-            encoding: 编码格式，'string' 或 'hex'
-            mode: 运行模式
-            return_cmd: 是否返回完整命令字符串
-            
-        返回:
-            bool 或 (bool, str): 是否发送成功，或者发送成功与命令字符串的元组
-        """
-        # 检查串口连接状态
-        if not hasattr(self.serial_model, 'is_connected') or not self.serial_model.is_connected:
-            if hasattr(self, 'error_occurred'):
-                self.error_occurred.emit("串口未连接")
-            return (False, "") if return_cmd else False
-        
-        # 命令类型到控制字节的映射
-        control_map = {
-            'NONE': 0x00,      # 无
-            'ENABLE': 0x01,    # 使能
-            'DISABLE': 0x02,   # 取消使能
-            'RELEASE': 0x03,   # 释放刹车
-            'LOCK': 0x04,      # 锁止刹车
-            'STOP': 0x05,      # 立刻停止
-            'MOTION': 0x06,    # 运动状态
-            'POSITION': 0x07,  # 获取当前位置
-            'PAUSE': 0x08      # 暂停
-        }
-        
-        # 获取控制字节
-        control = control_map.get(command_type)
-        
+
         try:
             cmd = format_command(joint_angles=joint_angles, 
                                  control=control, 
@@ -135,22 +107,12 @@ class SerialController:
                                  effector_data=effector_data, 
                                  encoding=encoding)
             
-            # 记录命令内容
-            if hasattr(self, 'error_occurred'):
-                self.error_occurred.emit(f"准备发送命令: {cmd}")
-            
             # 发送命令
             success = self.send_data(cmd, encoding=encoding)
             
             if not success:
-                if hasattr(self, 'error_occurred'):
-                    self.error_occurred.emit(f"发送命令失败: {command_type}")
+                self.display_callback(f"发送命令失败: control: {control}, mode: {mode}", "错误")
                 return (False, "") if return_cmd else False
-            
-            # 记录发送成功
-            if hasattr(self, 'error_occurred'):
-                self.error_occurred.emit(f"命令发送成功: {cmd}")
-            
             if return_cmd:
                 return True, cmd
             return True
@@ -160,29 +122,87 @@ class SerialController:
                 self.error_occurred.emit(f"发送控制命令失败: {str(e)}")
             return (False, "") if return_cmd else False
     
-    def register_data_received_callback(self, callback):
-        """
-        注册数据接收回调函数
-        
-        参数:
-            callback: 回调函数，接收一个字符串参数
-        """
-        self.serial_model.data_received.connect(callback)
+    def handle_data_received(self, data):
+        """处理接收到的数据"""
+        clean_data = data.strip()        
+        self.buffer += clean_data
+        if "0D0A" in self.buffer:
+            lines = self.buffer.split("0D0A")
+            self.buffer = lines[-1]
+            command_line = lines[0]
+            self.display_callback(f"接收数据: '{command_line}'", "接收")
+            
+            if command_line.startswith("AA55"):
+                try:
+                    # 帧头 (2字节)
+                    header = command_line[0:4]  # AA55
+                    
+                    # 初始化状态 (1字节)
+                    init_status = command_line[4:6]
+                    
+                    # 当前命令 (1字节)
+                    current_command = command_line[6:8]
+                    
+                    # 运行模式 (1字节)
+                    run_mode = command_line[8:10]
+                    
+                    # 位置1-6 (每个3字节，共18字节)
+                    positions = []
+                    start = 10
+                    for _ in range(6):
+                        pos = int(command_line[start:start+6], 16)
+                        positions.append(pos)
+                        start += 6
+                    
+                    # 状态字1-6 (每个2字节，共12字节)
+                    status = []
+                    for _ in range(6):
+                        stat = command_line[start:start+4]
+                        status.append(stat)
+                        start += 4
+                    
+                    # 实际速度1-6 (每个4字节，24字节)
+                    speeds = []
+                    for _ in range(6):
+                        speed = int(command_line[start:start+8], 16)
+                        if speed & 0x80000000:
+                            speed = speed - 0x100000000
+                        speeds.append(speed)
+                        start += 8
+                    
+                    # # 错误码1-6 (每个2字节，共12字节)
+                    # errors = []
+                    # for i in range(6):
+                    #     error = command_line[start:start+4]
+                    #     errors.append(error)
+                    #     start += 4
+                    
+                    # 夹爪数据 (4字节)
+                    effector_data_1 = int(command_line[start:start+4], 16)
+                    effector_data_2 = int(command_line[start+4:start+8], 16)
+                    effector_data = "{}.{}".format(effector_data_1, effector_data_2)
+                    start += 8
+                    
+                    # CRC16 (2字节)
+                    crc = command_line[start:start+4]
+                    crc_message = command_line[:-4]
+                    calculated_crc = calculate_crc16(crc_message)
+                    calculated_crc_hex = f"{calculated_crc:04X}"
+                    if calculated_crc_hex == crc:
+                        self.display_callback(f"CRC校验: 正确 (接收: {crc}, 计算: {calculated_crc_hex})", "接收")
+                    else:
+                        self.display_callback(f"CRC校验: 错误 (接收: {crc}, 计算: {calculated_crc_hex})", "错误")
+                    
+                    # 记录解析后的详细信息
+                    return_msg = f"帧头: {header}, 初始状态: {init_status}, 当前命令: {current_command}, 运行模式: {run_mode}, 位置数据: {positions}, 状态字: {status}, 实际速度: {speeds}, 夹爪数据: {effector_data}, CRC16: {crc}"
+                    self.display_callback(return_msg, "接收")
+                    if current_command == "07":
+                        self.display_callback("收到当前位置响应", "控制")
+                        self.main_window.motion_handler.process_differential_motion(positions)
+                        return
+
+                except Exception as e:
+                    self.display_callback(f"解析AA55数据帧失败: {str(e)}", "错误")
     
-    def register_connection_changed_callback(self, callback):
-        """
-        注册连接状态变化回调函数
-        
-        参数:
-            callback: 回调函数，接收一个布尔参数
-        """
-        self.serial_model.connection_changed.connect(callback)
-    
-    def register_error_occurred_callback(self, callback):
-        """
-        注册错误发生回调函数
-        
-        参数:
-            callback: 回调函数，接收一个字符串参数
-        """
-        self.serial_model.error_occurred.connect(callback)
+    def handle_error_occurred(self, error_msg):
+        self.display_callback(f"{error_msg}", "错误")

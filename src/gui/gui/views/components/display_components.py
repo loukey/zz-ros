@@ -37,8 +37,11 @@ class DataDisplayFrame(QGroupBox):
         # 创建按钮区
         button_layout = QHBoxLayout()
         self.clear_send_btn = QPushButton("清除发送区")
+        self.clear_send_btn.clicked.connect(self.clear_send)
         self.clear_receive_btn = QPushButton("清除接收区")
+        self.clear_receive_btn.clicked.connect(self.clear_receive)
         self.clear_all_btn = QPushButton("清除所有")
+        self.clear_all_btn.clicked.connect(self.clear_all)
         
         button_layout.addWidget(self.clear_send_btn)
         button_layout.addWidget(self.clear_receive_btn)

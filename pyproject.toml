@@ -1,5 +1,5 @@
 [project]
-name = "zzros"
+name = "zz-ros"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
@@ -7,5 +7,7 @@ requires-python = ">=3.12"
 dependencies = [
     "numpy>=2.2.5",
     "pyqt5>=5.15.11",
+    "pyqt5-qt5==5.15.15 ; platform_system != 'Windows'",
+    "pyqt5-qt5==5.15.2 ; platform_system == 'Windows'",
     "pyserial>=3.5",
 ]
