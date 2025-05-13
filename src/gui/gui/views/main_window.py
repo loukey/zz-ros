@@ -6,6 +6,7 @@ from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QTabWidget, QMes
                            QMenu, QAction, QPushButton)
 from .components import *
 from controllers import *
+from models import *
 
 
 class MainWindow(QMainWindow):
@@ -17,8 +18,10 @@ class MainWindow(QMainWindow):
         # 设置窗口标题和大小
         self.setWindowTitle("镇中科技机械臂控制工具v0.2.0")
         self.resize(1200, 1400)
+        self.init_models()
         self.init_controllers()
         self.init_ui()
+        self.init_signals()
     
         # 添加窗口关闭事件处理
         app = QApplication.instance()
@@ -40,10 +43,7 @@ class MainWindow(QMainWindow):
         first_row = QHBoxLayout()
         self.port_frame = PortSelectionFrame(
             parent=self,
-            refresh_callback=self.serial_controller.refresh_ports,
             get_config=self.serial_config.get_config,
-            connect_callback=self.serial_controller.connect,
-            disconnect_callback=self.serial_controller.disconnect
         )
         first_row.addWidget(self.port_frame)
         top_panel.addLayout(first_row)
@@ -51,7 +51,6 @@ class MainWindow(QMainWindow):
         second_row = QHBoxLayout()
         self.control_frame = ControlButtonsFrame(
             parent=self,
-            send_control_callback=self.motion_controller.send_control_command,
         )
         second_row.addWidget(self.control_frame)
         top_panel.addLayout(second_row)
@@ -59,7 +58,6 @@ class MainWindow(QMainWindow):
         third_row = QHBoxLayout()
         self.angle_control_frame = AngleControlFrame(
             parent=self,
-            send_callback=self.motion_controller.send_angles,
             get_contour=self.contour_settings.get_contour_params,
             get_encoding_type=self.control_frame.get_encoding_type,
             get_run_mode=self.control_frame.get_run_mode
@@ -73,7 +71,6 @@ class MainWindow(QMainWindow):
         self.effector_frame = EffectorFrame(
             self,
             get_encoding_type=self.control_frame.get_encoding_type,
-            send_callback=self.effector_controller.send_effector_command
         )
         fourth_row.addWidget(self.effector_frame)
         top_panel.addLayout(fourth_row)
@@ -93,15 +90,32 @@ class MainWindow(QMainWindow):
         
         main_layout.addWidget(self.tab_widget, 6) 
 
+    def init_models(self):
+        self.serial_model = SerialModel()
+        self.motion_model = MotionModel()
+
     def init_controllers(self):
-        self.serial_controller = SerialController(display_callback=self.display_data, 
-                                                  update_connection_status_callback=self.handle_connection_changed)
-        self.motion_controller = MotionController(send_callback=self.serial_controller.send_control_command, 
-                                                  display_callback=self.display_data,
-                                                  motion_model=self.serial_controller.motion_model)
-        self.effector_controller = EffectorController(send_data_callback=self.serial_controller.send_control_command, 
-                                                      display_callback=self.display_data)
-        self.trajectory_controller = TrajectoryController()
+        self.serial_controller = SerialController(serial_model=self.serial_model,
+                                                  motion_model=self.motion_model)
+        self.motion_controller = MotionController(serial_model=self.serial_model,
+                                                  motion_model=self.motion_model)
+        self.effector_controller = EffectorController(serial_model=self.serial_model)
+
+    def init_signals(self):
+        self.port_frame.port_connect_requested.connect(self.serial_controller.connect)
+        self.port_frame.port_disconnect_requested.connect(self.serial_controller.disconnect)
+        self.port_frame.refresh_ports_requested.connect(self.serial_controller.refresh_ports)
+
+        self.control_frame.send_command_requested.connect(self.motion_controller.handle_command_requested)
+        self.angle_control_frame.send_angles_requested.connect(self.motion_controller.handle_angles_requested)
+        self.effector_frame.send_effector_command_requested.connect(self.effector_controller.handle_effector_command_requested)
+
+        self.motion_controller.display_requested.connect(self.data_display.append_message)
+        self.effector_controller.display_requested.connect(self.data_display.append_message)
+
+        self.serial_controller.display_requested.connect(self.data_display.append_message)
+        self.serial_controller.connection_changed.connect(self.handle_connection_changed)
+        self.serial_controller.ports_updated.connect(self.port_frame.set_ports)
 
     def _create_toolbar(self):
         toolbar = QToolBar()
@@ -156,9 +170,6 @@ class MainWindow(QMainWindow):
         self.effector_frame.update_connection_status(connected)
         self.serial_config.update_connection_status(connected)
         self.angle_control_frame.update_connection_status(connected)
-
-    def display_data(self, message, message_type):
-        self.data_display.append_message(message, message_type)
 
     def closeEvent(self, event=None):
         """关闭窗口事件处理"""

@@ -3,19 +3,19 @@
 """
 from PyQt5.QtWidgets import (QWidget, QLabel, QPushButton, QComboBox, QVBoxLayout, 
                             QHBoxLayout, QGroupBox, QRadioButton, QButtonGroup)
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import pyqtSignal
 from .base_components import default_font
 
 
 class PortSelectionFrame(QWidget):
     """串口选择框架"""
+    refresh_ports_requested = pyqtSignal()
+    port_connect_requested = pyqtSignal(str, dict)
+    port_disconnect_requested = pyqtSignal()
     
-    def __init__(self, parent=None, refresh_callback=None, get_config=None, connect_callback=None, disconnect_callback=None):
+    def __init__(self, parent=None, get_config=None):
         super().__init__(parent)
-        self.refresh_callback = refresh_callback
         self.get_config = get_config
-        self.connect_callback = connect_callback
-        self.disconnect_callback = disconnect_callback
         self._init_ui()
     
     def _init_ui(self):
@@ -32,34 +32,30 @@ class PortSelectionFrame(QWidget):
         # 创建刷新按钮
         self.refresh_button = QPushButton("刷新")
         self.refresh_button.setFont(default_font)
-        self.refresh_button.clicked.connect(self.refresh)
+        self.refresh_button.clicked.connect(self.on_refresh_clicked)
         layout.addWidget(self.refresh_button)
         
         # 创建连接按钮
         self.connect_button = QPushButton("连接串口")
         self.connect_button.setFont(default_font)
-        self.connect_button.clicked.connect(self.connect)
+        self.connect_button.clicked.connect(self.on_connect_clicked)
         layout.addWidget(self.connect_button)
         
         layout.addStretch()
         self.setLayout(layout)     
 
-    def connect(self):
+    def on_connect_clicked(self):
         connect_button_text = self.connect_button.text()
         if connect_button_text == "连接串口":
-            config = self.get_config()
-            baud_rate=config['baud_rate']
-            data_bits=config['data_bits']
-            parity=config['parity']
-            stop_bits=config['stop_bits']
-            flow_control=config['flow_control']
-            self.connect_callback(self.get_selected_port(), baud_rate, data_bits, parity, stop_bits, flow_control)
+            selected_port = self.get_selected_port()
+            if selected_port:
+                config = self.get_config()
+                self.port_connect_requested.emit(selected_port, config)
         else:
-            self.disconnect_callback()
+            self.port_disconnect_requested.emit()
 
-    def refresh(self):
-        available_ports = self.refresh_callback()
-        self.set_ports(available_ports)
+    def on_refresh_clicked(self):
+        self.refresh_ports_requested.emit()
         
     def set_ports(self, port_list):
         """

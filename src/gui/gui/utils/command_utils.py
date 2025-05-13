@@ -19,7 +19,11 @@ def calculate_crc16(data):
         crc16: 16位校验和
     """
     if isinstance(data, str):
-        data = bytes.fromhex(data.strip())
+        try:
+            data = bytes.fromhex(data.strip())
+        except Exception as e:
+            print(e)
+            print(data)
         
     # 计算CRC16-CCITT
     crc = 0xFFFF
@@ -33,7 +37,6 @@ def calculate_crc16(data):
             crc &= 0xFFFF
             
     return crc
-
 
 def position_to_radian(position, joint_index=None):
     """
@@ -67,7 +70,6 @@ def position_to_radian(position, joint_index=None):
             
         return (position - JOINT_OFFSETS[joint_index]) * POS_TO_RADIAN_SCALE_FACTOR
 
-
 def radian_to_position(radian, joint_index=None):
     """
     将弧度值转换为位置值
@@ -96,19 +98,16 @@ def radian_to_position(radian, joint_index=None):
             
         return radian * RADIAN_TO_POS_SCALE_FACTOR + JOINT_OFFSETS[joint_index]
 
-
 def speed_to_position(speed):
     if len(speed) > 6:
         raise ValueError("弧度值列表长度不能超过6")
     
     return [int(position * RADIAN_TO_POS_SCALE_FACTOR) & 0xFFFFFF for position in speed]
 
-
 def effector_data_to_hex(effector_data):
     effector_data = str(float(effector_data))
     arr = effector_data.split('.')
     return [int(arr[0]).to_bytes(2, 'big').hex(), int(arr[1]).to_bytes(2, 'big').hex()]
-
 
 def format_command(joint_angles=[0.0] * 6, 
                    control=0x06, 
@@ -118,7 +117,7 @@ def format_command(joint_angles=[0.0] * 6,
                    contour_deceleration=[0.0] * 6, 
                    effector_mode=0x00, 
                    effector_data=0.0, 
-                   encoding='string'):
+                   encoding='hex'):
     """
     格式化命令
     

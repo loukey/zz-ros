@@ -3,17 +3,17 @@
 """
 from PyQt5.QtWidgets import (QWidget, QLabel, QPushButton, QLineEdit, 
                            QVBoxLayout, QHBoxLayout, QGridLayout, QMessageBox, QGroupBox)
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QDoubleValidator
 from .base_components import default_font, GroupFrame, LabeledComboBox, LabeledButton
 
 class EffectorFrame(QGroupBox):
     """执行器设置组件"""
+    send_effector_command_requested = pyqtSignal(dict)
     
-    def __init__(self, parent=None, get_encoding_type=None, send_callback=None):
+    def __init__(self, parent=None, get_encoding_type=None):
         super().__init__("夹爪设置", parent)
         self.get_encoding_type = get_encoding_type
-        self.send_callback = send_callback
         self._init_ui()
 
     def _init_ui(self):
@@ -70,8 +70,8 @@ class EffectorFrame(QGroupBox):
         
         self.send_button = QPushButton("发送")
         self.send_button.setFont(default_font)
-        self.send_button.clicked.connect(lambda: self.send_callback(self.get_encoding_type(),
-                                                                    self.get_effector_params()))
+        self.send_button.clicked.connect(lambda: self.send_effector_command_requested.emit({'encoding_type': self.get_encoding_type(),
+                                                                                            'effector_params': self.get_effector_params()}))
         self.send_button.setEnabled(False)  # 初始状态为禁用
         button_layout.addWidget(self.send_button)
         

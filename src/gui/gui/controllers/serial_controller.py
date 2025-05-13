@@ -1,64 +1,57 @@
 """
 串口通信控制器
 """
-from PyQt5.QtCore import QThread
-from models import *
-from .utils import *
+from PyQt5.QtCore import QThread, pyqtSignal, pyqtSlot
+from .base_controller import BaseController
 
+class SerialController(BaseController):
+    ports_updated = pyqtSignal(list)
+    connection_changed = pyqtSignal(bool)
 
-class SerialController:
-    def __init__(self, display_callback, update_connection_status_callback):
-        self.display_callback = display_callback
-        self.update_connection_status_callback = update_connection_status_callback
-        self.serial_model = SerialModel()
-        self.motion_model = MotionModel()
+    def __init__(self, serial_model, motion_model):
+        super().__init__()
+        self.serial_model = serial_model
+        self.motion_model = motion_model
         self.read_thread = QThread()
         
         # 将串口模型移动到读取线程中
         self.serial_model.moveToThread(self.read_thread)
         self.read_thread.started.connect(self.serial_model.read_data)
         self.serial_model.data_received.connect(self.handle_data_received)
-        self.serial_model.connection_changed.connect(self.update_connection_status_callback)
         self.serial_model.error_occurred.connect(self.handle_error_occurred)
     
     def refresh_ports(self):
-        return self.serial_model.get_available_ports()
+        ports = self.serial_model.get_available_ports()
+        self.ports_updated.emit(ports)
 
-    def connect(self, port, baud_rate=115200, data_bits=8, parity='N', stop_bits=1, flow_control=None):
-        """
-        连接到串口
-        
-        参数:
-            port: 串口设备名称
-            baud_rate: 波特率
-            data_bits: 数据位
-            parity: 校验位
-            stop_bits: 停止位
-            flow_control: 流控制
-        
-        返回:
-            bool: 是否连接成功
-        """
-        config_str = f"波特率:{baud_rate}, 数据位:{data_bits}, 校验位:{parity}, 停止位:{stop_bits}, 流控制:{flow_control}"
-        self.display_callback(config_str, "参数")
+    def connect(self, 
+                port, 
+                config={
+                    'baud_rate': 115200,
+                    'data_bits': 8,
+                    'parity': 'N',
+                    'stop_bits': 1,
+                    'flow_control': None
+                }):
+        config_str = f"波特率:{config['baud_rate']}, 数据位:{config['data_bits']}, 校验位:{config['parity']}, 停止位:{config['stop_bits']}, 流控制:{config['flow_control']}"
+        self.display(config_str, "参数")
         success = self.serial_model.connect(
             port=port,
-            baud_rate=baud_rate,
-            data_bits=data_bits,
-            parity=parity,
-            stop_bits=stop_bits,
-            flow_control=flow_control
+            baud_rate=config['baud_rate'],
+            data_bits=config['data_bits'],
+            parity=config['parity'],
+            stop_bits=config['stop_bits'],
+            flow_control=config['flow_control']
         )
         
         if success:
             # 启动读取线程
             self.read_thread.start()
-            self.display_callback(f"已连接到串口 {port}", "串口")
-            self.update_connection_status_callback(True)
+            self.display(f"已连接到串口 {port}", "串口")
+            self.connection_changed.emit(True)
         else:
-            self.display_callback("连接串口失败", "错误")
-        
-        return success
+            self.display("连接串口失败", "错误")
+            self.connection_changed.emit(False)
     
     def disconnect(self):
         """断开串口连接"""
@@ -67,23 +60,17 @@ class SerialController:
             self.read_thread.quit()
             self.read_thread.wait()
         
-        self.serial_model.disconnect()
-        self.update_connection_status_callback(False)
-        self.display_callback("已断开串口连接", "串口")
+        success = self.serial_model.disconnect()
+        if success:
+            self.display("已断开串口连接", "串口")
+            self.connection_changed.emit(False)
+        else:
+            self.display("断开串口失败", "错误")
 
-    def send_data(self, data, encoding='string'):
-        """
-        发送数据
-        
-        参数:
-            data: 要发送的数据
-            encoding: 编码格式，'string' 或 'hex'
-        
-        返回:
-            bool: 是否发送成功
-        """
-        return self.serial_model.send_data(data, encoding)
-    
+    @pyqtSlot(dict)
+    def handle_command_requested(self, params):
+        self.send_control_command(**params)
+
     def send_control_command(self, 
                              joint_angles=[0.0] * 6, 
                              control=0x00, 
@@ -93,27 +80,26 @@ class SerialController:
                              contour_deceleration=[0.0] * 6, 
                              effector_mode=0x00, 
                              effector_data=0.0, 
-                             encoding='string', 
-                             return_cmd=False):
+                             encoding='hex', 
+                             return_cmd=True):
+
 
         try:
-            cmd = format_command(joint_angles=joint_angles, 
-                                 control=control, 
-                                 mode=mode, 
-                                 contour_speed=contour_speed, 
-                                 contour_acceleration=contour_acceleration, 
-                                 contour_deceleration=contour_deceleration, 
-                                 effector_mode=effector_mode, 
-                                 effector_data=effector_data, 
-                                 encoding=encoding)
-            
-            # 发送命令
-            success = self.send_data(cmd, encoding=encoding)
-            
+            success, cmd = self.serial_model.send_control_command(joint_angles=joint_angles, 
+                                                             control=control, 
+                                                             mode=mode, 
+                                                             contour_speed=contour_speed, 
+                                                             contour_acceleration=contour_acceleration, 
+                                                             contour_deceleration=contour_deceleration, 
+                                                             effector_mode=effector_mode, 
+                                                             effector_data=effector_data,
+                                                             encoding=encoding,
+                                                             return_cmd=return_cmd)
             if not success:
-                self.display_callback(f"发送命令失败: control: {control}, mode: {mode}", "错误")
+                self.display(f"发送命令失败: control: {control}, mode: {mode}", "错误")
                 return (False, "") if return_cmd else False
             if return_cmd:
+                self.display(f"发送命令成功: {cmd}", "控制")
                 return True, cmd
             return True
             

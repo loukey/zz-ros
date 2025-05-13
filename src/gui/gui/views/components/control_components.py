@@ -4,16 +4,16 @@
 from PyQt5.QtWidgets import (QWidget, QLabel, QLineEdit, QPushButton, QRadioButton, 
                            QVBoxLayout, QHBoxLayout, QGridLayout, QButtonGroup, QComboBox,
                            QGroupBox, QFrame)
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QDoubleValidator
 from .base_components import default_font, GroupFrame
 from math import pi
 
 
 class ControlButtonsFrame(QGroupBox):
-    """控制按钮框架"""
+    send_command_requested = pyqtSignal(dict)
     
-    def __init__(self, parent=None, send_control_callback=None):
+    def __init__(self, parent=None):
         """
         初始化控制按钮框架
         
@@ -22,7 +22,6 @@ class ControlButtonsFrame(QGroupBox):
             parent: 父控件
         """
         super().__init__("参数配置和控制命令", parent)
-        self.send_control_callback = send_control_callback
         self.buttons = []
         self._init_ui()
     
@@ -81,13 +80,15 @@ class ControlButtonsFrame(QGroupBox):
             ("释放刹车", 0x03),
             ("锁止刹车", 0x04),
             ("立刻停止", 0x05),
-            ("暂停", 0x06)
+            ("暂停", 0x08)
         ]
         
         for text, command in commands:
             button = QPushButton(text)
             button.setFont(default_font)
-            button.clicked.connect(lambda checked, cmd=command: self.send_control_callback(cmd))
+            button.clicked.connect(lambda checked, cmd=command: self.send_command_requested.emit({'control': cmd, 
+                                                                                                  'encoding': self.get_encoding_type(), 
+                                                                                                  'mode': self.get_run_mode()}))
             button.setEnabled(False)
             button_layout.addWidget(button)
             self.buttons.append(button)
@@ -120,14 +121,13 @@ class ControlButtonsFrame(QGroupBox):
 
 class AngleControlFrame(QGroupBox):
     """角度控制框架"""
+    send_angles_requested = pyqtSignal(dict)
     
     def __init__(self, parent=None, 
-                 send_callback=None, 
                  get_contour=None,
                  get_encoding_type=None,
                  get_run_mode=None):
         super().__init__("角度控制 (弧度值)", parent)
-        self.send_callback = send_callback
         self.get_contour = get_contour
         self.get_encoding_type = get_encoding_type
         self.get_run_mode = get_run_mode
@@ -202,12 +202,12 @@ class AngleControlFrame(QGroupBox):
         
         self.send_button = QPushButton("发送角度")
         self.send_button.setFont(default_font)
-        self.send_button.clicked.connect(lambda: self.send_callback(self.get_angles(), 
-                                                                    self.get_curve_type(), 
-                                                                    self.get_frequency(),
-                                                                    self.get_contour(),
-                                                                    self.get_encoding_type(),
-                                                                    self.get_run_mode()))
+        self.send_button.clicked.connect(lambda: self.send_angles_requested.emit({'target_angles': self.get_angles(), 
+                                                                                   'curve_type': self.get_curve_type(), 
+                                                                                   'frequency': self.get_frequency(),
+                                                                                   'contour_params': self.get_contour(),
+                                                                                   'encoding_type': self.get_encoding_type(),
+                                                                                   'run_mode': self.get_run_mode()}))
         self.send_button.setEnabled(False)
         button_layout.addWidget(self.send_button)
         
@@ -293,7 +293,3 @@ class AngleControlFrame(QGroupBox):
         # 将所有角度值设置为0
         for angle_var in self.angle_vars:
             angle_var.setText("0.0")
-        
-        # 显示归零信息
-        self.display_callback("角度值归零", "控制") 
-

@@ -7,6 +7,7 @@ import time
 from PyQt5.QtCore import QObject, pyqtSignal
 import os
 import glob
+from utils import *
 
 
 class SerialModel(QObject):
@@ -14,7 +15,6 @@ class SerialModel(QObject):
     
     # 定义信号
     data_received = pyqtSignal(str)  # 接收到数据时发送信号
-    connection_changed = pyqtSignal(bool)  # 连接状态改变时发送信号
     error_occurred = pyqtSignal(str)  # 发生错误时发送信号
     
     def __init__(self):
@@ -116,7 +116,6 @@ class SerialModel(QObject):
             if self.serial.is_open:
                 self.is_connected = True
                 self.stop_flag = False
-                self.connection_changed.emit(True)
                 return True
             
             return False
@@ -130,17 +129,9 @@ class SerialModel(QObject):
     
     def disconnect(self):
         """断开串口连接"""
-        self.stop_flag = True
-        try:
-            if self.serial and self.serial.is_open:
-                self.serial.close()
-        except serial.SerialException as e:
-            self.error_occurred.emit(f"关闭串口时出错: {str(e)}")
-        except Exception as e:
-            self.error_occurred.emit(f"断开连接时出错: {str(e)}")
-        finally:
-            self.is_connected = False
-            self.connection_changed.emit(False)
+        if self.serial and self.serial.is_open:
+            self.serial.close()
+        return True
     
     def stop(self):
         """停止读取数据"""
@@ -246,3 +237,28 @@ class SerialModel(QObject):
         except Exception as e:
             self.error_occurred.emit(f"发送数据失败: {str(e)}")
             return False 
+
+    def send_control_command(self, 
+                             joint_angles=[0.0] * 6, 
+                             control=0x00, 
+                             mode=0x08, 
+                             contour_speed=[0.0] * 6, 
+                             contour_acceleration=[0.0] * 6, 
+                             contour_deceleration=[0.0] * 6, 
+                             effector_mode=0x00, 
+                             effector_data=0.0, 
+                             encoding='string', 
+                             return_cmd=False):
+        cmd = format_command(joint_angles=joint_angles, 
+                        control=control, 
+                        mode=mode, 
+                        contour_speed=contour_speed, 
+                        contour_acceleration=contour_acceleration, 
+                        contour_deceleration=contour_deceleration, 
+                        effector_mode=effector_mode, 
+                        effector_data=effector_data, 
+                        encoding=encoding)
+        success = self.send_data(cmd, encoding=encoding)
+        if return_cmd:
+            return success, cmd
+        return success
