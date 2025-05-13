@@ -39,21 +39,30 @@ class MainWindow(QMainWindow):
 
         # ===== 上半部分 =====
         top_panel = QVBoxLayout()
-
+        top_panel.setContentsMargins(0, 0, 0, 0)  # 设置外部布局的边距为0
+        
+        # 创建上半部分的标签页
+        self.top_tab_widget = QTabWidget()
+        
+        # 主页标签内容
+        main_tab = QWidget()
+        main_tab_layout = QVBoxLayout(main_tab)
+        main_tab_layout.setContentsMargins(6, 6, 6, 6)  # 设置适当的内部边距
+        
         first_row = QHBoxLayout()
         self.port_frame = PortSelectionFrame(
             parent=self,
             get_config=self.serial_config.get_config,
         )
         first_row.addWidget(self.port_frame)
-        top_panel.addLayout(first_row)
+        main_tab_layout.addLayout(first_row)
         
         second_row = QHBoxLayout()
         self.control_frame = ControlButtonsFrame(
             parent=self,
         )
         second_row.addWidget(self.control_frame)
-        top_panel.addLayout(second_row)
+        main_tab_layout.addLayout(second_row)
         
         third_row = QHBoxLayout()
         self.angle_control_frame = AngleControlFrame(
@@ -65,7 +74,7 @@ class MainWindow(QMainWindow):
         third_row.addWidget(self.angle_control_frame)
         self.end_position = EndPositionFrame(self)
         third_row.addWidget(self.end_position)
-        top_panel.addLayout(third_row)
+        main_tab_layout.addLayout(third_row)
         
         fourth_row = QHBoxLayout()
         self.effector_frame = EffectorFrame(
@@ -73,14 +82,32 @@ class MainWindow(QMainWindow):
             get_encoding_type=self.control_frame.get_encoding_type,
         )
         fourth_row.addWidget(self.effector_frame)
-        top_panel.addLayout(fourth_row)
+        main_tab_layout.addLayout(fourth_row)
+        
+        # 添加主页标签
+        self.top_tab_widget.addTab(main_tab, "主页")
+        
+        # 创建运动规划标签
+        motion_planning_tab = QWidget()
+        motion_planning_layout = QVBoxLayout(motion_planning_tab)
+        motion_planning_layout.setContentsMargins(6, 6, 6, 6)  # 设置适当的内部边距
+        # 这里添加运动规划相关的组件
+        # TODO: 添加运动规划相关的组件
+        
+        # 添加运动规划标签
+        self.top_tab_widget.addTab(motion_planning_tab, "运动规划")
+        
+        # 将标签页添加到上半部分
+        top_panel.addWidget(self.top_tab_widget)
         
         top_widget = QWidget()
         top_widget.setLayout(top_panel)
+        top_widget.setContentsMargins(0, 0, 0, 0)  # 设置容器边距为0
         main_layout.addWidget(top_widget, 4)
         
         # ===== 下半部分（Tab区域）=====
         self.tab_widget = QTabWidget()
+        main_layout.setContentsMargins(0, 0, 0, 0)  # 设置主布局的边距为0
 
         self.data_display = DataDisplayFrame(self)
         self.tab_widget.addTab(self.data_display, "数据显示")

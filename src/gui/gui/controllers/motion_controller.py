@@ -103,7 +103,8 @@ class MotionController(BaseController):
         self.display(f"曲线类型: {curve_type}, 频率: {frequency}秒", "参数")
         self.target_angles = target_angles
         self.dt = frequency
-        self.get_current_position(encoding_type=encoding_type)
+        # self.get_current_position(encoding_type=encoding_type)
+        self.single_motion_starter([0,0,0,0,0,0])
     
     def get_current_position(self, encoding_type='hex'):
         # 获取当前位置
@@ -210,10 +211,13 @@ class MotionController(BaseController):
         self.send_control_command(joint_angles=positions, control=0x06, mode=0x08, encoding='hex')
 
     def single_motion_starter(self, start_angles):
-        times, positions = self.motion_model.curve_planning(start_angles, self.target_angles)
+        times, positions = self.motion_model.curve_planning(start_angles, self.target_angles, dt=self.dt)
+        self.display(f"轨迹计算完成: 共{len(positions)}个点, 总时长{times[-1] if len(times) > 0 else 0}秒", 
+                    "控制")
         self.motion_model.clear_motion_data()
         self.motion_model.set_interval(self.dt * 1000)
         self.motion_model.add_motion_data(times, positions)
+        self.display(f"开始发送轨迹: 共{len(positions)}个点", "控制")
         self.motion_model.start_motion()
 
     def only_get_current_position(self, positions):

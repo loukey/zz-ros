@@ -185,7 +185,7 @@ class AngleControlFrame(QGroupBox):
         freq_layout = QHBoxLayout()
         freq_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)  # 设置左对齐
         freq_layout.addWidget(QLabel("发送频率:"))
-        self.frequency_var = QLineEdit("0.1")
+        self.frequency_var = QLineEdit("0.01")
         self.frequency_var.setFont(default_font)
         self.frequency_var.setMaximumWidth(60)
         freq_layout.addWidget(self.frequency_var)
