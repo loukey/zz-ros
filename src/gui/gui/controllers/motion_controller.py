@@ -17,6 +17,7 @@ class MotionController(BaseController):
         self.target_angles = [0.0] * 6
         self.target_angles_list = []
         self.dt = 0.01
+        self.buffer = ""
         self.motion_data = []
         self.motion_model.motion_send_signal.connect(self.single_motion_send)
         self.serial_model.data_received.connect(self.handle_data_received)
