@@ -10,8 +10,8 @@ class Kinematic6DOF:
         ---------------------------------------------------------------------
         1 | 0.0             | 0.0                | 0.0       | 0.0
         2 | 0.0             | -π/2 (90°)         | 0.0         | -π/2 (90°)
-        3 | 0.2435          | 0.0                | 0.0           | 0.0
-        4 | 0.211           | 0.0                | 0.0865        | π/2 (90°)
+        3 | 0.425           | 0.0                | 0.0           | 0.0
+        4 | 0.401           | 0.0                | 0.0856        | π/2 (90°)
         5 | 0.0             | π/2 (90°)          | 0.086        | 0.0
         6 | 0.0             | -π/2 (-90°)        | 0.0725       | 0.0
         '''
@@ -136,8 +136,7 @@ class Kinematic6DOF:
             raise ValueError("No valid solutions found")
         final_solution = min(valid_solutions, key=lambda sol: np.linalg.norm(np.array(sol) - np.array(self.theta_list)))
         # ros
-        # final_solution[2:6] = [-x for x in final_solution[2:6]]
-        print("最终解:", final_solution)
+        # final_solution[4:] = [-x for x in final_solution[4:]]
         return final_solution
         
     """

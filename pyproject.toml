@@ -6,8 +6,10 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "numpy>=2.2.5",
+    "pyinstaller>=6.13.0",
     "pyqt5>=5.15.11",
     "pyqt5-qt5==5.15.15 ; platform_system != 'Windows'",
     "pyqt5-qt5==5.15.2 ; platform_system == 'Windows'",
     "pyserial>=3.5",
+    "scipy>=1.15.3",
 ]

@@ -17,12 +17,8 @@ class MotionController(BaseController):
         self.target_angles = [0.0] * 6
         self.target_angles_list = []
         self.dt = 0.01
-
+        self.motion_data = []
         self.motion_model.motion_send_signal.connect(self.single_motion_send)
-
-        self.read_thread = QThread()
-        self.serial_model.moveToThread(self.read_thread)
-        self.read_thread.started.connect(self.serial_model.read_data)
         self.serial_model.data_received.connect(self.handle_data_received)
         self.serial_model.error_occurred.connect(self.handle_error_occurred)
 
@@ -103,8 +99,7 @@ class MotionController(BaseController):
         self.display(f"曲线类型: {curve_type}, 频率: {frequency}秒", "参数")
         self.target_angles = target_angles
         self.dt = frequency
-        # self.get_current_position(encoding_type=encoding_type)
-        self.single_motion_starter([0,0,0,0,0,0])
+        self.get_current_position(encoding_type=encoding_type)
     
     def get_current_position(self, encoding_type='hex'):
         # 获取当前位置
@@ -193,6 +188,7 @@ class MotionController(BaseController):
                     return_msg = f"帧头: {header}, 初始状态: {init_status}, 当前命令: {current_command}, 运行模式: {run_mode}, 位置数据: {positions}, 状态字: {status}, 实际速度: {speeds}, 夹爪数据: {effector_data}, CRC16: {crc}"
                     self.display(return_msg, "接收")
                     if current_command == "07":
+                        positions = [position_to_radian(position) for position in positions]
                         if self.motion_mode == 0:
                             self.only_get_current_position(positions)
                         elif self.motion_mode == 1:
@@ -200,6 +196,7 @@ class MotionController(BaseController):
                             self.single_motion_starter(positions)
                         elif self.motion_mode == 2:
                             self.motion_mode = 0
+                            self.multiple_motion_starter(positions)
                 except Exception as e:
                     self.display(f"解析AA55数据帧失败: {str(e)}", "错误")
     
@@ -208,8 +205,7 @@ class MotionController(BaseController):
 
     def single_motion_send(self, positions):
         self.display(f"目标角度: [{', '.join([f'{pos:.4f}' for pos in positions])}]", "控制")
-        self.send_control_command(joint_angles=positions, control=0x06, mode=0x08, encoding='hex')
-
+        
     def single_motion_starter(self, start_angles):
         times, positions = self.motion_model.curve_planning(start_angles, self.target_angles, dt=self.dt)
         self.display(f"轨迹计算完成: 共{len(positions)}个点, 总时长{times[-1] if len(times) > 0 else 0}秒", 
@@ -223,3 +219,23 @@ class MotionController(BaseController):
     def only_get_current_position(self, positions):
         self.display(f"获取当前角度: [{', '.join([f'{pos:.4f}' for pos in positions])}]", "控制")
         self.only_get_current_position_signal.emit(positions)
+
+    def multiple_motion_setting(self, motion_data):
+        self.motion_data = motion_data
+        self.motion_mode = 2
+
+    def multiple_motion_starter(self, positions):
+        self.motion_model.clear_motion_data()
+        self.motion_model.set_interval(self.dt * 1000)
+        for i, motion_data in enumerate(self.motion_data):
+            curve_type = motion_data['curve_type']
+            frequency = motion_data['frequency']
+            target_angles = [motion_data[f'joint{i+1}'] for i in range(6)]
+            note = motion_data['note']
+            if i == 0:
+                start_angles = positions
+            else:
+                start_angles = [self.motion_data[i-1][f'joint{j+1}'] for j in range(6)]
+            times, positions = self.motion_model.curve_planning(start_angles, target_angles, dt=frequency)
+            self.motion_model.add_motion_data(times, positions)
+        self.motion_model.start_motion()        

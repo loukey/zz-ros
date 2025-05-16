@@ -5,6 +5,7 @@ from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QTabWidget, QMes
                            QHBoxLayout, QStatusBar, QProgressBar, QToolBar, QApplication,
                            QMenu, QAction, QPushButton)
 from .components import *
+from .components.motion_planning.motion_planning_components import MotionPlanningFrame
 from controllers import *
 from models import *
 
@@ -16,7 +17,7 @@ class MainWindow(QMainWindow):
         super(MainWindow, self).__init__(parent)
         
         # 设置窗口标题和大小
-        self.setWindowTitle("镇中科技机械臂控制工具v0.2.0")
+        self.setWindowTitle("镇中科技机械臂控制工具v0.2.2")
         self.resize(1200, 1400)
         self.init_models()
         self.init_controllers()
@@ -91,8 +92,9 @@ class MainWindow(QMainWindow):
         motion_planning_tab = QWidget()
         motion_planning_layout = QVBoxLayout(motion_planning_tab)
         motion_planning_layout.setContentsMargins(6, 6, 6, 6)  # 设置适当的内部边距
-        # 这里添加运动规划相关的组件
-        # TODO: 添加运动规划相关的组件
+        # 添加运动规划相关的组件
+        self.motion_planning_frame = MotionPlanningFrame(self)
+        motion_planning_layout.addWidget(self.motion_planning_frame)
         
         # 添加运动规划标签
         self.top_tab_widget.addTab(motion_planning_tab, "运动规划")
@@ -119,7 +121,7 @@ class MainWindow(QMainWindow):
 
     def init_models(self):
         self.serial_model = SerialModel()
-        self.motion_model = MotionModel()
+        self.motion_model = MotionModel(self.serial_model)
 
     def init_controllers(self):
         self.serial_controller = SerialController(serial_model=self.serial_model,
@@ -136,6 +138,10 @@ class MainWindow(QMainWindow):
         self.control_frame.send_command_requested.connect(self.motion_controller.handle_command_requested)
         self.angle_control_frame.send_angles_requested.connect(self.motion_controller.handle_angles_requested)
         self.effector_frame.send_effector_command_requested.connect(self.effector_controller.handle_effector_command_requested)
+
+        self.motion_planning_frame.motion_start_signal.connect(self.motion_controller.multiple_motion_setting)
+        self.motion_planning_frame.get_current_position_signal.connect(self.motion_controller.get_current_position)
+        self.motion_controller.only_get_current_position_signal.connect(self.motion_planning_frame.set_current_position)
 
         self.motion_controller.display_requested.connect(self.data_display.append_message)
         self.effector_controller.display_requested.connect(self.data_display.append_message)
