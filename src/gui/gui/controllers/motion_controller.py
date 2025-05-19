@@ -100,6 +100,7 @@ class MotionController(BaseController):
         self.display(f"曲线类型: {curve_type}, 频率: {frequency}秒", "参数")
         self.target_angles = target_angles
         self.dt = frequency
+        self.motion_mode = 1
         self.get_current_position(encoding_type=encoding_type)
     
     def get_current_position(self, encoding_type='hex'):
@@ -138,13 +139,15 @@ class MotionController(BaseController):
                     # 运行模式 (1字节)
                     run_mode = command_line[8:10]
                     
-                    # 位置1-6 (每个3字节，共18字节)
+                    # 位置1-6 (每个4字节，共24字节)
                     positions = []
                     start = 10
                     for _ in range(6):
-                        pos = int(command_line[start:start+6], 16)
+                        pos = int(command_line[start:start+8], 16)
+                        if pos & 0x80000000:
+                            pos = pos - 0x100000000
                         positions.append(pos)
-                        start += 6
+                        start += 8
                     
                     # 状态字1-6 (每个2字节，共12字节)
                     status = []
@@ -189,7 +192,7 @@ class MotionController(BaseController):
                     return_msg = f"帧头: {header}, 初始状态: {init_status}, 当前命令: {current_command}, 运行模式: {run_mode}, 位置数据: {positions}, 状态字: {status}, 实际速度: {speeds}, 夹爪数据: {effector_data}, CRC16: {crc}"
                     self.display(return_msg, "接收")
                     if current_command == "07":
-                        positions = [position_to_radian(position) for position in positions]
+                        positions = position_to_radian(positions)
                         if self.motion_mode == 0:
                             self.only_get_current_position(positions)
                         elif self.motion_mode == 1:
@@ -206,7 +209,7 @@ class MotionController(BaseController):
 
     def single_motion_send(self, positions):
         self.display(f"目标角度: [{', '.join([f'{pos:.4f}' for pos in positions])}]", "控制")
-        
+
     def single_motion_starter(self, start_angles):
         times, positions = self.motion_model.curve_planning(start_angles, self.target_angles, dt=self.dt)
         self.display(f"轨迹计算完成: 共{len(positions)}个点, 总时长{times[-1] if len(times) > 0 else 0}秒", 
@@ -224,6 +227,8 @@ class MotionController(BaseController):
     def multiple_motion_setting(self, motion_data):
         self.motion_data = motion_data
         self.motion_mode = 2
+        self.display(f"启动混合运动规划", "控制")
+        self.get_current_position()
 
     def multiple_motion_starter(self, positions):
         self.motion_model.clear_motion_data()

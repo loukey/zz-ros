@@ -337,7 +337,7 @@ class MotionPointDialog(QDialog):
         for i in range(1, 7):
             spin = QDoubleSpinBox()
             spin.setRange(-180, 180)
-            spin.setDecimals(2)
+            spin.setDecimals(12)
             spin.setSingleStep(1.0)
             form_layout.addRow(f"关节{i}角度:", spin)
             self.joint_spins.append(spin)

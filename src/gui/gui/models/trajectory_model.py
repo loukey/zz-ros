@@ -201,7 +201,7 @@ def trapezoidal_velocity_planning(start_angles, target_angles, v_max=[pi/4] * 6,
     return times, velocities, accelerations, positions
 
 class SCurve():
-    def __init__(self, v_max=[pi/2] * 6, acc_max=[pi] * 6, t_j=0.5):
+    def __init__(self, v_max=[pi/4] * 6, acc_max=[pi/8] * 6, t_j=0.5):
         self.v_max = np.array(v_max)
         self.acc_max = np.array(acc_max)
         self.t_j = t_j
@@ -392,11 +392,12 @@ class SCurve():
             param_arr = np.array([
                 [0, 0, 0, 0, 0],
                 [t_acc_1, jerk, 0, max_v_start, 0],
-                [t_acc_1 + t_acc_2, 0, a_acc_1, v_acc_1, s_acc_1],
+                [t_acc_1 + t_acc_2, -jerk, a_acc_1, v_acc_1, s_acc_1],
                 [t_acc_1 + t_acc_2 + t_dec_1, -jerk, a_acc_2, v_acc_2, s_acc_2],
                 [t_acc_1 + t_acc_2 + t_dec_1 + t_dec_2, 0, a_dec_1, v_dec_1, s_dec_1],
                 [t_acc_1 + t_acc_2 + t_dec_1 + t_dec_2 + t_dec_3, jerk, a_dec_2, v_dec_2, s_dec_2],
             ])
+            print(param_arr)
             times, accelerations, velocities, positions = self.get_result(param_arr, target_time, dt, max_displacement_idx)
             accelerations, velocities, positions = self.scale_result(accelerations, 
                                                                      velocities,

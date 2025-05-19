@@ -1,5 +1,6 @@
 from .trajectory_model import *
 from PyQt5.QtCore import QTimer, QObject, pyqtSignal
+import time
 
 
 class MotionModel(QObject):

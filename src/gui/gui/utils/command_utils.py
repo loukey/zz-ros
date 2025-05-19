@@ -88,7 +88,7 @@ def radian_to_position(radian, joint_index=None):
             
         positions = []
         for i, rad in enumerate(radian):
-            position = int(rad * RADIAN_TO_POS_SCALE_FACTOR + JOINT_OFFSETS[i]) & 0xFFFFFF
+            position = int(rad * RADIAN_TO_POS_SCALE_FACTOR + JOINT_OFFSETS[i]) & 0xFFFFFFFF
             positions.append(position)
         return positions
     else:
@@ -154,7 +154,8 @@ def format_command(joint_angles=[0.0] * 6,
         # 2. 添加位置值
         positions = radian_to_position(joint_angles)
         for pos in positions:
-            # 将24位位置值转换为3个字节的十六进制
+            # 将24位位置值转换为4个字节的十六进制
+            command += f"{(pos >> 24) & 0xFF:02X}"  # 高字节
             command += f"{(pos >> 16) & 0xFF:02X}"  # 高字节
             command += f"{(pos >> 8) & 0xFF:02X}"   # 中字节
             command += f"{pos & 0xFF:02X}"          # 低字节

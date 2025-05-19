@@ -8,12 +8,8 @@
 # print(times)
 # print(positions)
 
-from models import *
+from utils import *
+import math
 
-s_curve = SCurve()
-times, _, _, positions = s_curve.planning(start_angles=[0,0,0,0,0,0], 
-                                    target_angles=[0,0,0,1.57,0,0], 
-                                    dt=0.1)
-
-print(times)
-print(positions)
+print((2**19) / (2 * math.pi) * 3.1416)
+print(position_to_radian(0))
