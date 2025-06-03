@@ -5,6 +5,7 @@ from utils import *
 
 class MotionController(BaseController):    
     only_get_current_position_signal = pyqtSignal(list)
+    torque_calculation_signal = pyqtSignal(list)
 
     def __init__(self, serial_model, motion_model):
         super().__init__()
@@ -38,6 +39,7 @@ class MotionController(BaseController):
                              contour_speed=[0.0] * 6, 
                              contour_acceleration=[0.0] * 6, 
                              contour_deceleration=[0.0] * 6, 
+                             torque=[0.0] * 6,
                              effector_mode=0x00, 
                              effector_data=0.0, 
                              encoding='hex', 
@@ -58,6 +60,7 @@ class MotionController(BaseController):
                                                                   contour_speed=contour_speed, 
                                                                   contour_acceleration=contour_acceleration, 
                                                                   contour_deceleration=contour_deceleration, 
+                                                                  torque=torque,
                                                                   effector_mode=effector_mode, 
                                                                   effector_data=effector_data,
                                                                   encoding=encoding,
@@ -164,7 +167,16 @@ class MotionController(BaseController):
                             speed = speed - 0x100000000
                         speeds.append(speed)
                         start += 8
-                    
+
+                    # 力矩1-6 (每个2字节，12字节)
+                    torques = []
+                    for _ in range(6):
+                        torque = int(command_line[start:start+4], 16)
+                        if torque & 0x8000:
+                            torque = torque - 0x10000
+                        torques.append(torque)
+                        start += 4
+
                     # # 错误码1-6 (每个2字节，共12字节)
                     # errors = []
                     # for i in range(6):
@@ -189,18 +201,22 @@ class MotionController(BaseController):
                         self.display(f"CRC校验: 错误 (接收: {crc}, 计算: {calculated_crc_hex})", "错误")
                     
                     # 记录解析后的详细信息
-                    return_msg = f"帧头: {header}, 初始状态: {init_status}, 当前命令: {current_command}, 运行模式: {run_mode}, 位置数据: {positions}, 状态字: {status}, 实际速度: {speeds}, 夹爪数据: {effector_data}, CRC16: {crc}"
+                    return_msg = f"帧头: {header}, 初始状态: {init_status}, 当前命令: {current_command}, 运行模式: {run_mode}, 位置数据: {positions}, 状态字: {status}, 实际速度: {speeds}, 力矩: {torques}, 夹爪数据: {effector_data}, CRC16: {crc}"
                     self.display(return_msg, "接收")
-                    if current_command == "07":
-                        positions = position_to_radian(positions)
-                        if self.motion_mode == 0:
-                            self.only_get_current_position(positions)
-                        elif self.motion_mode == 1:
-                            self.motion_mode = 0
-                            self.single_motion_starter(positions)
-                        elif self.motion_mode == 2:
-                            self.motion_mode = 0
-                            self.multiple_motion_starter(positions)
+                    if run_mode == 0x0A:
+                        if current_command in ["06", "07"]:
+                            self.torque_calculation_signal.emit(positions)
+                    elif run_mode == 0x08:
+                        if current_command == "07":
+                            positions = position_to_radian(positions)
+                            if self.motion_mode == 0:
+                                self.only_get_current_position(positions)
+                            elif self.motion_mode == 1:
+                                self.motion_mode = 0
+                                self.single_motion_starter(positions)
+                            elif self.motion_mode == 2:
+                                self.motion_mode = 0
+                                self.multiple_motion_starter(positions)
                 except Exception as e:
                     self.display(f"解析AA55数据帧失败: {str(e)}", "错误")
     

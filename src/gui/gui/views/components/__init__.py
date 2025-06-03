@@ -7,6 +7,7 @@ from .kinematic_components import InverseKinematicFrame, EndPositionFrame
 from .serial_components import PortSelectionFrame, SerialConfigFrame
 from .effector_components import EffectorFrame
 from .contour_components import ContourSettings
+from .dynamic_components import DynamicsFrame
 from .motion_planning import *
 
 __all__ = [
@@ -19,6 +20,7 @@ __all__ = [
     "SerialConfigFrame",
     "EffectorFrame",
     "ContourSettings",
+    "DynamicsFrame",
     "MotionPlanningFrame",
 ]
 

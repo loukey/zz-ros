@@ -104,6 +104,12 @@ def speed_to_position(speed):
     
     return [int(position * RADIAN_TO_POS_SCALE_FACTOR) & 0xFFFFFF for position in speed]
 
+def torque_transfer(torque):
+    if len(torque) > 6:
+        raise ValueError("力矩值列表长度不能超过6")
+    
+    return [int(t) & 0xFFFF for t in torque]
+
 def effector_data_to_hex(effector_data):
     effector_data = str(float(effector_data))
     arr = effector_data.split('.')
@@ -115,6 +121,7 @@ def format_command(joint_angles=[0.0] * 6,
                    contour_speed=[0.0] * 6, 
                    contour_acceleration=[0.0] * 6, 
                    contour_deceleration=[0.0] * 6, 
+                   torque=[0.0] * 6,
                    effector_mode=0x00, 
                    effector_data=0.0, 
                    encoding='hex'):
@@ -133,68 +140,61 @@ def format_command(joint_angles=[0.0] * 6,
     # 确保有6个关节角度
     if len(joint_angles) != 6:
         raise ValueError("必须提供6个关节角度")
-    if encoding == 'string':
-        command = f"cmd {control:02X} {mode:02X} "
-        positions = radian_to_position(joint_angles)
-        contour_speed = speed_to_position(contour_speed)
-        contour_acceleration = speed_to_position(contour_acceleration)
-        contour_deceleration = speed_to_position(contour_deceleration)
-        command += ' '.join(str(position) for position in positions) + ' '
-        command += ' '.join(str(position) for position in contour_speed) + ' '
-        command += ' '.join(str(position) for position in contour_acceleration) + ' '
-        command += ' '.join(str(position) for position in contour_deceleration)
-        command += f" {effector_mode:02X} {effector_data}"
-        command += f" {calculate_crc16(command):04X}\r\n"
-    elif encoding == 'hex':
-        # 1. 构建命令头部
-        command = "AA55"  # 添加头部标识 AA55
-        command += f"{control:02X}"  # 添加控制字节
-        command += f"{mode:02X}"     # 添加模式字节
-        
-        # 2. 添加位置值
-        positions = radian_to_position(joint_angles)
-        for pos in positions:
-            # 将24位位置值转换为4个字节的十六进制
-            command += f"{(pos >> 24) & 0xFF:02X}"  # 高字节
-            command += f"{(pos >> 16) & 0xFF:02X}"  # 高字节
-            command += f"{(pos >> 8) & 0xFF:02X}"   # 中字节
-            command += f"{pos & 0xFF:02X}"          # 低字节
-        
-        # 3. 添加速度值
-        speeds = speed_to_position(contour_speed)
-        for speed in speeds:
-            command += f"{(speed >> 16) & 0xFF:02X}"  # 高字节
-            command += f"{(speed >> 8) & 0xFF:02X}"   # 中字节
-            command += f"{speed & 0xFF:02X}"          # 低字节
-
-        # 4. 添加加速度值
-        accelerations = speed_to_position(contour_acceleration)
-        for acceleration in accelerations:
-            command += f"{(acceleration >> 16) & 0xFF:02X}"  # 高字节
-            command += f"{(acceleration >> 8) & 0xFF:02X}"   # 中字节
-            command += f"{acceleration & 0xFF:02X}"          # 低字节
-
-        # 5. 添加减速度值
-        decelerations = speed_to_position(contour_deceleration)
-        for deceleration in decelerations:
-            command += f"{(deceleration >> 16) & 0xFF:02X}"  # 高字节
-            command += f"{(deceleration >> 8) & 0xFF:02X}"   # 中字节
-            command += f"{deceleration & 0xFF:02X}"          # 低字节
-
-        # 6. 添加末端执行器模式字节
-        command += f"{effector_mode:02X}"  # 添加末端执行器模式字节
-
-        # 7. 添加末端执行器数据字节
-        effector_data_bytes = struct.pack('>f', effector_data)
-        command += f"{effector_data_bytes[0]:02X}{effector_data_bytes[1]:02X}{effector_data_bytes[2]:02X}{effector_data_bytes[3]:02X}"  # 添加末端执行器数据字节
-
-        # 8. 计算并添加CRC16
-        # 从控制字节开始计算CRC，不包括头部标识
-        crc = calculate_crc16(bytes.fromhex(command))  # 从控制字节开始计算
-        command += f"{(crc >> 8) & 0xFF:02X}"  # CRC高字节
-        command += f"{crc & 0xFF:02X}"         # CRC低字节
-        
-        # 9. 添加尾部标识
-        command += "0D0A"  # 添加尾部标识 0D0A
+    # 1. 构建命令头部
+    command = "AA55"  # 添加头部标识 AA55
+    command += f"{control:02X}"  # 添加控制字节
+    command += f"{mode:02X}"     # 添加模式字节
     
+    # 2. 添加位置值
+    positions = radian_to_position(joint_angles)
+    for pos in positions:
+        # 将24位位置值转换为4个字节的十六进制
+        command += f"{(pos >> 24) & 0xFF:02X}"  # 高字节
+        command += f"{(pos >> 16) & 0xFF:02X}"  # 高字节
+        command += f"{(pos >> 8) & 0xFF:02X}"   # 中字节
+        command += f"{pos & 0xFF:02X}"          # 低字节
+    
+    # 3. 添加速度值
+    speeds = speed_to_position(contour_speed)
+    for speed in speeds:
+        command += f"{(speed >> 16) & 0xFF:02X}"  # 高字节
+        command += f"{(speed >> 8) & 0xFF:02X}"   # 中字节
+        command += f"{speed & 0xFF:02X}"          # 低字节
+
+    # 4. 添加加速度值
+    accelerations = speed_to_position(contour_acceleration)
+    for acceleration in accelerations:
+        command += f"{(acceleration >> 16) & 0xFF:02X}"  # 高字节
+        command += f"{(acceleration >> 8) & 0xFF:02X}"   # 中字节
+        command += f"{acceleration & 0xFF:02X}"          # 低字节
+
+    # 5. 添加减速度值
+    decelerations = speed_to_position(contour_deceleration)
+    for deceleration in decelerations:
+        command += f"{(deceleration >> 16) & 0xFF:02X}"  # 高字节
+        command += f"{(deceleration >> 8) & 0xFF:02X}"   # 中字节
+        command += f"{deceleration & 0xFF:02X}"          # 低字节
+
+    # 6. 添加力矩值 
+    torques = torque_transfer(torque)
+    for torque in torques:
+        command += f"{(torque >> 8) & 0xFF:02X}"   # 中字节
+        command += f"{torque & 0xFF:02X}"          # 低字节
+
+    # 6. 添加末端执行器模式字节
+    command += f"{effector_mode:02X}"  # 添加末端执行器模式字节
+
+    # 7. 添加末端执行器数据字节
+    effector_data_bytes = struct.pack('>f', effector_data)
+    command += f"{effector_data_bytes[0]:02X}{effector_data_bytes[1]:02X}{effector_data_bytes[2]:02X}{effector_data_bytes[3]:02X}"  # 添加末端执行器数据字节
+
+    # 8. 计算并添加CRC16
+    # 从控制字节开始计算CRC，不包括头部标识
+    crc = calculate_crc16(bytes.fromhex(command))  # 从控制字节开始计算
+    command += f"{(crc >> 8) & 0xFF:02X}"  # CRC高字节
+    command += f"{crc & 0xFF:02X}"         # CRC低字节
+    
+    # 9. 添加尾部标识
+    command += "0D0A"  # 添加尾部标识 0D0A
+
     return command

@@ -1,0 +1,31 @@
+from .base_controller import BaseController
+from PyQt5.QtCore import pyqtSlot
+from kinematic import *
+
+
+class DynamicController(BaseController):
+    def __init__(self, serial_model):
+        super().__init__()
+        self.serial_model = serial_model
+        self.dynamic = Dynamic()
+
+    @pyqtSlot(list)
+    def handle_dynamic_torque_calculation_command_requested(self, joint_angles):
+        torque = self.dynamic.compute_gravity_compensation(joint_angles)
+        success, cmd = self.serial_model.send_control_command(control=0x06, mode=0x0A, torque=torque, return_cmd=True)
+        self.display(f"重力补偿力矩: {torque}", "发送")
+        self.display(f"重力补偿力矩: {cmd}", "发送")
+
+    @pyqtSlot()
+    def handle_enable_dynamic_command_requested(self):
+        success, cmd = self.serial_model.send_control_command(control=0x01, mode=0x0A, return_cmd=True)
+        self.display(f"周期力矩模式使能: {cmd}", "发送")
+
+    @pyqtSlot(bool)
+    def handle_dynamic_command_requested(self, teaching_mode):
+        if teaching_mode:
+            success, cmd = self.serial_model.send_control_command(control=0x07, mode=0x0A, return_cmd=True)
+            self.display(f"开启示教模式: {cmd}", "发送")
+        else:
+            success, cmd = self.serial_model.send_control_command(control=0x05, mode=0x0A, return_cmd=True)
+            self.display(f"关闭示教模式: {cmd}", "发送")

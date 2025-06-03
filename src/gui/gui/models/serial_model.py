@@ -245,9 +245,10 @@ class SerialModel(QObject):
                              contour_speed=[0.0] * 6, 
                              contour_acceleration=[0.0] * 6, 
                              contour_deceleration=[0.0] * 6, 
+                             torque=[0.0] * 6,
                              effector_mode=0x00, 
                              effector_data=0.0, 
-                             encoding='string', 
+                             encoding='hex', 
                              return_cmd=False):
         cmd = format_command(joint_angles=joint_angles, 
                         control=control, 
@@ -255,6 +256,7 @@ class SerialModel(QObject):
                         contour_speed=contour_speed, 
                         contour_acceleration=contour_acceleration, 
                         contour_deceleration=contour_deceleration, 
+                        torque=torque,
                         effector_mode=effector_mode, 
                         effector_data=effector_data, 
                         encoding=encoding)

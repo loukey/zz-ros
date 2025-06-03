@@ -1,6 +1,5 @@
 import numpy as np
 from math import sin, cos, pi, atan2, sqrt, asin
-from scipy.spatial.transform import Rotation as R
 
 
 #XYZ/ZYX Euler Angles(rotation metrix to euler angles)

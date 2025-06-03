@@ -17,7 +17,7 @@ class MainWindow(QMainWindow):
         super(MainWindow, self).__init__(parent)
         
         # 设置窗口标题和大小
-        self.setWindowTitle("镇中科技机械臂控制工具v0.2.12")
+        self.setWindowTitle("镇中科技机械臂控制工具v0.2.13")
         self.resize(1200, 1400)
         self.init_models()
         self.init_controllers()
@@ -98,6 +98,18 @@ class MainWindow(QMainWindow):
         
         # 添加运动规划标签
         self.top_tab_widget.addTab(motion_planning_tab, "运动规划")
+
+        # 创建动力学标签
+        dynamics_tab = QWidget()
+        dynamics_layout = QVBoxLayout(dynamics_tab)
+        dynamics_layout.setContentsMargins(6, 6, 6, 6)  # 设置适当的内部边距
+        # 添加动力学相关的组件
+        self.dynamics_frame = DynamicsFrame(self)
+        dynamics_layout.addWidget(self.dynamics_frame)
+        
+        # 添加动力学标签
+        self.top_tab_widget.addTab(dynamics_tab, "动力学")
+
         
         # 将标签页添加到上半部分
         top_panel.addWidget(self.top_tab_widget)
@@ -128,6 +140,7 @@ class MainWindow(QMainWindow):
                                                   motion_model=self.motion_model)
         self.motion_controller = MotionController(serial_model=self.serial_model,
                                                   motion_model=self.motion_model)
+        self.dynamic_controller = DynamicController(serial_model=self.serial_model)
         self.effector_controller = EffectorController(serial_model=self.serial_model)
 
     def init_signals(self):
@@ -145,6 +158,12 @@ class MainWindow(QMainWindow):
 
         self.motion_controller.display_requested.connect(self.data_display.append_message)
         self.effector_controller.display_requested.connect(self.data_display.append_message)
+        self.dynamic_controller.display_requested.connect(self.data_display.append_message)
+
+        # 添加动力学组件信号连接
+        self.dynamics_frame.start_cyclic_torque_requested.connect(self.dynamic_controller.handle_enable_dynamic_command_requested)
+        self.dynamics_frame.teaching_mode_toggle_requested.connect(self.dynamic_controller.handle_dynamic_command_requested)
+        self.motion_controller.torque_calculation_signal.connect(self.dynamic_controller.handle_dynamic_torque_calculation_command_requested)
 
         self.serial_controller.display_requested.connect(self.data_display.append_message)
         self.serial_controller.connection_changed.connect(self.handle_connection_changed)
@@ -203,6 +222,7 @@ class MainWindow(QMainWindow):
         self.effector_frame.update_connection_status(connected)
         self.serial_config.update_connection_status(connected)
         self.angle_control_frame.update_connection_status(connected)
+        self.dynamics_frame.update_connection_status(connected)
 
     def closeEvent(self, event=None):
         """关闭窗口事件处理"""
