@@ -1,9 +1,9 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>gui</name>
-  <version>0.2.13</version>
-  <description>镇中科技机械臂控制工具</description>
+  <name>camera</name>
+  <version>0.0.0</version>
+  <description>TODO: Package description</description>
   <maintainer email="529768926@qq.com">za</maintainer>
   <license>TODO: License declaration</license>
 
