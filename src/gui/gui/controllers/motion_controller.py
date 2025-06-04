@@ -177,13 +177,22 @@ class MotionController(BaseController):
                         torques.append(torque)
                         start += 4
 
-                    # # 错误码1-6 (每个2字节，共12字节)
-                    # errors = []
-                    # for i in range(6):
-                    #     error = command_line[start:start+4]
-                    #     errors.append(error)
-                    #     start += 4
-                    
+                    # 双编码器插值 (每个4字节，24字节)
+                    double_encoder_interpolations = []
+                    for _ in range(6):
+                        double_encoder_interpolation = int(command_line[start:start+8], 16)
+                        if double_encoder_interpolation & 0x80000000:
+                            double_encoder_interpolation = double_encoder_interpolation - 0x100000000
+                        double_encoder_interpolations.append(double_encoder_interpolation)
+                        start += 8
+
+                    # 错误码1-6 (每个2字节，共12字节)
+                    errors = []
+                    for _ in range(6):
+                        error = command_line[start:start+4]
+                        errors.append(error)
+                        start += 4
+
                     # 夹爪数据 (4字节)
                     effector_data_1 = int(command_line[start:start+4], 16)
                     effector_data_2 = int(command_line[start+4:start+8], 16)
@@ -201,7 +210,7 @@ class MotionController(BaseController):
                         self.display(f"CRC校验: 错误 (接收: {crc}, 计算: {calculated_crc_hex})", "错误")
                     
                     # 记录解析后的详细信息
-                    return_msg = f"帧头: {header}, 初始状态: {init_status}, 当前命令: {current_command}, 运行模式: {run_mode}, 位置数据: {positions}, 状态字: {status}, 实际速度: {speeds}, 力矩: {torques}, 夹爪数据: {effector_data}, CRC16: {crc}"
+                    return_msg = f"帧头: {header}, 初始状态: {init_status}, 当前命令: {current_command}, 运行模式: {run_mode}, 位置数据: {positions}, 状态字: {status}, 实际速度: {speeds}, 力矩: {torques}, 双编码器插值: {double_encoder_interpolations}, 错误码:{errors}, 夹爪数据: {effector_data}, CRC16: {crc}"
                     self.display(return_msg, "接收")
                     if run_mode == 0x0A:
                         if current_command in ["06", "07"]:
