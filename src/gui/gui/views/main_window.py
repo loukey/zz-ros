@@ -17,7 +17,7 @@ class MainWindow(QMainWindow):
         super(MainWindow, self).__init__(parent)
         
         # 设置窗口标题和大小
-        self.setWindowTitle("镇中科技机械臂控制工具v0.2.13")
+        self.setWindowTitle("镇中科技机械臂控制工具v0.2.14")
         self.resize(1200, 1400)
         self.init_models()
         self.init_controllers()
@@ -163,6 +163,7 @@ class MainWindow(QMainWindow):
         # 添加动力学组件信号连接
         self.dynamics_frame.start_cyclic_torque_requested.connect(self.dynamic_controller.handle_enable_dynamic_command_requested)
         self.dynamics_frame.teaching_mode_toggle_requested.connect(self.dynamic_controller.handle_dynamic_command_requested)
+        self.dynamics_frame.send_torque_requested.connect(self.dynamic_controller.send_dynamic_torque_command)
         self.motion_controller.torque_calculation_signal.connect(self.dynamic_controller.handle_dynamic_torque_calculation_command_requested)
 
         self.serial_controller.display_requested.connect(self.data_display.append_message)

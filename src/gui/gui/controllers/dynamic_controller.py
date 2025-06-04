@@ -29,3 +29,9 @@ class DynamicController(BaseController):
         else:
             success, cmd = self.serial_model.send_control_command(control=0x05, mode=0x0A, return_cmd=True)
             self.display(f"关闭示教模式: {cmd}", "发送")
+
+    @pyqtSlot(list)
+    def send_dynamic_torque_command(self, torgue):
+        success, cmd = self.serial_model.send_control_command(control=0x06, mode=0x0A, torque=torgue, return_cmd=True)
+        self.display(f"力矩补偿力矩: {torgue}", "发送")
+        self.display(f"力矩补偿力矩: {cmd}", "发送")
