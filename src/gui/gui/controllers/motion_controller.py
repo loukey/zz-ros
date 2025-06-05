@@ -1,6 +1,7 @@
 from .base_controller import BaseController
 from PyQt5.QtCore import pyqtSlot, QThread, pyqtSignal
 from utils import *
+from config import GlobalVars
 
 
 class MotionController(BaseController):    
@@ -23,6 +24,9 @@ class MotionController(BaseController):
         self.motion_model.motion_send_signal.connect(self.single_motion_send)
         self.serial_model.data_received.connect(self.handle_data_received)
         self.serial_model.error_occurred.connect(self.handle_error_occurred)
+
+        # 示教模式标志位
+        self.dynamic_teach_flag = False
 
     @pyqtSlot(dict)
     def handle_angles_requested(self, params):
@@ -212,10 +216,11 @@ class MotionController(BaseController):
                     # 记录解析后的详细信息
                     return_msg = f"帧头: {header}, 初始状态: {init_status}, 当前命令: {current_command}, 运行模式: {run_mode}, 位置数据: {positions}, 状态字: {status}, 实际速度: {speeds}, 力矩: {torques}, 双编码器插值: {double_encoder_interpolations}, 错误码:{errors}, 夹爪数据: {effector_data}, CRC16: {crc}"
                     self.display(return_msg, "接收")
-                    if run_mode == 0x0A:
-                        if current_command in ["06", "07"]:
+                    if run_mode == "0A":                            
+                        if GlobalVars.dynamic_teach_flag and current_command in ["06", "07"]:
+                            positions = position_to_radian(positions)
                             self.torque_calculation_signal.emit(positions)
-                    elif run_mode == 0x08:
+                    elif run_mode == "08":
                         if current_command == "07":
                             positions = position_to_radian(positions)
                             if self.motion_mode == 0:

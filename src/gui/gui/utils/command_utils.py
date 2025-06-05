@@ -107,8 +107,14 @@ def speed_to_position(speed):
 def torque_transfer(torque):
     if len(torque) > 6:
         raise ValueError("力矩值列表长度不能超过6")
-    
-    return [int(t) & 0xFFFF for t in torque]
+    # 前三个 / 87 * 1000
+    # 后三个 * 100
+    transfer_torque = []
+    for t in torque[:3]:
+        transfer_torque.append(int(t) / 87 * 1000)
+    for t in torque[3:]:
+        transfer_torque.append(int(t) * 100)
+    return [int(t) & 0xFFFF for t in transfer_torque]
 
 def effector_data_to_hex(effector_data):
     effector_data = str(float(effector_data))

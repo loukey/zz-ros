@@ -1,6 +1,7 @@
 from .base_controller import BaseController
 from PyQt5.QtCore import pyqtSlot
 from kinematic import *
+from config import GlobalVars
 
 
 class DynamicController(BaseController):
@@ -23,6 +24,8 @@ class DynamicController(BaseController):
 
     @pyqtSlot(bool)
     def handle_dynamic_command_requested(self, teaching_mode):
+        # 设置全局变量示教模式标志位
+        GlobalVars.set_dynamic_teach_flag(teaching_mode)
         if teaching_mode:
             success, cmd = self.serial_model.send_control_command(control=0x07, mode=0x0A, return_cmd=True)
             self.display(f"开启示教模式: {cmd}", "发送")
