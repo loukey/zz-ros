@@ -14,6 +14,7 @@ class Dynamic:
             np.array([0, 0, 0]),
             np.array([0, 0, 0.0745])
         ]
+        # 451
         self.g_vector = np.array([0, 0, -9.81])
         self.n = 6
 
