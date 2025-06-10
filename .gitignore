@@ -173,7 +173,9 @@ cython_debug/
 build
 install
 log
+Log
 zzros_ssh*
 
 data/
 camera_models/
+.idea
