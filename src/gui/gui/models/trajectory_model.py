@@ -351,6 +351,7 @@ class SCurve():
             a_acc_1, a_acc_2, a_acc_3, a_dec_1, a_dec_2, a_dec_3 = list_a_1
             v_acc_1, v_acc_2, v_acc_3, v_dec_1, v_dec_2, v_dec_3 = list_v_1
             s_acc_1, s_acc_2, s_acc_3, s_dec_1, s_dec_2, s_dec_3 = list_s_1
+            print(s_acc_1, s_acc_2, s_acc_3, s_dec_1, s_dec_2, s_dec_3)
             s_const = max_displacement - s_1
             t_const = s_const / v_max
             target_time = sum(list_t_1) + t_const
@@ -360,7 +361,7 @@ class SCurve():
                 [t_acc_1 + t_acc_2, 0, a_acc_1, v_acc_1, s_acc_1],
                 [t_acc_1 + t_acc_2 + t_acc_3, -jerk, a_acc_2, v_acc_2, s_acc_2],
                 [t_acc_1 + t_acc_2 + t_acc_3 + t_const, 0, a_acc_3, v_acc_3, s_acc_3],
-                [t_acc_1 + t_acc_2 + t_acc_3 + t_const + t_dec_1, -jerk, a_acc_3, v_acc_3, s_const],
+                [t_acc_1 + t_acc_2 + t_acc_3 + t_const + t_dec_1, -jerk, a_acc_3, v_acc_3, s_acc_3 + s_const],
                 [t_acc_1 + t_acc_2 + t_acc_3 + t_const + t_dec_1 + t_dec_2, 0, a_dec_1, v_dec_1, s_dec_1 + s_const],
                 [t_acc_1 + t_acc_2 + t_acc_3 + t_const + t_dec_1 + t_dec_2 + t_dec_3, jerk, a_dec_2, v_dec_2, s_dec_2 + s_const],
             ])
