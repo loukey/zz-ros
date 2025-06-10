@@ -9,7 +9,7 @@ class Dynamic:
         self.link_com_positions = [
             np.array([0, 0, 0]),
             np.array([0.2125, 0, 0.134]),
-            np.array([0.1818, 0, 0]),
+            np.array([0.2, 0, 0]),
             np.array([0, 0, 0]),
             np.array([0, 0, 0]),
             np.array([0, 0, 0.0745])
