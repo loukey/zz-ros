@@ -111,9 +111,9 @@ def torque_transfer(torque):
     # 后三个 * 100
     transfer_torque = []
     for t in torque[:3]:
-        transfer_torque.append(int(t) / 87 * 1000)
+        transfer_torque.append(int(t / 87 * 1000))
     for t in torque[3:]:
-        transfer_torque.append(int(t) * 100)
+        transfer_torque.append(int(t * 100))
     return [int(t) & 0xFFFF for t in transfer_torque]
 
 def effector_data_to_hex(effector_data):
