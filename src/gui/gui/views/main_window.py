@@ -109,6 +109,17 @@ class MainWindow(QMainWindow):
         # 添加动力学标签
         self.top_tab_widget.addTab(dynamics_tab, "动力学")
 
+        # 创建摄像头标签
+        camera_tab = QWidget()
+        camera_layout = QVBoxLayout(camera_tab)
+        camera_layout.setContentsMargins(6, 6, 6, 6)  # 设置适当的内部边距
+        # 添加摄像头相关的组件
+        self.camera_display = CameraDisplayWidget(self)
+        camera_layout.addWidget(self.camera_display)
+        
+        # 添加摄像头标签
+        self.top_tab_widget.addTab(camera_tab, "摄像头")
+
         # 将标签页添加到上半部分
         top_panel.addWidget(self.top_tab_widget)
         
@@ -127,11 +138,12 @@ class MainWindow(QMainWindow):
         self.inverse_kinematic = InverseKinematicFrame(self)
         self.tab_widget.addTab(self.inverse_kinematic, "逆运动学")
         
-        main_layout.addWidget(self.tab_widget, 6) 
+        main_layout.addWidget(self.tab_widget, 6)
 
     def init_models(self):
         self.serial_model = SerialModel()
         self.motion_model = MotionModel(self.serial_model)
+        self.camera_model = CameraModel()
 
     def init_controllers(self):
         self.serial_controller = SerialController(serial_model=self.serial_model,
@@ -140,6 +152,7 @@ class MainWindow(QMainWindow):
                                                   motion_model=self.motion_model)
         self.dynamic_controller = DynamicController(serial_model=self.serial_model)
         self.effector_controller = EffectorController(serial_model=self.serial_model)
+        self.camera_controller = CameraController(camera_model=self.camera_model)
 
     def init_signals(self):
         self.port_frame.port_connect_requested.connect(self.serial_controller.connect)
@@ -163,6 +176,17 @@ class MainWindow(QMainWindow):
         self.dynamics_frame.teaching_mode_toggle_requested.connect(self.dynamic_controller.handle_dynamic_command_requested)
         self.dynamics_frame.send_torque_requested.connect(self.dynamic_controller.send_dynamic_torque_command)
         self.motion_controller.torque_calculation_signal.connect(self.dynamic_controller.handle_dynamic_torque_calculation_command_requested)
+
+        # 添加摄像头组件信号连接
+        self.camera_display.color_display_requested.connect(self.camera_controller.start_color_display)
+        self.camera_display.depth_display_requested.connect(self.camera_controller.start_depth_display)
+        self.camera_display.stop_display_requested.connect(self.camera_controller.stop_display)
+        
+        # 连接摄像头控制器信号到显示组件
+        self.camera_controller.image_display_requested.connect(self.camera_display.display_image)
+        self.camera_controller.status_update_requested.connect(self.camera_display.update_status)
+        self.camera_controller.image_info_updated.connect(self.camera_display.update_image_info)
+        self.camera_controller.display_requested.connect(self.data_display.append_message)
 
         self.serial_controller.display_requested.connect(self.data_display.append_message)
         self.serial_controller.connection_changed.connect(self.handle_connection_changed)
@@ -228,6 +252,10 @@ class MainWindow(QMainWindow):
         # 断开串口连接
         if hasattr(self, 'serial_controller') and self.serial_controller:
             self.serial_controller.disconnect()
+        
+        # 清理摄像头资源
+        if hasattr(self, 'camera_controller') and self.camera_controller:
+            self.camera_controller.cleanup()
             
         # 允许默认关闭行为
         if event:

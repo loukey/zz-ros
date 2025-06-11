@@ -59,7 +59,7 @@ class DataDisplayFrame(QGroupBox):
         timestamp = QDateTime.currentDateTime().toString("HH:mm:ss.zzz")
         
         # 使用[类型]格式显示不同类型的消息，每种类型对应不同颜色
-        if message_type in ["发送", "控制", "参数", "调试", "轨迹"]:  # 这些类型显示在发送区
+        if message_type in ["发送", "控制", "参数", "调试", "轨迹", "摄像头"]:  # 这些类型显示在发送区
             # 根据消息类型设置颜色
             if message_type == "发送":
                 color = "#007ACC"  # 蓝色

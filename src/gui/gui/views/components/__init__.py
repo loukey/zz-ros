@@ -9,6 +9,7 @@ from .effector_components import EffectorFrame
 from .contour_components import ContourSettings
 from .dynamic_components import DynamicsFrame
 from .motion_planning import *
+from .camera_components import CameraFrame, CameraDisplayWidget
 
 __all__ = [
     "ControlButtonsFrame",
@@ -22,5 +23,7 @@ __all__ = [
     "ContourSettings",
     "DynamicsFrame",
     "MotionPlanningFrame",
+    "CameraFrame",
+    "CameraDisplayWidget",
 ]
 
