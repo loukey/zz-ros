@@ -4,10 +4,9 @@
 from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QTabWidget, QMessageBox, 
                            QHBoxLayout, QStatusBar, QProgressBar, QToolBar, QApplication,
                            QMenu, QAction, QPushButton)
-from .components import *
-from .components.motion_planning.motion_planning_components import MotionPlanningFrame
-from controllers import *
-from models import *
+from gui.views.components import *
+from gui.controllers import *
+from gui.models import *
 
 
 class MainWindow(QMainWindow):
@@ -110,7 +109,6 @@ class MainWindow(QMainWindow):
         # 添加动力学标签
         self.top_tab_widget.addTab(dynamics_tab, "动力学")
 
-        
         # 将标签页添加到上半部分
         top_panel.addWidget(self.top_tab_widget)
         

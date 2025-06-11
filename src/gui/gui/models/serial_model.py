@@ -7,7 +7,7 @@ import time
 from PyQt5.QtCore import QObject, pyqtSignal
 import os
 import glob
-from utils import *
+from gui.utils import *
 
 
 class SerialModel(QObject):

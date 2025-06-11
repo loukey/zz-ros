@@ -1,7 +1,7 @@
 from .base_controller import BaseController
 from PyQt5.QtCore import pyqtSlot, QThread, pyqtSignal
-from utils import *
-from config import GlobalVars
+from gui.utils import *
+from gui.config import GlobalVars
 
 
 class MotionController(BaseController):    

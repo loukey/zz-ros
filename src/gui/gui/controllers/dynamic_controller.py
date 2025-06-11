@@ -1,7 +1,7 @@
 from .base_controller import BaseController
 from PyQt5.QtCore import pyqtSlot
-from kinematic import *
-from config import GlobalVars
+from gui.kinematic import *
+from gui.config import GlobalVars
 
 
 class DynamicController(BaseController):

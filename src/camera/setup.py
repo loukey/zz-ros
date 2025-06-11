@@ -20,7 +20,8 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'camera = camera.main:main'
+            'color = camera.color_img:main',
+            'depth = camera.depth_img:main'
         ],
     },
 )
