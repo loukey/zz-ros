@@ -14,9 +14,13 @@ class CameraFrame(QGroupBox):
     """摄像头控制框架"""
     
     # 定义信号
+    connect_camera_requested = pyqtSignal()  # 连接摄像头请求
+    disconnect_camera_requested = pyqtSignal()  # 断开摄像头请求
     color_display_requested = pyqtSignal()  # 显示彩色图请求
     depth_display_requested = pyqtSignal()  # 显示深度图请求
     stop_display_requested = pyqtSignal()   # 停止显示请求
+    start_detection_requested = pyqtSignal()  # 开始检测请求
+    stop_detection_requested = pyqtSignal()   # 停止检测请求
     
     def __init__(self, parent=None):
         super().__init__("摄像头控制", parent)
@@ -29,10 +33,23 @@ class CameraFrame(QGroupBox):
         # 创建控制按钮区域
         button_layout = QHBoxLayout()
         
+        # 连接摄像头按钮
+        self.connect_button = QPushButton("连接摄像头")
+        self.connect_button.setFont(default_font)
+        self.connect_button.clicked.connect(self._on_connect_button_clicked)
+        button_layout.addWidget(self.connect_button)
+        
+        # 添加分隔线
+        separator = QFrame()
+        separator.setFrameShape(QFrame.VLine)
+        separator.setFrameShadow(QFrame.Sunken)
+        button_layout.addWidget(separator)
+        
         # 显示彩色图按钮
         self.color_button = QPushButton("显示彩色图")
         self.color_button.setFont(default_font)
         self.color_button.setCheckable(True)  # 可切换状态
+        self.color_button.setEnabled(False)  # 初始不可用
         self.color_button.clicked.connect(self._on_color_button_clicked)
         button_layout.addWidget(self.color_button)
         
@@ -40,14 +57,30 @@ class CameraFrame(QGroupBox):
         self.depth_button = QPushButton("显示深度图")
         self.depth_button.setFont(default_font)
         self.depth_button.setCheckable(True)  # 可切换状态
+        self.depth_button.setEnabled(False)  # 初始不可用
         self.depth_button.clicked.connect(self._on_depth_button_clicked)
         button_layout.addWidget(self.depth_button)
         
         # 停止显示按钮
         self.stop_button = QPushButton("停止显示")
         self.stop_button.setFont(default_font)
+        self.stop_button.setEnabled(False)  # 初始不可用
         self.stop_button.clicked.connect(self._on_stop_button_clicked)
         button_layout.addWidget(self.stop_button)
+        
+        # 添加分隔线
+        separator2 = QFrame()
+        separator2.setFrameShape(QFrame.VLine)
+        separator2.setFrameShadow(QFrame.Sunken)
+        button_layout.addWidget(separator2)
+        
+        # 开始检测按钮
+        self.start_detection_button = QPushButton("开始检测")
+        self.start_detection_button.setFont(default_font)
+        self.start_detection_button.setCheckable(True)  # 可切换状态
+        self.start_detection_button.setEnabled(False)  # 初始不可用
+        self.start_detection_button.clicked.connect(self._on_detection_button_clicked)
+        button_layout.addWidget(self.start_detection_button)
         
         # 添加伸缩项
         button_layout.addStretch()
@@ -87,6 +120,16 @@ class CameraFrame(QGroupBox):
         
         layout.addWidget(self.image_display_group)
         self.setLayout(layout)
+        
+        # 初始状态
+        self.is_connected = False
+    
+    def _on_connect_button_clicked(self):
+        """连接摄像头按钮点击事件"""
+        if not self.is_connected:
+            self.connect_camera_requested.emit()
+        else:
+            self.disconnect_camera_requested.emit()
     
     def _on_color_button_clicked(self):
         """彩色图按钮点击事件"""
@@ -113,6 +156,41 @@ class CameraFrame(QGroupBox):
     def _on_stop_button_clicked(self):
         """停止按钮点击事件"""
         self.stop_display_requested.emit()
+        # 停止显示时也停止检测
+        if self.start_detection_button.isChecked():
+            self.start_detection_button.setChecked(False)
+            self.start_detection_button.setText("开始检测")
+            self.stop_detection_requested.emit()
+    
+    def _on_detection_button_clicked(self):
+        """检测按钮点击事件"""
+        if self.start_detection_button.isChecked():
+            self.start_detection_button.setText("停止检测")
+            self.start_detection_requested.emit()
+        else:
+            self.start_detection_button.setText("开始检测")
+            self.stop_detection_requested.emit()
+    
+    def update_connection_status(self, connected):
+        """更新连接状态"""
+        self.is_connected = connected
+        if connected:
+            self.connect_button.setText("断开摄像头")
+            self.color_button.setEnabled(True)
+            self.depth_button.setEnabled(True)
+            self.stop_button.setEnabled(True)
+            self.start_detection_button.setEnabled(True)
+        else:
+            self.connect_button.setText("连接摄像头")
+            self.color_button.setEnabled(False)
+            self.depth_button.setEnabled(False)
+            self.stop_button.setEnabled(False)
+            self.start_detection_button.setEnabled(False)
+            # 清除选中状态
+            self.color_button.setChecked(False)
+            self.depth_button.setChecked(False)
+            self.start_detection_button.setChecked(False)
+            self.start_detection_button.setText("开始检测")
     
     def update_button_states(self, color_active, depth_active):
         """更新按钮状态"""
@@ -177,9 +255,13 @@ class CameraDisplayWidget(QWidget):
     """摄像头显示小部件"""
     
     # 定义信号
+    connect_camera_requested = pyqtSignal()
+    disconnect_camera_requested = pyqtSignal()
     color_display_requested = pyqtSignal()
     depth_display_requested = pyqtSignal()
     stop_display_requested = pyqtSignal()
+    start_detection_requested = pyqtSignal()
+    stop_detection_requested = pyqtSignal()
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -195,9 +277,13 @@ class CameraDisplayWidget(QWidget):
         layout.addWidget(self.camera_frame)
         
         # 连接信号
+        self.camera_frame.connect_camera_requested.connect(self.connect_camera_requested.emit)
+        self.camera_frame.disconnect_camera_requested.connect(self.disconnect_camera_requested.emit)
         self.camera_frame.color_display_requested.connect(self.color_display_requested.emit)
         self.camera_frame.depth_display_requested.connect(self.depth_display_requested.emit)
         self.camera_frame.stop_display_requested.connect(self.stop_display_requested.emit)
+        self.camera_frame.start_detection_requested.connect(self.start_detection_requested.emit)
+        self.camera_frame.stop_detection_requested.connect(self.stop_detection_requested.emit)
         
         # 添加伸缩项
         layout.addStretch()
@@ -215,6 +301,10 @@ class CameraDisplayWidget(QWidget):
     def update_image_info(self, info):
         """更新图像信息"""
         self.camera_frame.update_image_info(info)
+    
+    def update_connection_status(self, connected):
+        """更新连接状态"""
+        self.camera_frame.update_connection_status(connected)
     
     def update_button_states(self, color_active, depth_active):
         """更新按钮状态"""

@@ -144,6 +144,7 @@ class MainWindow(QMainWindow):
         self.serial_model = SerialModel()
         self.motion_model = MotionModel(self.serial_model)
         self.camera_model = CameraModel()
+        self.detection_model = DetectionModel(self.camera_model)
 
     def init_controllers(self):
         self.serial_controller = SerialController(serial_model=self.serial_model,
@@ -152,7 +153,9 @@ class MainWindow(QMainWindow):
                                                   motion_model=self.motion_model)
         self.dynamic_controller = DynamicController(serial_model=self.serial_model)
         self.effector_controller = EffectorController(serial_model=self.serial_model)
-        self.camera_controller = CameraController(camera_model=self.camera_model)
+        self.camera_controller = CameraController(camera_model=self.camera_model, detection_model=self.detection_model)
+        self.detection_controller = DetectionController(detection_model=self.detection_model, 
+                                                       camera_model=self.camera_model)
 
     def init_signals(self):
         self.port_frame.port_connect_requested.connect(self.serial_controller.connect)
@@ -178,15 +181,23 @@ class MainWindow(QMainWindow):
         self.motion_controller.torque_calculation_signal.connect(self.dynamic_controller.handle_dynamic_torque_calculation_command_requested)
 
         # 添加摄像头组件信号连接
+        self.camera_display.connect_camera_requested.connect(self.camera_controller.connect_camera)
+        self.camera_display.disconnect_camera_requested.connect(self.camera_controller.disconnect_camera)
         self.camera_display.color_display_requested.connect(self.camera_controller.start_color_display)
         self.camera_display.depth_display_requested.connect(self.camera_controller.start_depth_display)
         self.camera_display.stop_display_requested.connect(self.camera_controller.stop_display)
+        self.camera_display.start_detection_requested.connect(self.camera_controller.start_detection)
+        self.camera_display.stop_detection_requested.connect(self.camera_controller.stop_detection)
         
         # 连接摄像头控制器信号到显示组件
         self.camera_controller.image_display_requested.connect(self.camera_display.display_image)
         self.camera_controller.status_update_requested.connect(self.camera_display.update_status)
         self.camera_controller.image_info_updated.connect(self.camera_display.update_image_info)
+        self.camera_controller.connection_status_changed.connect(self.camera_display.update_connection_status)
         self.camera_controller.display_requested.connect(self.data_display.append_message)
+        
+        # 添加检测控制器信号连接
+        self.detection_controller.display_requested.connect(self.data_display.append_message)
 
         self.serial_controller.display_requested.connect(self.data_display.append_message)
         self.serial_controller.connection_changed.connect(self.handle_connection_changed)

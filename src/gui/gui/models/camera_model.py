@@ -28,6 +28,7 @@ class CameraModel(QObject):
         self.ros_executor = None
         self.ros_thread = None
         self.is_ros_initialized = False
+        self.is_camera_connected = False
         
         # 图像数据存储
         self.latest_color_image = None
@@ -39,9 +40,12 @@ class CameraModel(QObject):
         self.color_connected = False
         self.depth_connected = False
         
-    def initialize_ros(self):
-        """初始化ROS2节点"""
+    def connect_camera(self):
+        """连接摄像头"""
         try:
+            if self.is_camera_connected:
+                return True
+                
             if not rclpy.ok():
                 rclpy.init()
             
@@ -52,11 +56,43 @@ class CameraModel(QObject):
             self._start_ros_thread()
             
             self.is_ros_initialized = True
+            self.is_camera_connected = True
             self.connection_status_changed.emit("正在连接摄像头...")
             return True
             
         except Exception as e:
-            self.error_occurred.emit(f"ROS初始化失败: {str(e)}")
+            self.error_occurred.emit(f"摄像头连接失败: {str(e)}")
+            return False
+    
+    def disconnect_camera(self):
+        """断开摄像头连接"""
+        try:
+            self.is_camera_connected = False
+            self.color_connected = False
+            self.depth_connected = False
+            
+            # 停止ROS执行器
+            if self.ros_executor:
+                self.ros_executor.shutdown()
+            
+            # 销毁节点
+            if self.color_subscriber:
+                self.color_subscriber.destroy_node()
+                self.color_subscriber = None
+            if self.depth_subscriber:
+                self.depth_subscriber.destroy_node()
+                self.depth_subscriber = None
+            
+            # 等待线程结束
+            if self.ros_thread and self.ros_thread.is_alive():
+                self.ros_thread.join(timeout=1.0)
+            
+            self.is_ros_initialized = False
+            self.connection_status_changed.emit("摄像头已断开")
+            return True
+            
+        except Exception as e:
+            self.error_occurred.emit(f"断开摄像头失败: {str(e)}")
             return False
     
     def _create_subscribers(self):
@@ -212,30 +248,17 @@ class DepthImageSubscriber(Node):
         """图像回调函数"""
         try:
             # 处理不同的深度图编码格式
-            if msg.encoding == '16UC1':
+            if msg.encoding == 'mono16' or msg.encoding == '16UC1':
                 cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='16UC1')
-                # 转换为8位用于显示，缩放到0-255范围
-                normalized_image = cv2.normalize(cv_image, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
-                display_image = cv2.applyColorMap(normalized_image, cv2.COLORMAP_JET)
             elif msg.encoding == '32FC1':
                 cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='32FC1')
-                # 处理无效值
-                cv_image = np.nan_to_num(cv_image, nan=0.0, posinf=0.0, neginf=0.0)
-                # 转换为8位用于显示
-                normalized_image = cv2.normalize(cv_image, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
-                display_image = cv2.applyColorMap(normalized_image, cv2.COLORMAP_JET)
             else:
                 # 尝试直接转换
                 cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='passthrough')
-                if len(cv_image.shape) == 2:  # 单通道
-                    normalized_image = cv2.normalize(cv_image, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
-                    display_image = cv2.applyColorMap(normalized_image, cv2.COLORMAP_JET)
-                else:
-                    display_image = cv_image
             
             # 调用回调函数
             if self.callback:
-                self.callback(display_image)
+                self.callback(cv_image)
                 
         except CvBridgeError as e:
             self.get_logger().error(f'深度图像转换失败: {e}')
