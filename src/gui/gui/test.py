@@ -1,9 +1,20 @@
-from models import *
+from utils import *
+from kinematic import *
 
-s_curve = SCurve()
+positions = [78555, 341827, 122306, 391368, 508057, 455126]
+radians = position_to_radian(positions)
 
-start_angles =  [0.4654, -0.0369, -0.0792, 2.2555, -1.1260, -0.0001]
-target_angles = [0, 0, 0, 0, 0, 0]
-times, accelerations, velocities, positions = s_curve.planning(start_angles, target_angles)
+print(radians)
+def radians_to_angles(radians):
+    angles = []
+    for radian in radians:
+        angle = radian * 180 / pi
+        angles.append(angle)
+    return angles
 
-print(positions)
+angles = radians_to_angles(radians)
+print(angles)
+
+dynamic = Dynamic()
+torques = dynamic.compute_gravity_compensation(radians)
+print(torques)
