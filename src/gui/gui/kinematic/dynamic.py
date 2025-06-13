@@ -71,10 +71,10 @@ class Dynamic:
                 J_col = self.get_jacobian_column(q, j, com_base, i)
                 # 3. 计算重力对该关节的力矩贡献
                 tau_g[i] += self.link_masses[j] * self.g_vector.dot(J_col)
-        tau_g= -tau_g
+
         tau_g[:3] *= 0.35
         tau_g[3:] *= 0.25
-        return tau_g
+        return -tau_g
 
     def get_joint_axis_in_base(self, q, dh_params, joint_index):
         """
