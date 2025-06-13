@@ -11,8 +11,8 @@ class DynamicController(BaseController):
         self.dynamic = Dynamic()
 
     @pyqtSlot(list)
-    def handle_dynamic_torque_calculation_command_requested(self, joint_angles):
-        torque = self.dynamic.compute_gravity_compensation(joint_angles)
+    def handle_dynamic_torque_calculation_command_requested(self, radians):
+        torque = self.dynamic.compute_gravity_compensation(radians)
         success, cmd = self.serial_model.send_control_command(control=0x06, mode=0x0A, torque=torque, return_cmd=True)
         self.display(f"重力补偿力矩: {torque}", "发送")
         self.display(f"重力补偿力矩: {cmd}", "发送")
