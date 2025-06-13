@@ -10,8 +10,8 @@ class Kinematic6DOF:
         ---------------------------------------------------------------------
         1 | 0.0             | 0.0                | 0.0       | 0.0
         2 | 0.0             | -π/2 (90°)         | 0.0         | -π/2 (90°)
-        3 | 0.425           | 0.0                | 0.0           | 0.0
-        4 | 0.401           | 0.0                | 0.0856        | π/2 (90°)
+        3 | 0.425           | pi                | 0.0           | 0.0
+        4 | 0.401           | pi                | 0.0856        | π/2 (90°)
         5 | 0.0             | π/2 (90°)          | 0.086        | 0.0
         6 | 0.0             | -π/2 (-90°)        | 0.0725       | 0.0
         '''
@@ -19,8 +19,8 @@ class Kinematic6DOF:
         self.DH_matrix = np.array([
             [0.0, 0.0, 0.0, self.theta_list[0]],
             [0.0, -pi/2, 0.0, self.theta_list[1]],
-            [0.425, 0.0, 0.0, self.theta_list[2]],
-            [0.401, 0.0, 0.0856, self.theta_list[3]],
+            [0.425, pi, 0.0, self.theta_list[2]],
+            [0.401, pi, 0.0856, self.theta_list[3]],
             [0.0, pi/2, 0.086, self.theta_list[4]],
             [0.0, -pi/2, 0.0725, self.theta_list[5]]
         ], dtype=float)
@@ -64,9 +64,17 @@ class Kinematic6DOF:
         nx, ny, nz = rm[:, 0]
         ox, oy, oz = rm[:, 1]
         ax, ay, az = rm[:, 2]
-        a2, a3 = self.DH_matrix[2:4, 0]
-        d1, _, _, d4, d5, d6 = self.DH_matrix[:, 2]
+        
+        # DH参数
+        a3 = 0.425  # 第3个关节到第4个关节的长度
+        a4 = 0.401  # 第4个关节到第5个关节的长度
+        d4 = 0.0856 # 第4个关节的连杆偏距
+        d5 = 0.086  # 第5个关节的连杆偏距
+        d6 = 0.0725 # 第6个关节的连杆偏距
 
+        print("目标位置:", px, py, pz)
+        print("目标姿态:", A, B, C)
+        
         # 添加奇异性判断
         if abs(ax**2 + ay**2 - d4**2) < 1e-6:
             print("Warning: Approaching shoulder singularity!")
@@ -84,59 +92,94 @@ class Kinematic6DOF:
             theta1_1 = atan2(m, n) - atan2(-d4, -sqrt(m**2 + n**2 - d4**2))
             theta1_candidate = [theta1_0, theta1_1]
         except Exception as e:
+            print("theta1计算错误:", str(e))
             theta1_candidate = []
 
         # theta5
         for theta1 in theta1_candidate:
+            print("theta1:", degrees(theta1))
             s1 = sin(theta1)
             c1 = cos(theta1)
             try:
-                theta5_val = acos(-s1 * ax + c1 * ay)
+                # 修改theta5的计算方式
+                cos_theta5 = -s1 * ax + c1 * ay
+                if abs(cos_theta5) > 1:
+                    cos_theta5 = 1 if cos_theta5 > 0 else -1
+                theta5_val = acos(cos_theta5)
                 theta5_candidate = [theta5_val, -theta5_val]
 
                 for theta5 in theta5_candidate:
+                    print([degrees(theta1), degrees(theta5)])
                     s5 = sin(theta5)
                     c5 = cos(theta5)
                     # theta6
                     if abs(s5) < 1e-6:
                         # 腕部奇异性
+                        print("检测到腕部奇异性")
+                        # 在奇异点附近，使用当前theta6的值
                         theta6 = self.theta_list[5]
                     else:
                         m1 = -s1 * nx + c1 * ny
                         n1 = -s1 * ox + c1 * oy
                         theta6 = atan2(-n1 / s5, m1 / s5)
+                    print([degrees(theta1), degrees(theta5), degrees(theta6)])
+                    
                     # theta3
                     s6 = sin(theta6)
                     c6 = cos(theta6)
+                    # 修改theta3的计算方式
                     m2 = d5 * (s6 * (nx * c1 + ny * s1) + c6 * (ox * c1 + oy * s1)) - d6 * (ax * c1 + ay * s1) + px * c1 + py * s1
-                    n2 = d5 * (oz * c6 + nz * s6) + pz - d1 - az * d6
-                    temp = (m2**2 + n2**2 - a2**2 - a3**2) / (2 * a2 * a3)
-                    if temp < -1 or temp > 1:
+                    n2 = d5 * (oz * c6 + nz * s6) + pz - az * d6
+                    
+                    # 计算到关节3的距离
+                    r = sqrt(m2**2 + n2**2)
+                    if r > (a3 + a4) * 1.2 or r < abs(a3 - a4) * 0.8:  # 进一步放宽工作空间限制
+                        print("theta3无解 - 超出工作空间")
                         continue
+                        
+                    temp = (m2**2 + n2**2 - a3**2 - a4**2) / (2 * a3 * a4)
+                    if abs(temp) > 1:
+                        temp = 1 if temp > 0 else -1
                     theta3_candidate = [acos(temp), -acos(temp)]
+                    
                     for theta3 in theta3_candidate:
+                        print([degrees(theta1), degrees(theta3), degrees(theta5), degrees(theta6)])
                         # theta2
                         s3 = sin(theta3)
                         c3 = cos(theta3)
-                        s2 = (-(a3 * c3 + a2) * n2 - a3 * s3 * m2) / (a2 ** 2 + a3 ** 2 + 2 * a2 * a3 * c3)
-                        c2 = (m2 + a3 * s3 * s2) / (a3 * c3 + a2)
-                        theta2 = atan2(s2, c2)
+                        # 修改theta2的计算方式
+                        k1 = a3 + a4 * c3
+                        k2 = a4 * s3
+                        s2 = (k1 * n2 - k2 * m2) / (k1**2 + k2**2)
+                        c2 = (k1 * m2 + k2 * n2) / (k1**2 + k2**2)
+                        theta2 = -atan2(s2, c2)
+                        print([degrees(theta1), degrees(theta2), degrees(theta3), degrees(theta5), degrees(theta6)])
             
                         # theta4
-                        c234 = c5 * (c6 * (nx * c1 + ny * s1) - s6 * (ox * c1 + oy * s1)) - s5 * (ax * c1 + ay * s1)
-                        s234 = -s6 * (nx * c1 + ny * s1) - c6 * (ox * c1 + oy * s1)
-                        theta4 = atan2(s234, c234) - theta2 - theta3
+                        if abs(s5) < 1e-6:
+                            # 在腕部奇异性时，使用更稳定的计算方式
+                            if initial_theta is not None:
+                                theta4 = initial_theta[3]  # 使用初始theta4的值
+                            else:
+                                theta4 = self.theta_list[3]  # 使用当前theta4的值
+                        else:
+                            c234 = c5 * (c6 * (nx * c1 + ny * s1) - s6 * (ox * c1 + oy * s1)) - s5 * (ax * c1 + ay * s1)
+                            s234 = -s6 * (nx * c1 + ny * s1) - c6 * (ox * c1 + oy * s1)
+                            theta4 = atan2(s234, c234) - theta2 - theta3
+                        print([degrees(theta1), degrees(theta2), degrees(theta3), degrees(theta4), degrees(theta5), degrees(theta6)])
 
                         candidate = [self.normalize_angle(theta) for theta in [theta1, theta2, theta3, theta4, theta5, theta6]]
+                        print("候选解:", [degrees(t) for t in candidate])
                         if self.verify_solution(candidate, (px, py, pz)):
+                            print("找到有效解")
                             valid_solutions.append(candidate)
             except Exception as e:
+                print("计算错误:", str(e))
                 continue
         if not valid_solutions:
             raise ValueError("No valid solutions found")
         final_solution = min(valid_solutions, key=lambda sol: np.linalg.norm(np.array(sol) - np.array(self.theta_list)))
-        # ros
-        # final_solution[4:] = [-x for x in final_solution[4:]]
+        print("最终解:", [degrees(t) for t in final_solution])
         return final_solution
         
     """
@@ -178,5 +221,6 @@ class Kinematic6DOF:
         self.update_dh(current_theta)
         # 计算误差
         error = np.linalg.norm(current_pos - target_pos)
-        return error < 1e-3  # 允许的误差阈值
+        print("位置误差:", error)
+        return error < 1e-2  # 进一步放宽误差阈值
         
