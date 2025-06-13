@@ -9,7 +9,7 @@ class Dynamic:
         self.link_com_positions = [
             np.array([0, 0, 0]),
             np.array([0.2125, 0, 0.134]),
-            np.array([0.2, 0, 0]),
+            np.array([0.1818, 0, 0]),
             np.array([0, 0, 0]),
             np.array([0, 0, 0]),
             np.array([0, 0, 0.0745])
@@ -72,6 +72,8 @@ class Dynamic:
                 # 3. 计算重力对该关节的力矩贡献
                 tau_g[i] += self.link_masses[j] * self.g_vector.dot(J_col)
         tau_g= -tau_g
+        tau_g[:3] *= 0.35
+        tau_g[3:] *= 0.25
         return tau_g
 
     def get_joint_axis_in_base(self, q, dh_params, joint_index):
