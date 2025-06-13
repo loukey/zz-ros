@@ -19,8 +19,8 @@ class Kinematic6DOF:
         self.DH_matrix = np.array([
             [0.0, 0.0, 0.0, self.theta_list[0]],
             [0.0, -pi/2, 0.0, self.theta_list[1]],
-            [0.425, 0.0, 0.0, self.theta_list[2]],
-            [0.401, 0.0, 0.0856, self.theta_list[3]],
+            [0.425, pi, 0.0, self.theta_list[2]],
+            [0.401, pi, 0.0856, self.theta_list[3]],
             [0.0, pi/2, 0.086, self.theta_list[4]],
             [0.0, -pi/2, 0.0725, self.theta_list[5]]
         ], dtype=float)
