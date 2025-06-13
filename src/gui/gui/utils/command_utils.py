@@ -111,8 +111,10 @@ def torque_transfer(torque):
     # 后三个 * 100
     transfer_torque = []
     for t in torque[:3]:
+        t = min(max(t, -50), 50)
         transfer_torque.append(int(t / 87 * 1000))
     for t in torque[3:]:
+        t = min(max(t, -10), 10)
         transfer_torque.append(int(t * 100))
     return [int(t) & 0xFFFF for t in transfer_torque]
 

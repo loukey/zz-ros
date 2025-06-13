@@ -4,7 +4,7 @@ from .kinematic_6dof import Kinematic6DOF
 
 class Dynamic:
     def __init__(self):
-        self.kinematic = Kinematic6DOF()
+        self.kinematic = Kinematic6DOF(theta_list=[0.0, -pi/2, 0.0, pi/2, 0.0, 0.0])
         self.link_masses = [4.64,10.755,3.925,1.24,1.24,2.549]
         self.link_com_positions = [
             np.array([0, 0, 0]),
