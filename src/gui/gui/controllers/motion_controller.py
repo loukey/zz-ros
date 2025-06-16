@@ -217,22 +217,23 @@ class MotionController(BaseController):
                     return_msg = f"帧头: {header}, 初始状态: {init_status}, 当前命令: {current_command}, 运行模式: {run_mode}, 位置数据: {positions}, 状态字: {status}, 实际速度: {speeds}, 力矩: {torques}, 双编码器插值: {double_encoder_interpolations}, 错误码:{errors}, 夹爪数据: {effector_data}, CRC16: {crc}"
                     self.display(return_msg, "接收")
                 except Exception as e:
-                    self.display(f"解析AA55数据帧失败: {str(e)}", "错误")
-                    if run_mode == "0A":                            
-                        if GlobalVars.dynamic_teach_flag and current_command in ["06", "07"]:
-                            positions = position_to_radian(positions)
-                            self.torque_calculation_signal.emit(positions)
-                    elif run_mode == "08":
-                        if current_command == "07":
-                            positions = position_to_radian(positions)
-                            if self.motion_mode == 0:
-                                self.only_get_current_position(positions)
-                            elif self.motion_mode == 1:
-                                self.motion_mode = 0
-                                self.single_motion_starter(positions)
-                            elif self.motion_mode == 2:
-                                self.motion_mode = 0
-                                self.multiple_motion_starter(positions)
+                    print(e)
+                self.display(f"解析AA55数据帧失败: {str(e)}", "错误")
+                if run_mode == "0A":                            
+                    if GlobalVars.dynamic_teach_flag and current_command in ["06", "07"]:
+                        positions = position_to_radian(positions)
+                        self.torque_calculation_signal.emit(positions)
+                elif run_mode == "08":
+                    if current_command == "07":
+                        positions = position_to_radian(positions)
+                        if self.motion_mode == 0:
+                            self.only_get_current_position(positions)
+                        elif self.motion_mode == 1:
+                            self.motion_mode = 0
+                            self.single_motion_starter(positions)
+                        elif self.motion_mode == 2:
+                            self.motion_mode = 0
+                            self.multiple_motion_starter(positions)
     
     def handle_error_occurred(self, error_msg):
         self.display(f"{error_msg}", "错误")
