@@ -247,7 +247,7 @@ class MotionController(BaseController):
                     "控制")
         self.motion_model.clear_motion_data()
         self.motion_model.set_interval(self.dt * 1000)
-        self.motion_model.add_motion_data(times, positions)
+        self.motion_model.add_motion_data("运动", {'positions': positions})
         self.display(f"开始发送轨迹: 共{len(positions)}个点", "控制")
         self.motion_model.start_motion()
 
