@@ -4,7 +4,7 @@ import time
 
 
 class MotionModel(QObject):
-    motion_send_signal = pyqtSignal(list)
+    motion_send_signal = pyqtSignal(int, list, int, float)
 
     def __init__(self, serial_model):
         super().__init__()
@@ -13,9 +13,8 @@ class MotionModel(QObject):
         self.motion_timer = QTimer()
         self.motion_timer.setInterval(10)
         self.motion_timer.timeout.connect(self.motion_timeout)
-        self.motion_times = np.array([])
-        self.motion_positions = np.array([])
-        self.motion_times_index = 0
+        self.motion_params = []
+        self.motion_index = 0
 
 
     def curve_planning(self, start_angles, target_angles, dt=0.01):
@@ -28,34 +27,73 @@ class MotionModel(QObject):
         self.motion_timer.setInterval(int(interval))
 
     def clear_motion_data(self):
-        self.motion_times = np.array([])
-        self.motion_positions = np.array([])
+        self.motion_params = []
 
-    def add_motion_data(self, times, positions):
-        if len(self.motion_times) == 0:
-            self.motion_times = times
-            self.motion_positions = positions
-        else:
-            times += self.motion_times[-1]
-            self.motion_times = np.concatenate((self.motion_times, times))
-            self.motion_positions = np.concatenate((self.motion_positions, positions))
+    def add_motion_data(self, mode, params):
+        if mode == "运动":
+            positions = params['positions']  # (n, 6) 形状的数组
+            motion_data = []
+            for position in positions:
+                # 格式：[控制命令, 模式, [六个角度], [夹爪命令, 夹爪参数]]
+                row_data = [
+                    0x06,  # 控制命令
+                    0x08,  # 模式
+                    position.tolist(),  # [六个角度]
+                    [0x00, 0.0]  # [夹爪命令, 夹爪参数] - 运动时设为默认值
+                ]
+                motion_data.append(row_data)
+            
+            if len(self.motion_params) == 0:
+                self.motion_params = motion_data
+            else:
+                self.motion_params.extend(motion_data)
+                
+        elif mode == "夹爪":
+            gripper_command = params['gripper_command']
+            gripper_params = params['gripper_param']
+            # 格式：[控制命令, 模式, [六个角度], [夹爪命令, 夹爪参数]]
+            gripper_data = [
+                0x00,  # 控制命令 - 夹爪也使用0x06
+                0x08,  # 模式
+                self.motion_params[-1][2],  # [六个角度] - 夹爪时设为默认值
+                [gripper_command, gripper_params]  # [夹爪命令, 夹爪参数]
+            ]
+            
+            if len(self.motion_params) == 0:
+                self.motion_params = [gripper_data]
+            else:
+                self.motion_params.append(gripper_data)
 
     def start_motion(self):
-        self.motion_times_index = 0
+        self.motion_index = 0
         self.motion_timer.start()
 
     def stop_motion(self):
-        self.motion_times_index = 0
+        self.motion_index = 0
         self.motion_timer.stop()
 
     def motion_timeout(self):
-        if self.motion_times_index >= len(self.motion_times):
+        if self.motion_index >= len(self.motion_params):
             self.stop_motion()
             return
-        positions = self.motion_positions[self.motion_times_index].tolist()
+        
+        # 获取当前运动数据 - 格式：[控制命令, 模式, [六个角度], [夹爪命令, 夹爪参数]]
+        current_data = self.motion_params[self.motion_index]
+        
+        # 提取数据
+        control = current_data[0]  # 控制命令
+        mode = current_data[1]     # 模式  
+        positions = current_data[2]  # [六个角度]
+        gripper_data = current_data[3]  # [夹爪命令, 夹爪参数]
+        
+        # 发送控制命令
         self.serial_model.send_control_command(joint_angles=positions, 
-                                               control=0x06, 
-                                               mode=0x08, 
+                                               control=control, 
+                                               mode=mode, 
+                                               effector_mode=gripper_data[0],
+                                               effector_data=float(gripper_data[1]),
                                                encoding='hex')
-        self.motion_send_signal.emit(positions)
-        self.motion_times_index += 1
+        if control == 0x00:
+            time.sleep(2)
+        self.motion_send_signal.emit(control, positions, gripper_data[0], gripper_data[1])
+        self.motion_index += 1

@@ -4,7 +4,7 @@
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton, 
                             QTableWidget, QTableWidgetItem, QDialog, QLabel, 
                             QDoubleSpinBox, QComboBox, QFormLayout, QDialogButtonBox,
-                            QHeaderView, QMessageBox, QLineEdit)
+                            QHeaderView, QMessageBox, QLineEdit, QCheckBox, QRadioButton, QButtonGroup)
 from PyQt5.QtCore import Qt, pyqtSignal
 import math  # 用于角度转弧度计算
 import json
@@ -150,10 +150,10 @@ class MotionPlanningTable(QTableWidget):
         super(MotionPlanningTable, self).__init__(parent)
         
         # 设置列数和列标题
-        self.setColumnCount(9)
+        self.setColumnCount(12)
         self.setHorizontalHeaderLabels([
-            "关节1", "关节2", "关节3", "关节4", "关节5", "关节6", 
-            "频率", "曲线类型", "备注"
+            "模式", "关节1", "关节2", "关节3", "关节4", "关节5", "关节6", 
+            "频率", "曲线类型", "夹爪命令", "夹爪参数", "备注"
         ])
         
         # 设置表格属性
@@ -164,11 +164,34 @@ class MotionPlanningTable(QTableWidget):
         
         # 设置列宽
         header = self.horizontalHeader()
-        for i in range(6):  # 关节角度列
-            header.setSectionResizeMode(i, QHeaderView.Stretch)
-        header.setSectionResizeMode(6, QHeaderView.ResizeToContents)  # 频率列
-        header.setSectionResizeMode(7, QHeaderView.ResizeToContents)  # 曲线类型列
-        header.setSectionResizeMode(8, QHeaderView.Stretch)  # 备注列
+        
+        # 设置固定宽度的列
+        self.setColumnWidth(0, 80)   # 模式列
+        header.setSectionResizeMode(0, QHeaderView.Fixed)
+        
+        # 关节角度列 - 使用适中的固定宽度
+        for i in range(1, 7):
+            self.setColumnWidth(i, 100)
+            header.setSectionResizeMode(i, QHeaderView.Fixed)
+        
+        # 频率列
+        self.setColumnWidth(7, 80)
+        header.setSectionResizeMode(7, QHeaderView.Fixed)
+        
+        # 曲线类型列
+        self.setColumnWidth(8, 100)
+        header.setSectionResizeMode(8, QHeaderView.Fixed)
+        
+        # 夹爪命令列 - 需要更宽以显示完整命令
+        self.setColumnWidth(9, 180)
+        header.setSectionResizeMode(9, QHeaderView.Fixed)
+        
+        # 夹爪参数列
+        self.setColumnWidth(10, 100)
+        header.setSectionResizeMode(10, QHeaderView.Fixed)
+        
+        # 备注列 - 自适应剩余空间
+        header.setSectionResizeMode(11, QHeaderView.Stretch)
         
         # 连接双击信号
         self.cellDoubleClicked.connect(self.edit_motion_point)
@@ -195,25 +218,47 @@ class MotionPlanningTable(QTableWidget):
         row_position = self.rowCount()
         self.insertRow(row_position)
         
-        # 设置表格项
+        # 模式 (第0列) - 支持旧数据格式的兼容性
+        mode = motion_data.get("mode")
+        if mode is None:
+            # 兼容旧数据格式
+            if motion_data.get("enable_gripper", False):
+                mode = "夹爪"
+            else:
+                mode = "运动"
+        mode_item = QTableWidgetItem(mode)
+        mode_item.setTextAlignment(Qt.AlignCenter)
+        self.setItem(row_position, 0, mode_item)
+        
+        # 设置表格项 (关节角度从第1列开始)
         for col, key in enumerate(["joint1", "joint2", "joint3", "joint4", "joint5", "joint6"]):
             item = QTableWidgetItem(str(motion_data[key]))
             item.setTextAlignment(Qt.AlignCenter)
-            self.setItem(row_position, col, item)
+            self.setItem(row_position, col + 1, item)
         
-        # 频率
+        # 频率 (第7列)
         freq_item = QTableWidgetItem(str(motion_data["frequency"]))
         freq_item.setTextAlignment(Qt.AlignCenter)
-        self.setItem(row_position, 6, freq_item)
+        self.setItem(row_position, 7, freq_item)
         
-        # 曲线类型
+        # 曲线类型 (第8列)
         curve_item = QTableWidgetItem(motion_data["curve_type"])
         curve_item.setTextAlignment(Qt.AlignCenter)
-        self.setItem(row_position, 7, curve_item)
+        self.setItem(row_position, 8, curve_item)
         
-        # 备注
+        # 夹爪命令 (第9列)
+        gripper_cmd_item = QTableWidgetItem(motion_data.get("gripper_command", "00: 不进行任何操作"))
+        gripper_cmd_item.setTextAlignment(Qt.AlignCenter)
+        self.setItem(row_position, 9, gripper_cmd_item)
+        
+        # 夹爪参数 (第10列)
+        gripper_param_item = QTableWidgetItem(str(motion_data.get("gripper_param", 0.0)))
+        gripper_param_item.setTextAlignment(Qt.AlignCenter)
+        self.setItem(row_position, 10, gripper_param_item)
+        
+        # 备注 (第11列)
         note_item = QTableWidgetItem(motion_data.get("note", ""))
-        self.setItem(row_position, 8, note_item)
+        self.setItem(row_position, 11, note_item)
     
     def edit_motion_point(self, row, column):
         """编辑运动点
@@ -224,20 +269,34 @@ class MotionPlanningTable(QTableWidget):
         """
         # 获取当前行的数据
         current_data = {}
+        
+        # 模式 (第0列)
+        mode_item = self.item(row, 0)
+        current_data["mode"] = mode_item.text() if mode_item else "运动"
+        
+        # 关节角度 (第1-6列)
         for col, key in enumerate(["joint1", "joint2", "joint3", "joint4", "joint5", "joint6"]):
-            item = self.item(row, col)
+            item = self.item(row, col + 1)
             current_data[key] = float(item.text()) if item else 0.0
         
-        # 频率
-        freq_item = self.item(row, 6)
-        current_data["frequency"] = float(freq_item.text()) if freq_item else 1.0
+        # 频率 (第7列)
+        freq_item = self.item(row, 7)
+        current_data["frequency"] = float(freq_item.text()) if freq_item else 0.01
         
-        # 曲线类型
-        curve_item = self.item(row, 7)
-        current_data["curve_type"] = curve_item.text() if curve_item else "线性"
+        # 曲线类型 (第8列)
+        curve_item = self.item(row, 8)
+        current_data["curve_type"] = curve_item.text() if curve_item else "直线"
         
-        # 备注
-        note_item = self.item(row, 8)
+        # 夹爪命令 (第9列)
+        gripper_cmd_item = self.item(row, 9)
+        current_data["gripper_command"] = gripper_cmd_item.text() if gripper_cmd_item else "00: 不进行任何操作"
+        
+        # 夹爪参数 (第10列)
+        gripper_param_item = self.item(row, 10)
+        current_data["gripper_param"] = float(gripper_param_item.text()) if gripper_param_item else 0.0
+        
+        # 备注 (第11列)
+        note_item = self.item(row, 11)
         current_data["note"] = note_item.text() if note_item else ""
         
         # 获取父对象(MotionPlanningFrame)
@@ -260,20 +319,34 @@ class MotionPlanningTable(QTableWidget):
         motion_data = []
         for row in range(self.rowCount()):
             point_data = {}
+            
+            # 模式 (第0列)
+            mode_item = self.item(row, 0)
+            point_data["mode"] = mode_item.text() if mode_item else "运动"
+            
+            # 关节角度 (第1-6列)
             for col, key in enumerate(["joint1", "joint2", "joint3", "joint4", "joint5", "joint6"]):
-                item = self.item(row, col)
+                item = self.item(row, col + 1)
                 point_data[key] = float(item.text()) if item else 0.0
             
-            # 频率
-            freq_item = self.item(row, 6)
-            point_data["frequency"] = float(freq_item.text()) if freq_item else 1.0
+            # 频率 (第7列)
+            freq_item = self.item(row, 7)
+            point_data["frequency"] = float(freq_item.text()) if freq_item else 0.01
             
-            # 曲线类型
-            curve_item = self.item(row, 7)
-            point_data["curve_type"] = curve_item.text() if curve_item else "线性"
+            # 曲线类型 (第8列)
+            curve_item = self.item(row, 8)
+            point_data["curve_type"] = curve_item.text() if curve_item else "直线"
             
-            # 备注
-            note_item = self.item(row, 8)
+            # 夹爪命令 (第9列)
+            gripper_cmd_item = self.item(row, 9)
+            point_data["gripper_command"] = gripper_cmd_item.text() if gripper_cmd_item else "00: 不进行任何操作"
+            
+            # 夹爪参数 (第10列)
+            gripper_param_item = self.item(row, 10)
+            point_data["gripper_param"] = float(gripper_param_item.text()) if gripper_param_item else 0.0
+            
+            # 备注 (第11列)
+            note_item = self.item(row, 11)
             point_data["note"] = note_item.text() if note_item else ""
             
             motion_data.append(point_data)
@@ -287,25 +360,40 @@ class MotionPlanningTable(QTableWidget):
             row: 行索引
             new_data: 新的运动点数据
         """
-        # 更新表格数据
+        # 模式 (第0列)
+        mode_item = QTableWidgetItem(new_data.get("mode", "运动"))
+        mode_item.setTextAlignment(Qt.AlignCenter)
+        self.setItem(row, 0, mode_item)
+        
+        # 更新表格数据 (关节角度从第1列开始)
         for col, key in enumerate(["joint1", "joint2", "joint3", "joint4", "joint5", "joint6"]):
             item = QTableWidgetItem(str(new_data[key]))
             item.setTextAlignment(Qt.AlignCenter)
-            self.setItem(row, col, item)
+            self.setItem(row, col + 1, item)
         
-        # 频率
+        # 频率 (第7列)
         freq_item = QTableWidgetItem(str(new_data["frequency"]))
         freq_item.setTextAlignment(Qt.AlignCenter)
-        self.setItem(row, 6, freq_item)
+        self.setItem(row, 7, freq_item)
         
-        # 曲线类型
+        # 曲线类型 (第8列)
         curve_item = QTableWidgetItem(new_data["curve_type"])
         curve_item.setTextAlignment(Qt.AlignCenter)
-        self.setItem(row, 7, curve_item)
+        self.setItem(row, 8, curve_item)
         
-        # 备注
+        # 夹爪命令 (第9列)
+        gripper_cmd_item = QTableWidgetItem(new_data.get("gripper_command", "00: 不进行任何操作"))
+        gripper_cmd_item.setTextAlignment(Qt.AlignCenter)
+        self.setItem(row, 9, gripper_cmd_item)
+        
+        # 夹爪参数 (第10列)
+        gripper_param_item = QTableWidgetItem(str(new_data.get("gripper_param", 0.0)))
+        gripper_param_item.setTextAlignment(Qt.AlignCenter)
+        self.setItem(row, 10, gripper_param_item)
+        
+        # 备注 (第11列)
         note_item = QTableWidgetItem(new_data.get("note", ""))
-        self.setItem(row, 8, note_item)
+        self.setItem(row, 11, note_item)
         
         # 发出数据变更信号
         self.data_changed.emit()
@@ -328,6 +416,24 @@ class MotionPointDialog(QDialog):
     def init_ui(self):
         """初始化UI"""
         layout = QVBoxLayout(self)
+        
+        # 最顶部的单选框布局
+        radio_layout = QHBoxLayout()
+        radio_layout.addWidget(QLabel("模式选择:"))
+        
+        self.mode_group = QButtonGroup()
+        
+        self.motion_radio = QRadioButton("运动")
+        self.motion_radio.setChecked(True)  # 默认选中运动
+        self.mode_group.addButton(self.motion_radio, 0)
+        radio_layout.addWidget(self.motion_radio)
+        
+        self.gripper_radio = QRadioButton("夹爪")
+        self.mode_group.addButton(self.gripper_radio, 1)
+        radio_layout.addWidget(self.gripper_radio)
+        
+        radio_layout.addStretch()
+        layout.addLayout(radio_layout)
         
         # 创建表单布局
         form_layout = QFormLayout()
@@ -354,6 +460,28 @@ class MotionPointDialog(QDialog):
         self.curve_type_combo = QComboBox()
         self.curve_type_combo.addItems(["S曲线", "直线"])
         form_layout.addRow("曲线类型:", self.curve_type_combo)
+        
+        # 夹爪命令选择
+        self.gripper_command_combo = QComboBox()
+        self.gripper_command_combo.addItems([
+            "00: 不进行任何操作",
+            "01: 夹爪手动使能",
+            "02: 设置夹爪目标位置",
+            "03: 设置夹爪速度",
+            "04: 设置夹爪电流",
+            "05: 查询夹爪抓取状态",
+            "06: 查询夹爪目前位置",
+            "07: 查询夹爪电流"
+        ])
+        form_layout.addRow("夹爪命令:", self.gripper_command_combo)
+        
+        # 夹爪参数输入
+        self.gripper_param_spin = QDoubleSpinBox()
+        self.gripper_param_spin.setRange(-1000.0, 1000.0)
+        self.gripper_param_spin.setDecimals(2)
+        self.gripper_param_spin.setSingleStep(1.0)
+        self.gripper_param_spin.setValue(0.0)
+        form_layout.addRow("夹爪参数:", self.gripper_param_spin)
         
         # 备注输入
         self.note_input = QLineEdit()
@@ -388,6 +516,13 @@ class MotionPointDialog(QDialog):
         Args:
             data: 包含运动点数据的字典
         """
+        # 填充模式选择
+        mode = data.get("mode", "运动")
+        if mode == "夹爪":
+            self.gripper_radio.setChecked(True)
+        else:
+            self.motion_radio.setChecked(True)
+        
         # 填充关节角度
         for i, key in enumerate(["joint1", "joint2", "joint3", "joint4", "joint5", "joint6"]):
             if key in data:
@@ -403,6 +538,16 @@ class MotionPointDialog(QDialog):
             if index >= 0:
                 self.curve_type_combo.setCurrentIndex(index)
         
+        # 填充夹爪命令
+        if "gripper_command" in data:
+            index = self.gripper_command_combo.findText(data["gripper_command"])
+            if index >= 0:
+                self.gripper_command_combo.setCurrentIndex(index)
+        
+        # 填充夹爪参数
+        if "gripper_param" in data:
+            self.gripper_param_spin.setValue(data["gripper_param"])
+        
         # 填充备注
         if "note" in data:
             self.note_input.setText(data["note"])
@@ -415,6 +560,12 @@ class MotionPointDialog(QDialog):
         """
         data = {}
         
+        # 获取模式选择
+        if self.gripper_radio.isChecked():
+            data["mode"] = "夹爪"
+        else:
+            data["mode"] = "运动"
+        
         # 获取关节角度
         for i, key in enumerate(["joint1", "joint2", "joint3", "joint4", "joint5", "joint6"]):
             data[key] = self.joint_spins[i].value()
@@ -424,6 +575,12 @@ class MotionPointDialog(QDialog):
         
         # 获取曲线类型
         data["curve_type"] = self.curve_type_combo.currentText()
+        
+        # 获取夹爪命令
+        data["gripper_command"] = self.gripper_command_combo.currentText()
+        
+        # 获取夹爪参数
+        data["gripper_param"] = self.gripper_param_spin.value()
         
         # 获取备注
         data["note"] = self.note_input.text()

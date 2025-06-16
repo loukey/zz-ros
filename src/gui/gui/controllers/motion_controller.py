@@ -216,29 +216,31 @@ class MotionController(BaseController):
                     # 记录解析后的详细信息
                     return_msg = f"帧头: {header}, 初始状态: {init_status}, 当前命令: {current_command}, 运行模式: {run_mode}, 位置数据: {positions}, 状态字: {status}, 实际速度: {speeds}, 力矩: {torques}, 双编码器插值: {double_encoder_interpolations}, 错误码:{errors}, 夹爪数据: {effector_data}, CRC16: {crc}"
                     self.display(return_msg, "接收")
-                    if run_mode == "0A":                            
-                        if GlobalVars.dynamic_teach_flag and current_command in ["06", "07"]:
-                            positions = position_to_radian(positions)
-                            self.torque_calculation_signal.emit(positions)
-                    elif run_mode == "08":
-                        if current_command == "07":
-                            positions = position_to_radian(positions)
-                            if self.motion_mode == 0:
-                                self.only_get_current_position(positions)
-                            elif self.motion_mode == 1:
-                                self.motion_mode = 0
-                                self.single_motion_starter(positions)
-                            elif self.motion_mode == 2:
-                                self.motion_mode = 0
-                                self.multiple_motion_starter(positions)
                 except Exception as e:
                     self.display(f"解析AA55数据帧失败: {str(e)}", "错误")
+                    return
+                if run_mode == "0A":                            
+                    if GlobalVars.dynamic_teach_flag and current_command in ["06", "07"]:
+                        GlobalVars.add_to_array(double_encoder_interpolations)
+                        positions = position_to_radian(positions)
+                        self.torque_calculation_signal.emit(positions)
+                elif run_mode == "08":
+                    if current_command == "07":
+                        positions = position_to_radian(positions)
+                        if self.motion_mode == 0:
+                            self.only_get_current_position(positions)
+                        elif self.motion_mode == 1:
+                            self.motion_mode = 0
+                            self.single_motion_starter(positions)
+                        elif self.motion_mode == 2:
+                            self.motion_mode = 0
+                            self.multiple_motion_starter(positions)
     
     def handle_error_occurred(self, error_msg):
         self.display(f"{error_msg}", "错误")
 
-    def single_motion_send(self, positions):
-        self.display(f"目标角度: [{', '.join([f'{pos:.4f}' for pos in positions])}]", "控制")
+    def single_motion_send(self, mode, positions, gripper_command, gripper_param):
+        self.display(f"模式: {mode}, 目标角度: [{', '.join([f'{pos:.4f}' for pos in positions])}], 夹爪命令: {gripper_command}, 夹爪参数: {gripper_param}", "控制")
 
     def single_motion_starter(self, start_angles):
         times, positions = self.motion_model.curve_planning(start_angles, self.target_angles, dt=self.dt)
@@ -246,7 +248,7 @@ class MotionController(BaseController):
                     "控制")
         self.motion_model.clear_motion_data()
         self.motion_model.set_interval(self.dt * 1000)
-        self.motion_model.add_motion_data(times, positions)
+        self.motion_model.add_motion_data("运动", {'positions': positions})
         self.display(f"开始发送轨迹: 共{len(positions)}个点", "控制")
         self.motion_model.start_motion()
 
@@ -263,15 +265,29 @@ class MotionController(BaseController):
     def multiple_motion_starter(self, positions):
         self.motion_model.clear_motion_data()
         self.motion_model.set_interval(self.dt * 1000)
+        start_angles = positions
         for i, motion_data in enumerate(self.motion_data):
+            mode = motion_data['mode']
             curve_type = motion_data['curve_type']
             frequency = motion_data['frequency']
+            gripper_command = motion_data['gripper_command']
+            gripper_param = motion_data['gripper_param']
             target_angles = [motion_data[f'joint{i+1}'] for i in range(6)]
             note = motion_data['note']
-            if i == 0:
-                start_angles = positions
-            else:
-                start_angles = [self.motion_data[i-1][f'joint{j+1}'] for j in range(6)]
-            times, positions = self.motion_model.curve_planning(start_angles, target_angles, dt=frequency)
-            self.motion_model.add_motion_data(times, positions)
+            if mode == "夹爪":
+                command_mode = {
+                    "00: 不进行任何操作": 0x00,
+                    "01: 夹爪手动使能": 0x01,
+                    "02: 设置夹爪目标位置": 0x02,
+                    "03: 设置夹爪速度": 0x03,
+                    "04: 设置夹爪电流": 0x04,
+                    "05: 查询夹爪抓取状态": 0x05,
+                    "06: 查询夹爪目前位置": 0x06,
+                    "07: 查询夹爪电流": 0x07
+                }
+                self.motion_model.add_motion_data(mode, {'gripper_command': command_mode[gripper_command], 'gripper_param': gripper_param})
+            elif mode == "运动":
+                _, positions = self.motion_model.curve_planning(start_angles, target_angles, dt=frequency)
+                start_angles = target_angles
+                self.motion_model.add_motion_data(mode, {'positions': positions})
         self.motion_model.start_motion()        
