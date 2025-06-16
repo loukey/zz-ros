@@ -221,6 +221,7 @@ class MotionController(BaseController):
                     return
                 if run_mode == "0A":                            
                     if GlobalVars.dynamic_teach_flag and current_command in ["06", "07"]:
+                        GlobalVars.add_to_array(double_encoder_interpolations)
                         positions = position_to_radian(positions)
                         self.torque_calculation_signal.emit(positions)
                 elif run_mode == "08":

@@ -13,6 +13,7 @@ class DynamicController(BaseController):
     @pyqtSlot(list)
     def handle_dynamic_torque_calculation_command_requested(self, joint_angles):
         torque = self.dynamic.compute_gravity_compensation(joint_angles)
+        torque = [torque[i] + GlobalVars.get_work_array()[i] for i in range(6)]
         success, cmd = self.serial_model.send_control_command(control=0x06, mode=0x0A, torque=torque, return_cmd=True)
         self.display(f"重力补偿力矩: {torque}", "发送")
         self.display(f"重力补偿力矩: {cmd}", "发送")
@@ -28,9 +29,11 @@ class DynamicController(BaseController):
         GlobalVars.set_dynamic_teach_flag(teaching_mode)
         if teaching_mode:
             success, cmd = self.serial_model.send_control_command(control=0x07, mode=0x0A, return_cmd=True)
+            GlobalVars.clear_array()
             self.display(f"开启示教模式: {cmd}", "发送")
         else:
             success, cmd = self.serial_model.send_control_command(control=0x05, mode=0x0A, return_cmd=True)
+            GlobalVars.clear_array()
             self.display(f"关闭示教模式: {cmd}", "发送")
 
     @pyqtSlot(list)
