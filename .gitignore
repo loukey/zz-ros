@@ -179,3 +179,4 @@ zzros_ssh*
 data/
 camera_models/
 .idea
+motion_planning_data.json
