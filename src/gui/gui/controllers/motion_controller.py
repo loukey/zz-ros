@@ -218,6 +218,7 @@ class MotionController(BaseController):
                     self.display(return_msg, "接收")
                 except Exception as e:
                     self.display(f"解析AA55数据帧失败: {str(e)}", "错误")
+                    self.buffer = ""
                     return
                 if run_mode == "0A":                            
                     if GlobalVars.dynamic_teach_flag and current_command in ["06", "07"]:
