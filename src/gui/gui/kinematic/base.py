@@ -106,3 +106,4 @@ def quaternion_from_euler(ai, aj, ak):
     q[3] = cj*cc + sj*ss
 
     return q
+
