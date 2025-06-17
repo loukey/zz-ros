@@ -124,10 +124,10 @@ class MotionController(BaseController):
 
     def handle_data_received(self, data):
         """处理接收到的数据"""
-        clean_data = data.strip()        
+        clean_data = data.strip()
+        self.display(f"接收数据: '{clean_data}'", "接收")
         self.buffer += clean_data
         if "0D0A" in self.buffer:
-            self.display(f"接收数据: '{lines}'", "接收")
             lines = self.buffer.split("0D0A")
             self.buffer = lines[-1]
             command_line = lines[0]
