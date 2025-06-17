@@ -55,25 +55,30 @@ class GlobalVars:
         # 计算前19个值的平均数（每个维度分别计算）
         averages = []
         for dim in range(6):
-            dim_sum = sum(value[dim] for value in previous_19_values)
-            averages.append(dim_sum / 19)
+            dim_sum = sum(value[dim] for value in previous_19_values[-5:])
+            averages.append(dim_sum / 5)
+
+        averages_5 = []
+        for dim in range(6):
+            dim_sum = sum(value[dim] for value in previous_19_values[-5:])
+            averages_5.append(dim_sum / 5)
         
         # 对每个维度进行处理
         for dim in range(6):
             difference = latest_value[dim] - averages[dim]
-            
+            difference_5= latest_value[dim] - averages_5[dim]
             if cls._state_array[dim] == 0:
                 # 状态为0时的逻辑
-                if difference > 20:
+                if difference > 5:
                     cls._work_array[dim] = cls._friction_array[dim]
                     cls._state_array[dim] = 1
-                elif difference < -20:
+                elif difference < -5:
                     cls._work_array[dim] = -cls._friction_array[dim]
                     cls._state_array[dim] = 1
             
             elif cls._state_array[dim] == 1:
                 # 状态为1时的逻辑
-                if abs(difference) < 5:
+                if abs(difference_5) < 5:
                     cls._work_array[dim] = 0
                     cls._state_array[dim] = 0
     
