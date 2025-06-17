@@ -127,10 +127,10 @@ class MotionController(BaseController):
         clean_data = data.strip()        
         self.buffer += clean_data
         if "0D0A" in self.buffer:
+            self.display(f"接收数据: '{command_line}'", "接收")
             lines = self.buffer.split("0D0A")
             self.buffer = lines[-1]
             command_line = lines[0]
-            self.display(f"接收数据: '{command_line}'", "接收")
             
             if command_line.startswith("AA55"):
                 try:
