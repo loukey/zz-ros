@@ -218,7 +218,8 @@ class MotionController(BaseController):
                     self.display(return_msg, "接收")
                 except Exception as e:
                     self.display(f"解析AA55数据帧失败: {str(e)}", "错误")
-                    self.buffer = ""
+                    self.display(f"重发数据: {GlobalVars.temp_cmd}", "发送")
+                    self.serial_model.send_data(GlobalVars.temp_cmd)
                     return
                 if run_mode == "0A":                            
                     if GlobalVars.dynamic_teach_flag and current_command in ["06", "07"]:

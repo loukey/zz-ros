@@ -1,6 +1,7 @@
 class GlobalVars:
     # 示教模式标志位
     dynamic_teach_flag = False
+    temp_cmd = ""
     
     # 6维固定长度的数组（最大长度20）
     _fixed_array = []  # 每个元素是6维向量 [x1, x2, x3, x4, x5, x6]
@@ -14,6 +15,10 @@ class GlobalVars:
     
     # 工作数组（用于存储计算结果）
     _work_array = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+
+    @classmethod
+    def set_temp_cmd(cls, cmd):
+        cls.temp_cmd = cmd
 
     @classmethod
     def set_dynamic_teach_flag(cls, flag):

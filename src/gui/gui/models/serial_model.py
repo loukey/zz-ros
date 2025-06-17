@@ -8,6 +8,7 @@ from PyQt5.QtCore import QObject, pyqtSignal
 import os
 import glob
 from utils import *
+from config import *
 
 
 class SerialModel(QObject):
@@ -261,6 +262,7 @@ class SerialModel(QObject):
                         effector_data=effector_data, 
                         encoding=encoding)
         success = self.send_data(cmd, encoding=encoding)
+        GlobalVars.set_temp_cmd(cmd)
         if return_cmd:
             return success, cmd
         return success
