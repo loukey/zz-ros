@@ -68,7 +68,7 @@ class GlobalVars:
                     cls._work_array[dim] = cls._friction_array[dim]
                     cls._state_array[dim] = 1
                 elif difference < -20:
-                    cls._work_array[dim] = cls._friction_array[dim]
+                    cls._work_array[dim] = -cls._friction_array[dim]
                     cls._state_array[dim] = 1
             
             elif cls._state_array[dim] == 1:
