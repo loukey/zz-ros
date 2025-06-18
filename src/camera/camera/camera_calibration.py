@@ -27,7 +27,7 @@ class CameraCalibration(Node):
         super().__init__('camera_calibration')
         
         # 声明参数
-        self.declare_parameter('camera_topic', '/camera/image_raw')
+        self.declare_parameter('camera_topic', '/camera/color/image_raw')
         self.declare_parameter('chessboard_size', '9,6')  # 棋盘格内角点数目
         self.declare_parameter('square_size', 0.025)  # 棋盘格方格尺寸(米)
         self.declare_parameter('save_dir', './calibration_data')

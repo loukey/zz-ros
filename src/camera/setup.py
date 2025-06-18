@@ -26,6 +26,8 @@ setup(
     entry_points={
         'console_scripts': [
             'camera_calibration = camera.camera_calibration:main',
+            'undistort_node = camera.undistort_node:main',
+            'hand_eye_calibration = camera.hand_eye_calibration:main',
         ],
     },
 )
