@@ -124,13 +124,13 @@ class MotionController(BaseController):
 
     def handle_data_received(self, data):
         """处理接收到的数据"""
-        clean_data = data.strip()        
+        clean_data = data.strip()
+        self.display(f"接收数据: '{clean_data}'", "接收")
         self.buffer += clean_data
         if "0D0A" in self.buffer:
             lines = self.buffer.split("0D0A")
             self.buffer = lines[-1]
             command_line = lines[0]
-            self.display(f"接收数据: '{command_line}'", "接收")
             
             if command_line.startswith("AA55"):
                 try:
@@ -218,10 +218,12 @@ class MotionController(BaseController):
                     self.display(return_msg, "接收")
                 except Exception as e:
                     self.display(f"解析AA55数据帧失败: {str(e)}", "错误")
+                    self.display(f"重发数据: {GlobalVars.temp_cmd}", "发送")
+                    self.serial_model.send_data(GlobalVars.temp_cmd)
                     return
                 if run_mode == "0A":                            
                     if GlobalVars.dynamic_teach_flag and current_command in ["06", "07"]:
-                        GlobalVars.add_to_array(double_encoder_interpolations)
+                        GlobalVars.add_to_array(positions)
                         positions = position_to_radian(positions)
                         self.torque_calculation_signal.emit(positions)
                 elif run_mode == "08":
