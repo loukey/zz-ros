@@ -11,7 +11,7 @@ class GlobalVars:
     _state_array = [0, 0, 0, 0, 0, 0]
     
     # 摩擦力数组
-    _friction_array = [4, 0, 3, 0.5, 0.5, 0.5]
+    _friction_array = [4, 0, 3.5, 0.8, 0.7, 0.5]
     
     # 工作数组（用于存储计算结果）
     _work_array = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
