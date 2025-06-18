@@ -26,7 +26,7 @@ class UndistortNode(Node):
         # 声明参数
         self.declare_parameter('input_topic', '/camera/color/image_raw')
         self.declare_parameter('output_topic', '/camera/undistorted/image_raw')
-        self.declare_parameter('calibration_file', '')
+        self.declare_parameter('calibration_file', './calibration_data/camera_calibration.yaml')
         self.declare_parameter('show_comparison', True)
         
         # 获取参数

@@ -1,19 +1,11 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>camera</name>
+  <name>calibration</name>
   <version>0.0.0</version>
-  <description>Camera calibration package for ROS2</description>
+  <description>TODO: Package description</description>
   <maintainer email="529768926@qq.com">za</maintainer>
   <license>TODO: License declaration</license>
-
-  <depend>rclpy</depend>
-  <depend>sensor_msgs</depend>
-  <depend>cv_bridge</depend>
-  <depend>opencv2</depend>
-  <depend>python3-opencv</depend>
-  <depend>python3-numpy</depend>
-  <depend>python3-yaml</depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>

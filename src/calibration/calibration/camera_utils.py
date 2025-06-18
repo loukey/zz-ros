@@ -14,7 +14,7 @@ from typing import Tuple, Optional, List
 class CameraCalibrationUtils:
     """相机标定工具类"""
     
-    def __init__(self, calibration_file: str = None):
+    def __init__(self, calibration_file: str = "./calibration_data/camera_calibration.yaml"):
         """
         初始化相机标定工具
         
