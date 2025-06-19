@@ -145,15 +145,17 @@ class MainWindow(QMainWindow):
         self.motion_model = MotionModel(self.serial_model)
         self.camera_model = CameraModel()
         self.detection_model = DetectionModel(self.camera_model)
+        self.robot_model = RobotModel()
 
     def init_controllers(self):
         self.serial_controller = SerialController(serial_model=self.serial_model,
                                                   motion_model=self.motion_model)
         self.motion_controller = MotionController(serial_model=self.serial_model,
-                                                  motion_model=self.motion_model)
+                                                  motion_model=self.motion_model,
+                                                  robot_model=self.robot_model)
         self.dynamic_controller = DynamicController(serial_model=self.serial_model)
         self.effector_controller = EffectorController(serial_model=self.serial_model)
-        self.camera_controller = CameraController(camera_model=self.camera_model, detection_model=self.detection_model)
+        self.camera_controller = CameraController(camera_model=self.camera_model, detection_model=self.detection_model, serial_model=self.serial_model, robot_model=self.robot_model)
         self.detection_controller = DetectionController(detection_model=self.detection_model, 
                                                        camera_model=self.camera_model)
 
@@ -188,6 +190,8 @@ class MainWindow(QMainWindow):
         self.camera_display.stop_display_requested.connect(self.camera_controller.stop_display)
         self.camera_display.start_detection_requested.connect(self.camera_controller.start_detection)
         self.camera_display.stop_detection_requested.connect(self.camera_controller.stop_detection)
+        self.camera_display.start_pose_publish_requested.connect(self.camera_controller.start_pose_publish)
+        self.camera_display.stop_pose_publish_requested.connect(self.camera_controller.stop_pose_publish)
         
         # 连接摄像头控制器信号到显示组件
         self.camera_controller.image_display_requested.connect(self.camera_display.display_image)

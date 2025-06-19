@@ -16,14 +16,21 @@ class CameraController(BaseController):
     image_info_updated = pyqtSignal(dict)  # 图像信息更新信号
     connection_status_changed = pyqtSignal(bool)  # 连接状态变化信号
     
-    def __init__(self, camera_model, detection_model=None):
+    def __init__(self, camera_model, detection_model=None, serial_model=None, robot_model=None):
         super().__init__()
         self.camera_model = camera_model
         self.detection_model = detection_model
+        self.serial_model = serial_model
+        self.robot_model = robot_model
         self.current_display_mode = None  # 'color', 'depth', or None
         self.detection_enabled = False  # 检测开关状态
         self.display_timer = QTimer()
         self.display_timer.timeout.connect(self._update_display)
+        
+        # 位姿发布定时器 (每0.1秒发送一次)
+        self.pose_publish_timer = QTimer()
+        self.pose_publish_timer.timeout.connect(self._send_pose_command)
+        self.pose_publish_enabled = False
         
         # 连接模型信号
         self._connect_model_signals()
@@ -295,4 +302,63 @@ class CameraController(BaseController):
                 norm[~valid_mask] = 0
                 depth_display = (norm * 255).astype(np.uint8)
         depth_colormap = cv2.applyColorMap(depth_display, cv2.COLORMAP_JET)
-        return depth_colormap 
+        return depth_colormap
+    
+    def start_pose_publish(self):
+        """开始位姿发布"""
+        try:
+            if not self.serial_model or not self.serial_model.is_connected:
+                self.status_update_requested.emit("请先连接串口")
+                self.display("请先连接串口", "错误")
+                return
+            
+            if not self.robot_model:
+                self.display("机器人模型未初始化", "错误")
+                return
+            
+            # 启动ROS位姿发布节点
+            success = self.robot_model.start_pose_publishing()
+            if success:
+                self.pose_publish_enabled = True
+                self.pose_publish_timer.start(100)  # 每100ms (0.1秒) 发送一次0908命令
+                self.display("开始位姿发布 (每0.1秒发送0908命令，接收到数据后发布ROS位姿)", "摄像头")
+                self.status_update_requested.emit("位姿发布已开启")
+            else:
+                self.display("启动位姿发布节点失败", "错误")
+        except Exception as e:
+            self.display(f"启动位姿发布失败: {str(e)}", "错误")
+    
+    def stop_pose_publish(self):
+        """停止位姿发布"""
+        try:
+            self.pose_publish_enabled = False
+            self.pose_publish_timer.stop()
+            
+            if self.robot_model:
+                self.robot_model.stop_pose_publishing()
+            
+            self.display("停止位姿发布", "摄像头")
+            self.status_update_requested.emit("位姿发布已停止")
+        except Exception as e:
+            self.display(f"停止位姿发布失败: {str(e)}", "错误")
+    
+    def _send_pose_command(self):
+        """发送位姿命令 (0908)"""
+        try:
+            if not self.serial_model or not self.serial_model.is_connected:
+                self.stop_pose_publish()
+                return
+            
+            # 发送0908命令: control=0x09, mode=0x08
+            success, cmd = self.serial_model.send_control_command(
+                control=0x09,  # 周期同步速度模式
+                mode=0x08,     # 周期同步位置模式
+                encoding='hex',
+                return_cmd=True
+            )
+            
+            self.display(f"获取位姿: {cmd}", "摄像头")
+            
+        except Exception as e:
+            self.display(f"发送位姿命令失败: {str(e)}", "错误")
+            self.stop_pose_publish() 

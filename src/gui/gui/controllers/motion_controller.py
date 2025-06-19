@@ -8,10 +8,11 @@ class MotionController(BaseController):
     only_get_current_position_signal = pyqtSignal(list)
     torque_calculation_signal = pyqtSignal(list)
 
-    def __init__(self, serial_model, motion_model):
+    def __init__(self, serial_model, motion_model, robot_model=None):
         super().__init__()
         self.serial_model = serial_model
         self.motion_model = motion_model
+        self.robot_model = robot_model
         # 0: 只获取当前位置
         # 1: 单次轨迹发送
         # 2: 周期轨迹发送
@@ -237,6 +238,13 @@ class MotionController(BaseController):
                         elif self.motion_mode == 2:
                             self.motion_mode = 0
                             self.multiple_motion_starter(positions)
+                    elif current_command == "09":
+                        positions = position_to_radian(positions)
+                        self.display(f"获取位姿: {positions}", "控制")
+                        
+                        # 发布位姿到ROS（如果位姿发布节点已启动）
+                        if self.robot_model and self.robot_model.is_publishing:
+                            self.robot_model.publish_pose(positions)
     
     def handle_error_occurred(self, error_msg):
         self.display(f"{error_msg}", "错误")
