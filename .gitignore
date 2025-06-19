@@ -185,3 +185,4 @@ motion_planning_data.json
 *.jpeg
 calibration_data/
 hand_eye_calibration_data/
+*.pt
