@@ -90,7 +90,7 @@ class MotionController(BaseController):
                     contour_params,
                     encoding_type='hex',
                     run_mode=0x08):
-        self.display(f"目标角度: [{", ".join([f"{angle:.4f}" for angle in target_angles])}]", "控制")
+        self.display(f"目标角度: [{', '.join([f'{angle:.4f}' for angle in target_angles])}]", "控制")
         contour_speed, contour_acceleration, contour_deceleration = contour_params
         if run_mode == 0x01:
             success, cmd = self.send_control_command(
