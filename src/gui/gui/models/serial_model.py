@@ -4,7 +4,7 @@
 import serial
 import serial.tools.list_ports
 import time
-from PyQt5.QtCore import QObject, pyqtSignal
+from PyQt5.QtCore import QObject, pyqtSignal, pyqtSlot
 import os
 import glob
 from gui.utils import *
@@ -232,7 +232,6 @@ class SerialModel(QObject):
             
             # 确保数据被发送
             self.serial.flush()
-            
             return True
             
         except Exception as e:

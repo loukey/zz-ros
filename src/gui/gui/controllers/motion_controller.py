@@ -14,7 +14,7 @@ class MotionController(BaseController):
         self.motion_model = motion_model
         self.robot_model = robot_model
         # 0: 只获取当前位置
-        # 1: 单次轨迹发送
+        # 1: 单次轨迹发送   
         # 2: 周期轨迹发送
         self.motion_mode = 0
         self.target_angles = [0.0] * 6

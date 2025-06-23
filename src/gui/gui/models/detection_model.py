@@ -285,8 +285,8 @@ class DetectionModel(QObject):
 class YOLO11DetectionModel():
     def __init__(self):
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        self.model = YOLO('yolo11x-seg.pt')
-        self.model.to(self.device)
+        # self.model = YOLO('yolo11n-seg.pt')
+        # self.model.to(self.device)
         
     def calculate_part_orientation(self, mask):
         """

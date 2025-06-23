@@ -1,6 +1,6 @@
 from .trajectory_model import *
-from PyQt5.QtCore import QTimer, QObject, pyqtSignal
-import time
+from PyQt5.QtCore import QTimer, QObject, pyqtSignal, Qt
+from gui.utils import format_command
 
 
 class MotionModel(QObject):
@@ -11,6 +11,7 @@ class MotionModel(QObject):
         self.serial_model = serial_model
         self.s_curve = SCurve()
         self.motion_timer = QTimer()
+        self.motion_timer.setTimerType(Qt.PreciseTimer)
         self.motion_timer.setInterval(10)
         self.motion_timer.timeout.connect(self.motion_timeout)
         self.motion_params = []
@@ -76,24 +77,17 @@ class MotionModel(QObject):
         if self.motion_index >= len(self.motion_params):
             self.stop_motion()
             return
-        
-        # 获取当前运动数据 - 格式：[控制命令, 模式, [六个角度], [夹爪命令, 夹爪参数]]
+
         current_data = self.motion_params[self.motion_index]
-        
-        # 提取数据
-        control = current_data[0]  # 控制命令
-        mode = current_data[1]     # 模式  
-        positions = current_data[2]  # [六个角度]
-        gripper_data = current_data[3]  # [夹爪命令, 夹爪参数]
-        
-        # 发送控制命令
+        control = current_data[0]
+        mode = current_data[1]
+        positions = current_data[2]
+        gripper_data = current_data[3]
+        self.motion_send_signal.emit(mode, positions, gripper_data[0], gripper_data[1])
         self.serial_model.send_control_command(joint_angles=positions, 
                                                control=control, 
                                                mode=mode, 
                                                effector_mode=gripper_data[0],
                                                effector_data=float(gripper_data[1]),
                                                encoding='hex')
-        if control == 0x00:
-            time.sleep(2)
-        self.motion_send_signal.emit(control, positions, gripper_data[0], gripper_data[1])
         self.motion_index += 1

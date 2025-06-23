@@ -17,7 +17,7 @@ class MainWindow(QMainWindow):
         
         # 设置窗口标题和大小
         self.setWindowTitle("镇中科技机械臂控制工具v0.2.25")
-        self.resize(1200, 1400)
+        self.resize(1400, 1000)
         self.init_models()
         self.init_controllers()
         self.init_ui()
@@ -32,16 +32,16 @@ class MainWindow(QMainWindow):
         """初始化用户界面"""
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
-        main_layout = QVBoxLayout(central_widget)
+        main_layout = QHBoxLayout(central_widget)  # 改为水平布局
         self._init_serial_config()
         self._init_contour_settings()
         self._create_toolbar()
 
-        # ===== 上半部分 =====
-        top_panel = QVBoxLayout()
-        top_panel.setContentsMargins(0, 0, 0, 0)  # 设置外部布局的边距为0
+        # ===== 左侧部分 =====
+        left_panel = QVBoxLayout()
+        left_panel.setContentsMargins(0, 0, 0, 0)  # 设置外部布局的边距为0
         
-        # 创建上半部分的标签页
+        # 创建左侧部分的标签页
         self.top_tab_widget = QTabWidget()
         
         # 主页标签内容
@@ -120,15 +120,15 @@ class MainWindow(QMainWindow):
         # 添加摄像头标签
         self.top_tab_widget.addTab(camera_tab, "摄像头")
 
-        # 将标签页添加到上半部分
-        top_panel.addWidget(self.top_tab_widget)
+        # 将标签页添加到左侧部分
+        left_panel.addWidget(self.top_tab_widget)
         
-        top_widget = QWidget()
-        top_widget.setLayout(top_panel)
-        top_widget.setContentsMargins(0, 0, 0, 0)  # 设置容器边距为0
-        main_layout.addWidget(top_widget, 4)
+        left_widget = QWidget()
+        left_widget.setLayout(left_panel)
+        left_widget.setContentsMargins(0, 0, 0, 0)  # 设置容器边距为0
+        main_layout.addWidget(left_widget, 4)  # 左侧占40%
         
-        # ===== 下半部分（Tab区域）=====
+        # ===== 右侧部分（Tab区域）=====
         self.tab_widget = QTabWidget()
         main_layout.setContentsMargins(0, 0, 0, 0)  # 设置主布局的边距为0
 
@@ -138,7 +138,7 @@ class MainWindow(QMainWindow):
         self.inverse_kinematic = InverseKinematicFrame(self)
         self.tab_widget.addTab(self.inverse_kinematic, "逆运动学")
         
-        main_layout.addWidget(self.tab_widget, 6)
+        main_layout.addWidget(self.tab_widget, 6)  # 右侧占60%
 
     def init_models(self):
         self.serial_model = SerialModel()
