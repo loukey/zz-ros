@@ -37,7 +37,12 @@ class SerialReader(QObject):
             if not self.serial_port or not self.serial_port.is_open:
                 time.sleep(0.1)
                 continue
-            waiting_bytes = self.serial_port.in_waiting
+            try:
+                waiting_bytes = self.serial_port.in_waiting
+            except OSError:
+                self.error_occurred.emit("OS Error")
+                time.sleep(0.1)
+                continue
             if waiting_bytes > 0:
                 try:
                     data = self.serial_port.read(waiting_bytes)
