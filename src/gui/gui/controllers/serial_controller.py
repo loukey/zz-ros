@@ -74,6 +74,13 @@ class SerialController(BaseController):
             self.send_thread.quit()
             self.send_thread.wait()
         
+        # 断开信号连接，避免重复连接
+        try:
+            self.read_thread.started.disconnect()
+            self.send_thread.started.disconnect()
+        except:
+            pass
+        
         # 断开串口连接
         success = self.serial_model.disconnect()
         if success:
