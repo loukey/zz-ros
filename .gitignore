@@ -188,3 +188,5 @@ hand_eye_calibration_data/
 *.pt
 images
 annotations
+calibration_data
+test*
