@@ -190,3 +190,4 @@ images
 annotations
 calibration_data
 test*
+log*
