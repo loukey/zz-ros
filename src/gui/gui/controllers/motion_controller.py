@@ -2,6 +2,7 @@ from .base_controller import BaseController
 from PyQt5.QtCore import pyqtSlot, QThread, pyqtSignal
 from gui.utils import *
 from gui.config import GlobalVars
+import time
 
 
 class MotionController(BaseController):    
@@ -126,7 +127,7 @@ class MotionController(BaseController):
     def handle_data_received(self, data):
         """处理接收到的数据"""
         clean_data = data.strip()
-        self.display(f"接收数据: '{clean_data}'", "接收")
+        # self.display(f"接收数据: '{clean_data}'", "接收")
         self.buffer += clean_data
         if "0D0A" in self.buffer:
             lines = self.buffer.split("0D0A")
@@ -156,14 +157,12 @@ class MotionController(BaseController):
                             pos = pos - 0x100000000
                         positions.append(pos)
                         start += 8
-                    
                     # 状态字1-6 (每个2字节，共12字节)
                     status = []
                     for _ in range(6):
                         stat = command_line[start:start+4]
                         status.append(stat)
                         start += 4
-                    
                     # 实际速度1-6 (每个4字节，24字节)
                     speeds = []
                     for _ in range(6):
@@ -172,7 +171,6 @@ class MotionController(BaseController):
                             speed = speed - 0x100000000
                         speeds.append(speed)
                         start += 8
-
                     # 力矩1-6 (每个2字节，12字节)
                     torques = []
                     for _ in range(6):
@@ -181,7 +179,6 @@ class MotionController(BaseController):
                             torque = torque - 0x10000
                         torques.append(torque)
                         start += 4
-
                     # 双编码器插值 (每个4字节，24字节)
                     double_encoder_interpolations = []
                     for _ in range(6):
@@ -190,33 +187,29 @@ class MotionController(BaseController):
                             double_encoder_interpolation = double_encoder_interpolation - 0x100000000
                         double_encoder_interpolations.append(double_encoder_interpolation)
                         start += 8
-
                     # 错误码1-6 (每个2字节，共12字节)
                     errors = []
                     for _ in range(6):
                         error = command_line[start:start+4]
                         errors.append(error)
                         start += 4
-
                     # 夹爪数据 (4字节)
                     effector_data_1 = int(command_line[start:start+4], 16)
                     effector_data_2 = int(command_line[start+4:start+8], 16)
                     effector_data = "{}.{}".format(effector_data_1, effector_data_2)
                     start += 8
-                    
                     # CRC16 (2字节)
                     crc = command_line[start:start+4]
                     crc_message = command_line[:-4]
                     calculated_crc = calculate_crc16(crc_message)
                     calculated_crc_hex = f"{calculated_crc:04X}"
-                    if calculated_crc_hex == crc:
-                        self.display(f"CRC校验: 正确 (接收: {crc}, 计算: {calculated_crc_hex})", "接收")
-                    else:
-                        self.display(f"CRC校验: 错误 (接收: {crc}, 计算: {calculated_crc_hex})", "错误")
-                    
-                    # 记录解析后的详细信息
-                    return_msg = f"帧头: {header}, 初始状态: {init_status}, 当前命令: {current_command}, 运行模式: {run_mode}, 位置数据: {positions}, 状态字: {status}, 实际速度: {speeds}, 力矩: {torques}, 双编码器插值: {double_encoder_interpolations}, 错误码:{errors}, 夹爪数据: {effector_data}, CRC16: {crc}"
-                    self.display(return_msg, "接收")
+                    # if calculated_crc_hex == crc:
+                    #     self.display(f"CRC校验: 正确 (接收: {crc}, 计算: {calculated_crc_hex})", "接收")
+                    # else:
+                    #     self.display(f"CRC校验: 错误 (接收: {crc}, 计算: {calculated_crc_hex})", "错误")
+                    # # 记录解析后的详细信息
+                    # return_msg = f"帧头: {header}, 初始状态: {init_status}, 当前命令: {current_command}, 运行模式: {run_mode}, 位置数据: {positions}, 状态字: {status}, 实际速度: {speeds}, 力矩: {torques}, 双编码器插值: {double_encoder_interpolations}, 错误码:{errors}, 夹爪数据: {effector_data}, CRC16: {crc}"
+                    # self.display(return_msg, "接收")
                 except Exception as e:
                     self.display(f"解析AA55数据帧失败: {str(e)}", "错误")
                     self.display(f"重发数据: {GlobalVars.temp_cmd}", "发送")
