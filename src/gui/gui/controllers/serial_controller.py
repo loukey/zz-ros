@@ -40,13 +40,13 @@ class SerialController(BaseController):
         )
         
         if success:
-            # 将reader和sender移动到各自的线程
-            self.serial_model.reader.moveToThread(self.read_thread)
-            self.serial_model.sender.moveToThread(self.send_thread)
+            # 将read_handler和send_handler移动到各自的线程
+            self.serial_model.read_handler.moveToThread(self.read_thread)
+            self.serial_model.send_handler.moveToThread(self.send_thread)
             
             # 连接线程启动信号到对应的方法
-            self.read_thread.started.connect(self.serial_model.reader.read_data)
-            self.send_thread.started.connect(self.serial_model.sender.send_data)
+            self.read_thread.started.connect(self.serial_model.read_handler.read_data)
+            self.send_thread.started.connect(self.serial_model.send_handler.send_data)
             
             # 启动线程
             self.read_thread.start()
@@ -61,10 +61,10 @@ class SerialController(BaseController):
     def disconnect(self):
         """断开串口连接"""
         # 停止读取和发送
-        if self.serial_model.reader:
-            self.serial_model.reader.stop()
-        if self.serial_model.sender:
-            self.serial_model.sender.stop()
+        if self.serial_model.read_handler:
+            self.serial_model.read_handler.stop()
+        if self.serial_model.send_handler:
+            self.serial_model.send_handler.stop()
             
         # 等待线程结束
         if self.read_thread.isRunning():

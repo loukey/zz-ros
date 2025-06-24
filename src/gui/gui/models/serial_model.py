@@ -142,8 +142,8 @@ class SerialModel(QObject):
         self.encoding = 'hex'
         
         # 创建读取和发送处理对象
-        self.reader = None
-        self.sender = None
+        self.read_handler = None
+        self.send_handler = None
 
     def get_available_ports(self):
         """
@@ -159,16 +159,11 @@ class SerialModel(QObject):
             ports.append((port.device, port.description))
         
         # 在Linux系统上，检查虚拟终端(PTY)设备
-        if os.name == 'posix':  # 仅在类Unix系统上执行
-            # 获取/dev/pts/下的虚拟终端设备
+        if os.name == 'posix':  
             pty_devices = glob.glob('/dev/pts/*')
             for device in pty_devices:
-                # 跳过非数字命名的设备，通常只考虑数字命名的pts
-                if os.path.basename(device).isdigit():
-                    # 如果还没有添加到列表中
-                    if not any(device == port[0] for port in ports):
-                        ports.append((device, f"虚拟串口 ({device})"))
-        
+                if os.path.basename(device).isdigit() and not any(device == port[0] for port in ports):
+                    ports.append((device, f"虚拟串口 ({device})"))
         return ports
     
     def connect(self, port, baud_rate=115200, data_bits=8, parity='N', stop_bits=1, flow_control=None):
@@ -226,13 +221,13 @@ class SerialModel(QObject):
                 self.is_connected = True
                 
                 # 创建读取和发送处理对象
-                self.reader = SerialReader(self.serial, self.encoding)
-                self.sender = SerialSender(self.serial)
+                self.read_handler = SerialReader(self.serial, self.encoding)
+                self.send_handler = SerialSender(self.serial)
                 
                 # 连接信号
-                self.reader.data_received.connect(self.data_received.emit)
-                self.reader.error_occurred.connect(self.error_occurred.emit)
-                self.sender.error_occurred.connect(self.error_occurred.emit)
+                self.read_handler.data_received.connect(self.data_received.emit)
+                self.read_handler.error_occurred.connect(self.error_occurred.emit)
+                self.send_handler.error_occurred.connect(self.error_occurred.emit)
                 
                 return True
             
@@ -255,20 +250,20 @@ class SerialModel(QObject):
     
     def stop(self):
         """停止读取和发送"""
-        if self.reader:
-            self.reader.stop()
-        if self.sender:
-            self.sender.stop()
+        if self.read_handler:
+            self.read_handler.stop()
+        if self.send_handler:
+            self.send_handler.stop()
     
     def read_data(self):
         """读取串口数据 - 委托给reader"""
-        if self.reader:
-            self.reader.read_data()
+        if self.read_handler:
+            self.read_handler.read_data()
     
     def send_data(self):
         """发送串口数据 - 委托给sender"""
-        if self.sender:
-            self.sender.send_data()
+        if self.send_handler:
+            self.send_handler.send_data()
 
     def send_control_command(self, 
                              joint_angles=[0.0] * 6, 
@@ -282,7 +277,7 @@ class SerialModel(QObject):
                              effector_data=0.0, 
                              encoding='hex', 
                              return_cmd=False):
-        if not self.sender:
+        if not self.send_handler:
             self.error_occurred.emit("串口未连接")
             return False
             
@@ -297,6 +292,6 @@ class SerialModel(QObject):
                         effector_data=effector_data, 
                         encoding=encoding)
         
-        self.sender.add_to_queue(cmd)
+        self.send_handler.add_to_queue(cmd)
         GlobalVars.set_temp_cmd(cmd)
         return True
