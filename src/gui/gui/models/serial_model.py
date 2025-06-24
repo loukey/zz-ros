@@ -37,45 +37,33 @@ class SerialReader(QObject):
             if not self.serial_port or not self.serial_port.is_open:
                 time.sleep(0.1)
                 continue
-
-            # 使用更安全的方式检查串口状态
-            try:
-                waiting_bytes = self.serial_port.in_waiting
-            except (serial.SerialException, AttributeError) as e:
-                self.error_occurred.emit(f"检查串口状态时出错: {str(e)}")
-                time.sleep(0.1)
-                continue
-
+            waiting_bytes = self.serial_port.in_waiting
             if waiting_bytes > 0:
                 try:
-                    # 一次最多读取1024字节，避免缓冲区溢出
-                    bytes_to_read = min(waiting_bytes, 1024)
-                    data = self.serial_port.read(bytes_to_read)
-                    
-                    if data:                      
-                        if self.encoding == 'hex':
-                            # 十六进制格式：将字节转换为十六进制字符串
-                            hex_data = data.hex().upper()
-                            self.data_received.emit(hex_data)
+                    data = self.serial_port.read(waiting_bytes)
+                    if self.encoding == 'hex':
+                        # 十六进制格式：将字节转换为十六进制字符串
+                        hex_data = data.hex().upper()
+                        self.data_received.emit(hex_data)
+                    else:
+                        # 字符串格式：解码为UTF-8字符串
+                        decoded_data = data.decode('utf-8', errors='ignore')
+                        if '\r\n' in decoded_data:
+                            self.buffer += decoded_data
+                            lines = self.buffer.split('\r\n')
+                            # 发送完整的行
+                            for line in lines[:-1]:
+                                if line:  # 只发送非空行
+                                    self.data_received.emit(line)
+                            self.buffer = lines[-1]
                         else:
-                            # 字符串格式：解码为UTF-8字符串
-                            decoded_data = data.decode('utf-8', errors='ignore')
-                            if '\r\n' in decoded_data:
-                                self.buffer += decoded_data
-                                lines = self.buffer.split('\r\n')
-                                # 发送完整的行
-                                for line in lines[:-1]:
-                                    if line:  # 只发送非空行
-                                        self.data_received.emit(line)
-                                self.buffer = lines[-1]
-                            else:
-                                self.buffer += decoded_data
+                            self.buffer += decoded_data
                 except serial.SerialException as e:
                     self.error_occurred.emit(f"读取数据时出错: {str(e)}")
                     time.sleep(0.1)
                     continue
-        
-            # 添加短暂延时，避免过于频繁的访问
+            else:
+                time.sleep(0.01)
             time.sleep(0.01)
 
 
@@ -209,7 +197,7 @@ class SerialModel(QObject):
                 xonxoff=xonxoff,
                 rtscts=rtscts,
                 dsrdtr=dsrdtr,
-                timeout=0.5  # 设置读取超时时间
+                timeout=0.1  # 设置读取超时时间
             )
             
             if self.serial.is_open:
