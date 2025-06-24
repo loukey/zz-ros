@@ -9,6 +9,123 @@ import os
 import glob
 from gui.utils import *
 from gui.config import *
+from queue import Queue
+
+
+class SerialReader(QObject):
+    """串口读取处理类"""
+    data_received = pyqtSignal(str)
+    error_occurred = pyqtSignal(str)
+    
+    def __init__(self, serial_port, encoding='hex'):
+        super().__init__()
+        self.serial_port = serial_port
+        self.encoding = encoding
+        self.stop_flag = False
+        self.buffer = ""
+    
+    def set_encoding(self, encoding):
+        self.encoding = encoding
+    
+    def stop(self):
+        self.stop_flag = True
+    
+    def read_data(self):
+        """读取串口数据"""
+        self.stop_flag = False
+        while not self.stop_flag:
+            try:
+                if not self.serial_port or not self.serial_port.is_open:
+                    time.sleep(0.1)
+                    continue
+
+                # 使用更安全的方式检查串口状态
+                try:
+                    waiting_bytes = self.serial_port.in_waiting
+                except (serial.SerialException, AttributeError) as e:
+                    self.error_occurred.emit(f"检查串口状态时出错: {str(e)}")
+                    time.sleep(0.1)
+                    continue
+
+                if waiting_bytes > 0:
+                    try:
+                        # 一次最多读取1024字节，避免缓冲区溢出
+                        bytes_to_read = min(waiting_bytes, 1024)
+                        data = self.serial_port.read(bytes_to_read)
+                        
+                        if data:                      
+                            if self.encoding == 'hex':
+                                # 十六进制格式：将字节转换为十六进制字符串
+                                hex_data = data.hex().upper()
+                                self.data_received.emit(hex_data)
+                            else:
+                                # 字符串格式：解码为UTF-8字符串
+                                decoded_data = data.decode('utf-8', errors='ignore')
+                                if '\r\n' in decoded_data:
+                                    self.buffer += decoded_data
+                                    lines = self.buffer.split('\r\n')
+                                    # 发送完整的行
+                                    for line in lines[:-1]:
+                                        if line:  # 只发送非空行
+                                            self.data_received.emit(line)
+                                    self.buffer = lines[-1]
+                                else:
+                                    self.buffer += decoded_data
+                    except serial.SerialException as e:
+                        self.error_occurred.emit(f"读取数据时出错: {str(e)}")
+                        time.sleep(0.1)
+                        continue
+            except Exception as e:
+                self.error_occurred.emit(f"串口读取时发生未知错误: {str(e)}")
+                time.sleep(0.1)
+                continue
+            
+            # 添加短暂延时，避免过于频繁的访问
+            time.sleep(0.01)
+
+
+class SerialSender(QObject):
+    """串口发送处理类"""
+    error_occurred = pyqtSignal(str)
+    
+    def __init__(self, serial_port):
+        super().__init__()
+        self.serial_port = serial_port
+        self.send_queue = Queue()
+        self.stop_flag = False
+    
+    def stop(self):
+        self.stop_flag = True
+    
+    def add_to_queue(self, cmd):
+        """添加命令到发送队列"""
+        self.send_queue.put(cmd)
+    
+    def send_data(self):
+        """发送串口数据"""
+        self.stop_flag = False
+        while not self.stop_flag:
+            try:
+                if not self.serial_port or not self.serial_port.is_open:
+                    time.sleep(0.1)
+                    continue
+                    
+                if not self.send_queue.empty():
+                    try:
+                        cmd = self.send_queue.get()
+                        if isinstance(cmd, str):
+                            cmd = bytes.fromhex(cmd.replace(' ', ''))
+                        self.serial_port.write(cmd)
+                        self.serial_port.flush()
+                        self.send_queue.task_done()
+                    except Exception as e:
+                        self.error_occurred.emit(f"发送数据时出错: {str(e)}")
+                else:
+                    # 队列为空时短暂休眠，避免CPU空转
+                    time.sleep(0.01)
+            except Exception as e:
+                self.error_occurred.emit(f"串口发送时发生未知错误: {str(e)}")
+                time.sleep(0.1)
 
 
 class SerialModel(QObject):
@@ -22,21 +139,12 @@ class SerialModel(QObject):
         super().__init__()
         self.serial = None
         self.is_connected = False
-        self.stop_flag = False
-        self.buffer = ""  # 添加缓冲区用于累积数据
-        self.encoding = 'hex'  # 默认使用string编码
-        self.auto_detect = True  # 是否自动检测数据格式
-    
-    def set_encoding(self, encoding):
-        """
-        设置编码格式
+        self.encoding = 'hex'
         
-        参数:
-            encoding: 编码格式，'string' 或 'hex'
-        """
-        self.encoding = encoding
-        self.buffer = ""  # 重置缓冲区
-    
+        # 创建读取和发送处理对象
+        self.reader = None
+        self.sender = None
+
     def get_available_ports(self):
         """
         获取可用的串口列表
@@ -116,7 +224,16 @@ class SerialModel(QObject):
             
             if self.serial.is_open:
                 self.is_connected = True
-                self.stop_flag = False
+                
+                # 创建读取和发送处理对象
+                self.reader = SerialReader(self.serial, self.encoding)
+                self.sender = SerialSender(self.serial)
+                
+                # 连接信号
+                self.reader.data_received.connect(self.data_received.emit)
+                self.reader.error_occurred.connect(self.error_occurred.emit)
+                self.sender.error_occurred.connect(self.error_occurred.emit)
+                
                 return True
             
             return False
@@ -130,113 +247,28 @@ class SerialModel(QObject):
     
     def disconnect(self):
         """断开串口连接"""
+        self.stop()
         if self.serial and self.serial.is_open:
             self.serial.close()
+        self.is_connected = False
         return True
     
     def stop(self):
-        """停止读取数据"""
-        self.stop_flag = True
+        """停止读取和发送"""
+        if self.reader:
+            self.reader.stop()
+        if self.sender:
+            self.sender.stop()
     
     def read_data(self):
-        """读取串口数据"""
-        while not self.stop_flag:
-            try:
-                if not self.serial or not self.serial.is_open:
-                    time.sleep(0.1)
-                    continue
-
-                # 使用更安全的方式检查串口状态
-                try:
-                    waiting_bytes = self.serial.in_waiting
-                except (serial.SerialException, AttributeError) as e:
-                    # 如果检查失败，尝试重新打开串口
-                    self.error_occurred.emit(f"检查串口状态时出错，尝试重新连接: {str(e)}")
-                    try:
-                        if self.serial:
-                            continue
-                        else:
-                            self.serial.close()
-                            time.sleep(0.1)
-                            self.serial.open()
-                    except:
-                        self.disconnect()
-                        break
-
-                if waiting_bytes > 0:
-                    try:
-                        # 一次最多读取1024字节，避免缓冲区溢出
-                        bytes_to_read = min(waiting_bytes, 1024)
-                        data = self.serial.read(bytes_to_read)
-                        
-                        if data:                      
-                            if self.encoding == 'hex':
-                                # 十六进制格式：将字节转换为十六进制字符串
-                                hex_data = data.hex().upper()
-                                self.data_received.emit(hex_data)
-                            else:
-                                # 字符串格式：解码为UTF-8字符串
-                                decoded_data = data.decode('utf-8', errors='ignore')
-                                if '\r\n' in decoded_data:
-                                    self.buffer += decoded_data
-                                    lines = self.buffer.split('\r\n')
-                                    # 发送完整的行
-                                    for line in lines[:-1]:
-                                        if line:  # 只发送非空行
-                                            self.data_received.emit(line)
-                                    self.buffer = lines[-1]
-                                else:
-                                    self.buffer += decoded_data
-                    except serial.SerialException as e:
-                        self.error_occurred.emit(f"读取数据时出错: {str(e)}")
-                        # 不要立即断开，给一次重试机会
-                        time.sleep(0.1)
-                        continue
-            except Exception as e:
-                self.error_occurred.emit(f"串口读取时发生未知错误: {str(e)}")
-                time.sleep(0.1)
-                continue
-            
-            # 添加短暂延时，避免过于频繁的访问
-            time.sleep(0.01)
+        """读取串口数据 - 委托给reader"""
+        if self.reader:
+            self.reader.read_data()
     
-    def send_data(self, data, encoding='hex'):
-        """
-        发送数据
-        
-        参数:
-            data: 要发送的数据
-            encoding: 编码格式，'string' 或 'hex'
-        
-        返回:
-            bool: 是否发送成功
-        """
-        if not self.is_connected or not self.serial or not self.serial.is_open:
-            self.error_occurred.emit("串口未连接")
-            return False
-        
-        try:
-            if encoding == 'hex':
-                # 将十六进制字符串转换为字节
-                if isinstance(data, str):
-                    data = bytes.fromhex(data.replace(' ', ''))
-            else:
-                # 将字符串转换为字节，确保添加\r\n结束符
-                if isinstance(data, str):
-                    if not data.endswith('\r\n'):
-                        data += '\r\n'
-                    data = data.encode('utf-8')
-            
-            # 发送数据
-            self.serial.write(data)
-            
-            # 确保数据被发送
-            self.serial.flush()
-            return True
-            
-        except Exception as e:
-            self.error_occurred.emit(f"发送数据失败: {str(e)}")
-            return False 
+    def send_data(self):
+        """发送串口数据 - 委托给sender"""
+        if self.sender:
+            self.sender.send_data()
 
     def send_control_command(self, 
                              joint_angles=[0.0] * 6, 
@@ -250,6 +282,10 @@ class SerialModel(QObject):
                              effector_data=0.0, 
                              encoding='hex', 
                              return_cmd=False):
+        if not self.sender:
+            self.error_occurred.emit("串口未连接")
+            return False
+            
         cmd = format_command(joint_angles=joint_angles, 
                         control=control, 
                         mode=mode, 
@@ -260,8 +296,7 @@ class SerialModel(QObject):
                         effector_mode=effector_mode, 
                         effector_data=effector_data, 
                         encoding=encoding)
-        success = self.send_data(cmd, encoding=encoding)
+        
+        self.sender.add_to_queue(cmd)
         GlobalVars.set_temp_cmd(cmd)
-        if return_cmd:
-            return success, cmd
-        return success
+        return True

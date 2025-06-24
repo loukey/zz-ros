@@ -4,6 +4,8 @@ import numpy as np
 import torch
 from ultralytics import YOLO
 from sklearn.decomposition import PCA
+import time
+
 
 def calculate_part_orientation(mask):
     """
@@ -71,6 +73,7 @@ def draw_orientation_arrow(image, centroid, direction_vector, angle, length=100)
     return image
 
 def main():
+    start_time = time.time()
     # 检查GPU可用性
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     print(f"使用设备: {device}")
@@ -82,7 +85,8 @@ def main():
     # 加载YOLO11分割模型并指定GPU设备
     model = YOLO('yolo11x-seg.pt')
     model.to(device)  # 将模型移动到GPU
-    
+    print(f"模型加载时间: {time.time() - start_time:.2f}秒")
+    start_time = time.time()
     # 图像目录路径
     images_dir = './data/images'
     
@@ -99,7 +103,8 @@ def main():
         return
     
     print(f"找到 {len(image_files)} 个图像文件，开始进行语义分割检测...")
-    
+    print(f"获取图像文件时间: {time.time() - start_time:.2f}秒")
+    start_time = time.time()
     # 批量处理图像
     for img_file in image_files:
         img_path = os.path.join(images_dir, img_file)
@@ -108,7 +113,8 @@ def main():
         # 使用YOLO进行语义分割，明确指定设备
         with torch.amp.autocast(device_type=device) if device == 'cuda' else torch.no_grad():
             results = model(img_path, device=device)
-        
+        print(f"语义分割时间: {time.time() - start_time:.2f}秒")
+        start_time = time.time()
         # 显示分割结果
         for r in results:
             # 获取分割掩码
@@ -157,6 +163,8 @@ def main():
                     
                     # 计算零件方向
                     orientation, centroid, direction_vector = calculate_part_orientation(mask_resized)
+                    print(f"计算方向时间: {time.time() - start_time:.2f}秒")
+                    start_time = time.time()
                     if orientation is not None:
                         print(f"      零件方向: {orientation:.1f}°")
                         # 在方向可视化图像上绘制箭头

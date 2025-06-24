@@ -13,8 +13,7 @@ class SerialController(BaseController):
         self.serial_model = serial_model
         self.motion_model = motion_model
         self.read_thread = QThread()
-        self.serial_model.moveToThread(self.read_thread)
-        self.read_thread.started.connect(self.serial_model.read_data)
+        self.send_thread = QThread()
     
     def refresh_ports(self):
         ports = self.serial_model.get_available_ports()
@@ -41,8 +40,18 @@ class SerialController(BaseController):
         )
         
         if success:
-            # 启动读取线程
+            # 将reader和sender移动到各自的线程
+            self.serial_model.reader.moveToThread(self.read_thread)
+            self.serial_model.sender.moveToThread(self.send_thread)
+            
+            # 连接线程启动信号到对应的方法
+            self.read_thread.started.connect(self.serial_model.reader.read_data)
+            self.send_thread.started.connect(self.serial_model.sender.send_data)
+            
+            # 启动线程
             self.read_thread.start()
+            self.send_thread.start()
+            
             self.display(f"已连接到串口 {port}", "串口")
             self.connection_changed.emit(True)
         else:
@@ -51,11 +60,21 @@ class SerialController(BaseController):
     
     def disconnect(self):
         """断开串口连接"""
+        # 停止读取和发送
+        if self.serial_model.reader:
+            self.serial_model.reader.stop()
+        if self.serial_model.sender:
+            self.serial_model.sender.stop()
+            
+        # 等待线程结束
         if self.read_thread.isRunning():
-            self.serial_model.stop()
             self.read_thread.quit()
             self.read_thread.wait()
+        if self.send_thread.isRunning():
+            self.send_thread.quit()
+            self.send_thread.wait()
         
+        # 断开串口连接
         success = self.serial_model.disconnect()
         if success:
             self.display("已断开串口连接", "串口")
