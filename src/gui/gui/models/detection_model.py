@@ -6,7 +6,15 @@ from PyQt5.QtCore import QObject, pyqtSignal
 import cv2
 import numpy as np
 import torch
-from ultralytics import YOLO
+
+# 条件导入ultralytics
+try:
+    from ultralytics import YOLO
+    ULTRALYTICS_AVAILABLE = True
+except ImportError:
+    ULTRALYTICS_AVAILABLE = False
+    print("Warning: ultralytics not available, using fallback detection")
+
 from sklearn.decomposition import PCA
 import time
 
@@ -285,8 +293,18 @@ class DetectionModel(QObject):
 class YOLO11DetectionModel():
     def __init__(self):
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        # self.model = YOLO('yolo11n-seg.pt')
-        # self.model.to(self.device)
+        self.model = None
+        
+        if ULTRALYTICS_AVAILABLE:
+            try:
+                self.model = YOLO('yolo11n-seg.pt')
+                self.model.to(self.device)
+                print("YOLO11 model loaded successfully")
+            except Exception as e:
+                print(f"Failed to load YOLO11 model: {e}")
+                self.model = None
+        else:
+            print("YOLO11 model not available - ultralytics package not found")
         
     def calculate_part_orientation(self, mask):
         """
@@ -356,7 +374,17 @@ class YOLO11DetectionModel():
     def detect_objects(self, image):
         """检测图像中的对象"""
         try:
-            with torch.amp.autocast(device_type=self.device) if self.device == 'cuda' else torch.no_grad():
+            # 如果没有模型，返回空结果
+            if self.model is None:
+                return []
+            
+            # 使用合适的上下文管理器
+            if self.device == 'cuda' and hasattr(torch, 'autocast'):
+                context = torch.autocast(device_type=self.device)
+            else:
+                context = torch.no_grad()
+                
+            with context:
                 results = self.model(image, device=self.device)
             
             detections = []

@@ -1,6 +1,6 @@
 from .trajectory_model import *
 from PyQt5.QtCore import QTimer, QObject, pyqtSignal, Qt
-from gui.utils import format_command
+from utils import format_command
 
 
 class MotionModel(QObject):

@@ -1,6 +1,6 @@
 import numpy as np
 from math import pi
-from gui.kinematic import *
+from kinematic import *
 from scipy.spatial.transform import Rotation as R, Slerp
 
 

@@ -6,7 +6,7 @@ import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import PoseStamped
 from PyQt5.QtCore import QObject, pyqtSignal, QThread
-from gui.kinematic import Kinematic6DOF, quaternion_from_euler
+from kinematic import Kinematic6DOF, quaternion_from_euler
 
 
 class RobotPosePublisher(Node):
@@ -147,15 +147,21 @@ class RosThread(QThread):
         """运行ROS2节点"""
         try:
             # 初始化ROS2
-            if not rclpy.ok():
+            try:
                 rclpy.init()
+            except RuntimeError:
+                # ROS2 already initialized
+                pass
             
             # 创建位姿发布节点
             self.pose_publisher = RobotPosePublisher()
             
             # 运行节点
-            while not self.should_stop and rclpy.ok():
-                rclpy.spin_once(self.pose_publisher, timeout_sec=0.1)
+            while not self.should_stop:
+                try:
+                    rclpy.spin_once(self.pose_publisher, timeout_sec=0.1)
+                except Exception:
+                    break
                 
         except Exception as e:
             print(f"ROS线程运行错误: {str(e)}")
