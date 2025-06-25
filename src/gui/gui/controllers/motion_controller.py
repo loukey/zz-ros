@@ -127,7 +127,7 @@ class MotionController(BaseController):
     def handle_data_received(self, data):
         """处理接收到的数据"""
         clean_data = data.strip()
-        # self.display(f"接收数据: '{clean_data}'", "接收")
+        self.display(f"接收数据: '{clean_data}'", "接收")
         self.buffer += clean_data
         if "0D0A" in self.buffer:
             lines = self.buffer.split("0D0A")
@@ -157,6 +157,13 @@ class MotionController(BaseController):
                             pos = pos - 0x100000000
                         positions.append(pos)
                         start += 8
+                    
+                    # 将编码器位置转换为弧度角度
+                    positions_rad = position_to_radian(positions)
+                    
+                    # 更新全局位姿变量（每次解析到位置数据都更新）
+                    GlobalVars.update_joint_pose(positions, positions_rad)
+                    
                     # 状态字1-6 (每个2字节，共12字节)
                     status = []
                     for _ in range(6):
@@ -203,13 +210,13 @@ class MotionController(BaseController):
                     crc_message = command_line[:-4]
                     calculated_crc = calculate_crc16(crc_message)
                     calculated_crc_hex = f"{calculated_crc:04X}"
-                    # if calculated_crc_hex == crc:
-                    #     self.display(f"CRC校验: 正确 (接收: {crc}, 计算: {calculated_crc_hex})", "接收")
-                    # else:
-                    #     self.display(f"CRC校验: 错误 (接收: {crc}, 计算: {calculated_crc_hex})", "错误")
-                    # # 记录解析后的详细信息
-                    # return_msg = f"帧头: {header}, 初始状态: {init_status}, 当前命令: {current_command}, 运行模式: {run_mode}, 位置数据: {positions}, 状态字: {status}, 实际速度: {speeds}, 力矩: {torques}, 双编码器插值: {double_encoder_interpolations}, 错误码:{errors}, 夹爪数据: {effector_data}, CRC16: {crc}"
-                    # self.display(return_msg, "接收")
+                    if calculated_crc_hex == crc:
+                        self.display(f"CRC校验: 正确 (接收: {crc}, 计算: {calculated_crc_hex})", "接收")
+                    else:
+                        self.display(f"CRC校验: 错误 (接收: {crc}, 计算: {calculated_crc_hex})", "错误")
+                    # 记录解析后的详细信息
+                    return_msg = f"帧头: {header}, 初始状态: {init_status}, 当前命令: {current_command}, 运行模式: {run_mode}, 位置数据: {positions}, 状态字: {status}, 实际速度: {speeds}, 力矩: {torques}, 双编码器插值: {double_encoder_interpolations}, 错误码:{errors}, 夹爪数据: {effector_data}, CRC16: {crc}"
+                    self.display(return_msg, "接收")
                 except Exception as e:
                     self.display(f"解析AA55数据帧失败: {str(e)}", "错误")
                     self.display(f"重发数据: {GlobalVars.temp_cmd}", "发送")
@@ -219,26 +226,17 @@ class MotionController(BaseController):
                 if run_mode == "0A":                            
                     if GlobalVars.dynamic_teach_flag and current_command in ["06", "07"]:
                         GlobalVars.add_to_array(positions)
-                        positions = position_to_radian(positions)
-                        self.torque_calculation_signal.emit(positions)
+                        self.torque_calculation_signal.emit(positions_rad)
                 elif run_mode == "08":
                     if current_command == "07":
-                        positions = position_to_radian(positions)
                         if self.motion_mode == 0:
-                            self.only_get_current_position(positions)
+                            self.only_get_current_position(positions_rad)
                         elif self.motion_mode == 1:
                             self.motion_mode = 0
-                            self.single_motion_starter(positions)
+                            self.single_motion_starter(positions_rad)
                         elif self.motion_mode == 2:
                             self.motion_mode = 0
-                            self.multiple_motion_starter(positions)
-                    elif current_command == "09":
-                        positions = position_to_radian(positions)
-                        self.display(f"获取位姿: {positions}", "控制")
-                        
-                        # 发布位姿到ROS（如果位姿发布节点已启动）
-                        if self.robot_model and self.robot_model.is_publishing:
-                            self.robot_model.publish_pose(positions)
+                            self.multiple_motion_starter(positions_rad)
     
     def handle_error_occurred(self, error_msg):
         self.display(f"{error_msg}", "错误")

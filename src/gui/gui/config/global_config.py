@@ -3,6 +3,11 @@ class GlobalVars:
     dynamic_teach_flag = False
     temp_cmd = ""
     
+    # 全局位姿变量（用于位姿发布）
+    _current_joint_angles = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]  # 当前关节角度（弧度）
+    _current_joint_positions = [0, 0, 0, 0, 0, 0]  # 当前关节位置（原始编码器值）
+    _pose_data_updated = False  # 位姿数据更新标志
+    
     # 6维固定长度的数组（最大长度20）
     _fixed_array = []  # 每个元素是6维向量 [x1, x2, x3, x4, x5, x6]
     MAX_ARRAY_LENGTH = 20
@@ -162,5 +167,41 @@ class GlobalVars:
         average = dim_sum / 19
         
         return latest_value - average
+    
+    # ====== 位姿相关方法 ======
+    @classmethod
+    def update_joint_pose(cls, joint_positions, joint_angles):
+        """
+        更新全局关节位姿数据
+        参数:
+            joint_positions: 6个关节的原始编码器位置值
+            joint_angles: 6个关节的角度值（弧度）
+        """
+        if len(joint_positions) != 6 or len(joint_angles) != 6:
+            raise ValueError("关节位置和角度数据必须是6维数组")
         
+        cls._current_joint_positions = list(joint_positions)
+        cls._current_joint_angles = list(joint_angles)
+        cls._pose_data_updated = True
+    
+    @classmethod
+    def get_current_joint_angles(cls):
+        """获取当前关节角度（弧度）"""
+        return cls._current_joint_angles.copy()
+    
+    @classmethod
+    def get_current_joint_positions(cls):
+        """获取当前关节位置（原始编码器值）"""
+        return cls._current_joint_positions.copy()
+    
+    @classmethod
+    def is_pose_data_updated(cls):
+        """检查位姿数据是否已更新"""
+        return cls._pose_data_updated
+    
+    @classmethod
+    def reset_pose_data_flag(cls):
+        """重置位姿数据更新标志"""
+        cls._pose_data_updated = False
+
 GlobalVars.__new__ = lambda cls:None
