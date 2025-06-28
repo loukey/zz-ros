@@ -76,7 +76,8 @@ class HandEyeCalibration(Node):
             self.get_logger().info(f'加载相机标定参数: {self.calibration_file}')
         else:
             self.camera_utils = create_your_camera_utils()
-            self.get_logger().info('使用内置相机标定参数')
+            self.get_logger().warn(f'相机标定文件不存在: {self.calibration_file}')
+            self.get_logger().warn('使用内置相机标定参数，建议先进行相机标定以获得更好的结果')
         
         # 创建棋盘格3D点
         self.prepare_object_points()
@@ -163,13 +164,13 @@ class HandEyeCalibration(Node):
             self.get_logger().warn('未接收到机器人位姿数据')
             return
         
-        # 计算标定板在相机坐标系中的位姿
+        # 计算标定板相对于相机的位姿变换
         camera_pose = self.estimate_board_pose(corners)
         if camera_pose is None:
             self.get_logger().warn('无法估计标定板位姿')
             return
         
-        # 保存机器人位姿 (末端执行器到基座的变换)
+        # 保存机器人位姿（末端执行器相对于基座的变换）
         robot_pose = self.pose_stamped_to_matrix(self.current_robot_pose)
         
         # 保存数据
@@ -191,23 +192,35 @@ class HandEyeCalibration(Node):
             self.get_logger().info('输入 \'calibrate\' 开始手眼标定')
     
     def estimate_board_pose(self, corners):
-        """估计标定板在相机坐标系中的位姿"""
+        """
+        估计标定板相对于相机的位姿变换
+        
+        重要说明：此函数返回T_target_to_cam（标定板到相机的变换矩阵）
+        cv2.solvePnP 求解的是目标物体(标定板)相对于相机的位姿变换
+        
+        Args:
+            corners: 检测到的角点坐标
+            
+        Returns:
+            T_target_to_cam: 4x4变换矩阵，表示标定板相对于相机的变换
+        """
         try:
             # 使用PnP求解标定板位姿
+            # solvePnP返回的是标定板相对于相机的位姿变换
             success, rvec, tvec = cv2.solvePnP(
-                self.objp,
-                corners,
+                self.objp,  # 标定板上的3D点（标定板坐标系）
+                corners,    # 图像中对应的2D点
                 self.camera_utils.camera_matrix,
                 self.camera_utils.dist_coeffs
             )
             
             if success:
-                # 转换为变换矩阵
+                # 转换为变换矩阵 T_target_to_cam
                 R, _ = cv2.Rodrigues(rvec)
                 T = np.eye(4)
                 T[:3, :3] = R
                 T[:3, 3] = tvec.flatten()
-                return T
+                return T  # 返回 T_target_to_cam
             else:
                 return None
         except Exception as e:
@@ -215,7 +228,15 @@ class HandEyeCalibration(Node):
             return None
     
     def pose_stamped_to_matrix(self, pose_stamped):
-        """将PoseStamped转换为4x4变换矩阵"""
+        """
+        将PoseStamped转换为4x4变换矩阵
+        
+        Args:
+            pose_stamped: ROS PoseStamped消息，表示末端执行器相对于基座的位姿
+            
+        Returns:
+            T_gripper_to_base: 4x4变换矩阵，表示末端执行器相对于基座的变换
+        """
         pose = pose_stamped.pose
         
         # 提取位置
@@ -241,6 +262,9 @@ class HandEyeCalibration(Node):
         
         # 归一化四元数
         norm = np.sqrt(x*x + y*y + z*z + w*w)
+        if norm < 1e-8:
+            self.get_logger().error('四元数范数过小，无法归一化')
+            return np.eye(3)
         x, y, z, w = x/norm, y/norm, z/norm, w/norm
         
         # 计算旋转矩阵
@@ -252,13 +276,83 @@ class HandEyeCalibration(Node):
         
         return R
     
-    def perform_hand_eye_calibration(self):
-        """执行手眼标定"""
+    def validate_calibration_data(self):
+        """验证标定数据质量"""
         if len(self.robot_poses) < self.min_poses:
-            self.get_logger().error(f'位姿数据不足，需要至少 {self.min_poses} 个位姿')
+            return False, f'位姿数据不足，需要至少 {self.min_poses} 个位姿'
+        
+        # 检查位姿变化是否足够大
+        min_translation_change = 0.05  # 5cm
+        min_rotation_change = np.radians(10)  # 10度
+        
+        sufficient_motion = False
+        
+        for i in range(len(self.robot_poses)):
+            for j in range(i + 1, len(self.robot_poses)):
+                # 计算位姿变化
+                T_rel = np.linalg.inv(self.robot_poses[i]) @ self.robot_poses[j]
+                
+                # 平移变化
+                translation_change = np.linalg.norm(T_rel[:3, 3])
+                
+                # 旋转变化
+                R_rel = T_rel[:3, :3]
+                trace_R = np.trace(R_rel)
+                trace_R = np.clip(trace_R, -1, 3)
+                rotation_change = np.arccos(np.clip((trace_R - 1) / 2, -1, 1))
+                
+                if translation_change > min_translation_change or rotation_change > min_rotation_change:
+                    sufficient_motion = True
+                    break
+            
+            if sufficient_motion:
+                break
+        
+        if not sufficient_motion:
+            return False, f'机器人位姿变化不足，建议移动范围大于{min_translation_change*100:.1f}cm或旋转大于{np.degrees(min_rotation_change):.1f}度'
+        
+        # 检查是否有异常的变换矩阵
+        for i, (robot_pose, camera_pose) in enumerate(zip(self.robot_poses, self.camera_poses)):
+            # 检查变换矩阵是否有效
+            if not self.is_valid_transform(robot_pose):
+                return False, f'第{i+1}个机器人位姿的变换矩阵无效'
+            
+            if not self.is_valid_transform(camera_pose):
+                return False, f'第{i+1}个相机位姿的变换矩阵无效'
+        
+        return True, '数据验证通过'
+    
+    def is_valid_transform(self, T):
+        """检查变换矩阵是否有效"""
+        if T.shape != (4, 4):
             return False
         
-        self.get_logger().info('开始Eye-in-Hand手眼标定...')
+        # 检查旋转矩阵
+        R = T[:3, :3]
+        
+        # 旋转矩阵应该是正交的
+        if not np.allclose(R @ R.T, np.eye(3), atol=1e-3):
+            return False
+        
+        # 行列式应该为1
+        if not np.allclose(np.linalg.det(R), 1.0, atol=1e-3):
+            return False
+        
+        # 检查最后一行
+        if not np.allclose(T[3, :], [0, 0, 0, 1]):
+            return False
+        
+        return True
+    
+    def perform_hand_eye_calibration(self):
+        """执行手眼标定"""
+        # 验证标定数据质量
+        is_valid, message = self.validate_calibration_data()
+        if not is_valid:
+            self.get_logger().error(f'数据验证失败: {message}')
+            return False
+        
+        self.get_logger().info('数据验证通过，开始Eye-in-Hand手眼标定...')
         
         try:
             # 手眼标定数学原理说明：
@@ -279,17 +373,18 @@ class HandEyeCalibration(Node):
             t_target2cam = []    # 标定板到相机的平移
             
             for robot_pose, camera_pose in zip(self.robot_poses, self.camera_poses):
-                # 机器人位姿转换：从 T_base_to_gripper 转为 T_gripper_to_base
-                T_base_to_gripper = robot_pose
-                T_gripper_to_base = np.linalg.inv(T_base_to_gripper)
+                # 机器人位姿处理：
+                # robot_pose是从ROS话题获得的，表示T_gripper_to_base（末端执行器相对于基座）
+                # 这正是cv2.calibrateHandEye需要的格式
+                T_gripper_to_base = robot_pose
                 R_gripper2base.append(T_gripper_to_base[:3, :3])
                 t_gripper2base.append(T_gripper_to_base[:3, 3])
                 
-                # 相机位姿转换：从 T_cam_to_board 转为 T_board_to_cam
-                T_cam_to_board = camera_pose
-                T_board_to_cam = np.linalg.inv(T_cam_to_board)
-                R_target2cam.append(T_board_to_cam[:3, :3])
-                t_target2cam.append(T_board_to_cam[:3, 3])
+                # 标定板位姿处理：
+                # camera_pose是T_target_to_cam（标定板到相机），这正是cv2.calibrateHandEye需要的
+                T_target_to_cam = camera_pose
+                R_target2cam.append(T_target_to_cam[:3, :3])
+                t_target2cam.append(T_target_to_cam[:3, 3])
             
             # 使用OpenCV进行手眼标定
             R_cam2gripper, t_cam2gripper = cv2.calibrateHandEye(
@@ -298,16 +393,28 @@ class HandEyeCalibration(Node):
                 method=cv2.CALIB_HAND_EYE_TSAI
             )
             
-            # 构建手眼变换矩阵 (末端执行器到相机)
-            self.hand_eye_transform = np.eye(4)
-            self.hand_eye_transform[:3, :3] = R_cam2gripper
-            self.hand_eye_transform[:3, 3] = t_cam2gripper.flatten()
+            # OpenCV的calibrateHandEye对于Eye-in-Hand配置返回的是T_cam_to_gripper
+            # 但在实际应用中，我们通常需要T_gripper_to_cam（末端执行器到相机的变换）
+            # 用于将gripper坐标系中的点转换到camera坐标系进行视觉处理
+            T_cam_to_gripper = np.eye(4)
+            T_cam_to_gripper[:3, :3] = R_cam2gripper
+            T_cam_to_gripper[:3, 3] = t_cam2gripper.flatten()
+            
+            # 构建手眼变换矩阵 T_gripper_to_cam（末端执行器到相机）
+            self.hand_eye_transform = np.linalg.inv(T_cam_to_gripper)
             
             # 计算标定误差
             self.calibration_error = self.compute_calibration_error()
             
+            # 验证标定结果的合理性
+            is_valid, validation_message = self.validate_hand_eye_result()
+            if not is_valid:
+                self.get_logger().warn(f'标定结果验证警告: {validation_message}')
+            else:
+                self.get_logger().info(validation_message)
+            
             self.get_logger().info('手眼标定完成！')
-            self.get_logger().info(f'标定误差: {self.calibration_error:.6f} 米')
+            self.get_logger().info(f'标定误差: {self.calibration_error:.6f}')
             
             # 保存标定结果
             self.save_hand_eye_results()
@@ -318,32 +425,100 @@ class HandEyeCalibration(Node):
             return False
     
     def compute_calibration_error(self):
-        """计算标定误差"""
+        """计算标定误差 - 改进版本，同时考虑平移和旋转误差"""
         if self.hand_eye_transform is None:
             return float('inf')
         
-        total_error = 0.0
+        total_translation_error = 0.0
+        total_rotation_error = 0.0
+        num_pairs = 0
         
         for i in range(len(self.robot_poses)):
             for j in range(i + 1, len(self.robot_poses)):
-                # 计算机器人位姿变化
-                robot_rel = np.linalg.inv(self.robot_poses[i]) @ self.robot_poses[j]
+                # 计算机器人末端执行器的相对变换（从gripper_i到gripper_j）
+                # self.robot_poses存储的是T_gripper_to_base
+                T_gripper_rel = np.linalg.inv(self.robot_poses[i]) @ self.robot_poses[j]
                 
-                # 计算相机观察到的变化
-                camera_rel = self.camera_poses[j] @ np.linalg.inv(self.camera_poses[i])
+                # 计算相机的相对变换（通过标定板观察）
+                # self.camera_poses存储的是T_target_to_cam
+                # 由于target固定，相机从位姿i到位姿j的变换可以通过标定板观察得到
+                T_cam_rel = np.linalg.inv(self.camera_poses[i]) @ self.camera_poses[j]
                 
-                # 通过手眼变换计算预测的相机变化
-                predicted_camera_rel = np.linalg.inv(self.hand_eye_transform) @ robot_rel @ self.hand_eye_transform
+                # 通过手眼变换预测的相机相对变换
+                # 根据手眼标定方程: A * X = X * B
+                # 其中 A = T_gripper_rel, B = T_cam_rel, X = T_gripper_to_cam
+                # 预测的相机相对运动: B_pred = X^(-1) * A * X
+                T_predicted_cam_rel = np.linalg.inv(self.hand_eye_transform) @ T_gripper_rel @ self.hand_eye_transform
                 
-                # 计算误差
-                error_matrix = camera_rel @ np.linalg.inv(predicted_camera_rel)
+                # 计算误差变换矩阵
+                T_error = T_cam_rel @ np.linalg.inv(T_predicted_cam_rel)
                 
-                # 平移误差
-                translation_error = np.linalg.norm(error_matrix[:3, 3])
-                total_error += translation_error
+                # 平移误差 (米)
+                translation_error = np.linalg.norm(T_error[:3, 3])
+                
+                # 旋转误差 (弧度)
+                R_error = T_error[:3, :3]
+                trace_R = np.trace(R_error)
+                # 确保trace在有效范围内，避免数值误差
+                trace_R = np.clip(trace_R, -1, 3)
+                rotation_error = np.arccos(np.clip((trace_R - 1) / 2, -1, 1))
+                
+                total_translation_error += translation_error
+                total_rotation_error += rotation_error
+                num_pairs += 1
         
-        num_pairs = len(self.robot_poses) * (len(self.robot_poses) - 1) // 2
-        return total_error / num_pairs if num_pairs > 0 else float('inf')
+        if num_pairs == 0:
+            return float('inf')
+        
+        # 平均误差
+        avg_translation_error = total_translation_error / num_pairs
+        avg_rotation_error = total_rotation_error / num_pairs
+        
+        # 组合误差：平移误差(米) + 旋转误差(度) * 0.01 (权重)
+        # 这样可以将旋转误差和平移误差统一到一个量级
+        combined_error = avg_translation_error + np.degrees(avg_rotation_error) * 0.01
+        
+        # 同时记录详细误差信息
+        self.detailed_error = {
+            'translation_error_m': avg_translation_error,
+            'rotation_error_deg': np.degrees(avg_rotation_error),
+            'combined_error': combined_error,
+            'num_pose_pairs': num_pairs
+        }
+        
+        return combined_error
+    
+    def validate_hand_eye_result(self):
+        """验证手眼标定结果的合理性"""
+        if self.hand_eye_transform is None:
+            return False, "手眼变换矩阵为空"
+        
+        # 检查变换矩阵是否有效
+        if not self.is_valid_transform(self.hand_eye_transform):
+            return False, "手眼变换矩阵无效"
+        
+        # 检查平移量是否合理（通常相机与末端执行器距离在几厘米到几十厘米之间）
+        translation = self.hand_eye_transform[:3, 3]
+        translation_norm = np.linalg.norm(translation)
+        
+        if translation_norm < 0.01:  # 小于1cm
+            return False, f"手眼平移距离过小: {translation_norm*1000:.1f}mm，可能存在问题"
+        
+        if translation_norm > 0.5:   # 大于50cm
+            return False, f"手眼平移距离过大: {translation_norm*100:.1f}cm，请检查安装"
+        
+        # 检查标定误差是否在合理范围内
+        if hasattr(self, 'detailed_error') and self.detailed_error:
+            trans_error = self.detailed_error.get('translation_error_m', 0)
+            rot_error = self.detailed_error.get('rotation_error_deg', 0)
+            
+            if trans_error > 0.02:  # 2cm
+                return False, f"平移误差过大: {trans_error*1000:.1f}mm"
+            
+            if rot_error > 5.0:     # 5度
+                return False, f"旋转误差过大: {rot_error:.1f}°"
+        
+        return True, "手眼标定结果验证通过"
     
     def save_hand_eye_results(self):
         """保存手眼标定结果"""
@@ -380,6 +555,7 @@ class HandEyeCalibration(Node):
                 'yaw': float(np.degrees(euler[2]))
             },
             'calibration_error': float(self.calibration_error),
+            'detailed_error': getattr(self, 'detailed_error', {}),
             'num_poses': len(self.robot_poses),
             'calibration_date': datetime.now().isoformat(),
             'calibration_type': 'eye_in_hand'
@@ -476,7 +652,15 @@ class HandEyeCalibration(Node):
         print("Eye-in-Hand 手眼标定结果")
         print("="*60)
         print(f"使用位姿数量: {len(self.robot_poses)}")
-        print(f"标定误差: {self.calibration_error:.6f} 米")
+        print(f"组合标定误差: {self.calibration_error:.6f}")
+        
+        # 显示详细误差信息
+        if hasattr(self, 'detailed_error') and self.detailed_error:
+            error_info = self.detailed_error
+            print(f"\n详细误差信息:")
+            print(f"  平移误差: {error_info.get('translation_error_m', 0):.6f} 米")
+            print(f"  旋转误差: {error_info.get('rotation_error_deg', 0):.3f} 度")
+            print(f"  位姿对数: {error_info.get('num_pose_pairs', 0)}")
         
         print(f"\n末端执行器到相机的变换:")
         print(f"平移 (x, y, z): ({t[0]:.6f}, {t[1]:.6f}, {t[2]:.6f}) 米")
