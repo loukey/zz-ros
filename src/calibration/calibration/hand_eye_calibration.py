@@ -43,7 +43,7 @@ class HandEyeCalibration(Node):
         self.declare_parameter('chessboard_size', '11,8')
         self.declare_parameter('square_size', 0.025)
         self.declare_parameter('save_dir', './hand_eye_calibration_data')
-        self.declare_parameter('min_poses', 10)  # 最少标定位姿数
+        self.declare_parameter('min_poses', 3)  # 最少标定位姿数
         self.declare_parameter('calibration_file', './calibration_data/camera_calibration.yaml')
         
         # 获取参数
