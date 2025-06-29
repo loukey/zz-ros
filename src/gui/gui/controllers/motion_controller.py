@@ -163,9 +163,8 @@ class MotionController(BaseController):
                     # 将编码器位置转换为弧度角度
                     positions_rad = position_to_radian(positions)
                     init_rad = [0.0, -pi/2, 0.0, pi/2, 0.0, 0.0]
-                    positions_rad = (np.array(positions_rad) + np.array(init_rad)).tolist()
                     # 更新全局位姿变量（每次解析到位置数据都更新）
-                    GlobalVars.update_joint_pose(positions, positions_rad)
+                    GlobalVars.update_joint_pose(positions, (np.array(positions_rad) + np.array(init_rad)).tolist())
 
                     # 状态字1-6 (每个2字节，共12字节)
                     status = []
