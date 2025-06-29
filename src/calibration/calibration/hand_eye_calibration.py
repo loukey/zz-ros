@@ -112,10 +112,22 @@ class HandEyeCalibration(Node):
     
     def prepare_object_points(self):
         """准备棋盘格3D点坐标"""
-        objp = np.zeros((self.chessboard_size[0] * self.chessboard_size[1], 3), np.float32)
-        objp[:, :2] = np.mgrid[0:self.chessboard_size[0], 0:self.chessboard_size[1]].T.reshape(-1, 2)
-        objp *= self.square_size
+        # 确保角点顺序与cv2.findChessboardCorners一致
+        # OpenCV的findChessboardCorners返回的角点顺序是从左到右、从上到下
+        cols, rows = self.chessboard_size  # (列数, 行数)
+        objp = np.zeros((cols * rows, 3), np.float32)
+        
+        # 标准的角点顺序：从左到右，从上到下
+        # 修正：使用更明确的方式生成角点坐标
+        for row in range(rows):
+            for col in range(cols):
+                objp[row * cols + col] = [col * self.square_size, row * self.square_size, 0.0]
+        
         self.objp = objp
+        
+        # 打印前几个点用于调试
+        self.get_logger().info(f'棋盘格尺寸: {cols}列 × {rows}行')
+        self.get_logger().info(f'前5个3D点: {objp[:5].tolist()}')
     
     def image_callback(self, msg):
         """图像回调函数"""
@@ -220,6 +232,14 @@ class HandEyeCalibration(Node):
                 T = np.eye(4)
                 T[:3, :3] = R
                 T[:3, 3] = tvec.flatten()
+                
+                # 调试信息：打印标定板位姿
+                self.get_logger().debug(f'标定板位姿: 平移=[{tvec[0]:.3f}, {tvec[1]:.3f}, {tvec[2]:.3f}]m')
+                
+                # 验证Z坐标的合理性（相机前方应该是正值）
+                if tvec[2] <= 0:
+                    self.get_logger().warn(f'警告：标定板Z坐标为负值 ({tvec[2]:.3f}m)，可能存在坐标系问题')
+                
                 return T  # 返回 T_target_to_cam
             else:
                 return None
