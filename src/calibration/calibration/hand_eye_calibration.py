@@ -40,7 +40,7 @@ class HandEyeCalibration(Node):
         # 声明参数
         self.declare_parameter('camera_topic', '/camera/color/image_raw')
         self.declare_parameter('robot_pose_topic', '/robot_pose')
-        self.declare_parameter('chessboard_size', '9,6')
+        self.declare_parameter('chessboard_size', '11,8')
         self.declare_parameter('square_size', 0.025)
         self.declare_parameter('save_dir', './hand_eye_calibration_data')
         self.declare_parameter('min_poses', 10)  # 最少标定位姿数
