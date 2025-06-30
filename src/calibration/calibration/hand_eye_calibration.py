@@ -219,12 +219,7 @@ class HandEyeCalibration(Node):
         try:
             # 使用PnP求解标定板位姿
             # solvePnP返回的是标定板相对于相机的位姿变换
-            success, rvec, tvec = cv2.solvePnP(
-                self.objp,  # 标定板上的3D点（标定板坐标系）
-                corners,    # 图像中对应的2D点
-                self.camera_utils.camera_matrix,
-                self.camera_utils.dist_coeffs
-            )
+            success, rvec, tvec = cv2.solvePnP(self.objp, corners, self.camera_utils.camera_matrix, self.camera_utils.dist_coeffs)
             
             if success:
                 # 转换为变换矩阵 T_target_to_cam

@@ -9,6 +9,36 @@
 - 💾 **结果保存**: 自动保存带注释的图像和JSON格式的检测结果
 - 🎯 **高精度**: 基于YOLO11最新模型架构
 - 📊 **详细日志**: 完整的检测过程日志记录
+- 🚀 **完整训练流程**: 从语义分割到OBB模型训练的完整解决方案
+
+## 🚀 快速开始
+
+### 一键运行完整流程
+
+```bash
+# 1. 将图像文件放入 ../data/images/ 目录
+# 2. 运行快速开始脚本
+cd ..
+python quick_start.py --model n --epochs 50 --pretrained
+```
+
+这将自动完成：
+- 语义分割和OBB数据生成
+- 模型训练 
+- 模型测试
+
+### 快速开始选项
+
+```bash
+# 仅生成训练数据
+python quick_start.py --data-only
+
+# 使用更大的模型训练更多轮次
+python quick_start.py --model m --epochs 100 --batch 16
+
+# 不使用预训练模型
+python quick_start.py --no-pretrained
+```
 
 ## 安装依赖
 
