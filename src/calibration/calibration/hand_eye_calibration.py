@@ -114,20 +114,24 @@ class HandEyeCalibration(Node):
         """准备棋盘格3D点坐标"""
         # 确保角点顺序与cv2.findChessboardCorners一致
         # OpenCV的findChessboardCorners返回的角点顺序是从左到右、从上到下
-        cols, rows = self.chessboard_size  # (列数, 行数)
-        objp = np.zeros((cols * rows, 3), np.float32)
+        cols, rows = self.chessboard_size  # (宽度/列数, 高度/行数)
         
-        # 标准的角点顺序：从左到右，从上到下
-        # 修正：使用更明确的方式生成角点坐标
-        for row in range(rows):
-            for col in range(cols):
-                objp[row * cols + col] = [col * self.square_size, row * self.square_size, 0.0]
+        # 创建3D点数组
+        objp = np.zeros((rows * cols, 3), np.float32)
+        
+        # 标准的棋盘格3D点生成方法
+        # OpenCV的角点检测返回的顺序：每行从左到右，然后下一行
+        objp[:,:2] = np.mgrid[0:cols, 0:rows].T.reshape(-1, 2)
+        objp *= self.square_size  # 乘以实际尺寸
         
         self.objp = objp
         
-        # 打印前几个点用于调试
+        # 打印调试信息
         self.get_logger().info(f'棋盘格尺寸: {cols}列 × {rows}行')
+        self.get_logger().info(f'方格大小: {self.square_size}m')
+        self.get_logger().info(f'总角点数: {len(objp)}')
         self.get_logger().info(f'前5个3D点: {objp[:5].tolist()}')
+        self.get_logger().info(f'最后5个3D点: {objp[-5:].tolist()}')
     
     def image_callback(self, msg):
         """图像回调函数"""
@@ -222,6 +226,16 @@ class HandEyeCalibration(Node):
                 self.get_logger().error('相机标定参数无效，请先进行相机标定')
                 return None
             
+            # 打印调试信息
+            self.get_logger().debug(f'3D点数量: {len(self.objp)}, 2D角点数量: {len(corners)}')
+            self.get_logger().debug(f'相机矩阵形状: {self.camera_utils.camera_matrix.shape}')
+            self.get_logger().debug(f'畸变系数形状: {self.camera_utils.dist_coeffs.shape}')
+            
+            # 检查输入数据的有效性
+            if len(self.objp) != len(corners):
+                self.get_logger().error(f'3D点数量({len(self.objp)})与2D角点数量({len(corners)})不匹配')
+                return None
+            
             # 使用PnP求解标定板位姿
             # solvePnP返回的是标定板相对于相机的位姿变换
             success, rvec, tvec = cv2.solvePnP(self.objp, corners, self.camera_utils.camera_matrix, self.camera_utils.dist_coeffs)
@@ -233,15 +247,16 @@ class HandEyeCalibration(Node):
                 T[:3, :3] = R
                 T[:3, 3] = tvec.flatten()
                 
-                            # 调试信息：打印标定板位姿
-            self.get_logger().debug(f'标定板位姿: 平移=[{tvec[0].item():.3f}, {tvec[1].item():.3f}, {tvec[2].item():.3f}]m')
-            
-            # 验证Z坐标的合理性（相机前方应该是正值）
-            if tvec[2].item() <= 0:
-                self.get_logger().warn(f'警告：标定板Z坐标为负值 ({tvec[2].item():.3f}m)，可能存在坐标系问题')
+                # 调试信息：打印标定板位姿
+                self.get_logger().debug(f'标定板位姿: 平移=[{tvec[0].item():.3f}, {tvec[1].item():.3f}, {tvec[2].item():.3f}]m')
+                
+                # 验证Z坐标的合理性（相机前方应该是正值）
+                if tvec[2].item() <= 0:
+                    self.get_logger().warn(f'警告：标定板Z坐标为负值 ({tvec[2].item():.3f}m)，可能存在坐标系问题')
                 
                 return T  # 返回 T_target_to_cam
             else:
+                self.get_logger().warn('PnP求解失败，无法估计标定板位姿')
                 return None
         except Exception as e:
             self.get_logger().error(f'位姿估计错误: {str(e)}')
