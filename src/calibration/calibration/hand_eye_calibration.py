@@ -217,6 +217,11 @@ class HandEyeCalibration(Node):
             T_target_to_cam: 4x4变换矩阵，表示标定板相对于相机的变换
         """
         try:
+            # 检查相机标定参数是否有效
+            if self.camera_utils.camera_matrix is None or self.camera_utils.dist_coeffs is None:
+                self.get_logger().error('相机标定参数无效，请先进行相机标定')
+                return None
+            
             # 使用PnP求解标定板位姿
             # solvePnP返回的是标定板相对于相机的位姿变换
             success, rvec, tvec = cv2.solvePnP(self.objp, corners, self.camera_utils.camera_matrix, self.camera_utils.dist_coeffs)
@@ -228,12 +233,12 @@ class HandEyeCalibration(Node):
                 T[:3, :3] = R
                 T[:3, 3] = tvec.flatten()
                 
-                # 调试信息：打印标定板位姿
-                self.get_logger().debug(f'标定板位姿: 平移=[{tvec[0]:.3f}, {tvec[1]:.3f}, {tvec[2]:.3f}]m')
-                
-                # 验证Z坐标的合理性（相机前方应该是正值）
-                if tvec[2] <= 0:
-                    self.get_logger().warn(f'警告：标定板Z坐标为负值 ({tvec[2]:.3f}m)，可能存在坐标系问题')
+                            # 调试信息：打印标定板位姿
+            self.get_logger().debug(f'标定板位姿: 平移=[{tvec[0].item():.3f}, {tvec[1].item():.3f}, {tvec[2].item():.3f}]m')
+            
+            # 验证Z坐标的合理性（相机前方应该是正值）
+            if tvec[2].item() <= 0:
+                self.get_logger().warn(f'警告：标定板Z坐标为负值 ({tvec[2].item():.3f}m)，可能存在坐标系问题')
                 
                 return T  # 返回 T_target_to_cam
             else:
@@ -569,7 +574,7 @@ class HandEyeCalibration(Node):
                 'pitch': float(np.degrees(euler[1])),
                 'yaw': float(np.degrees(euler[2]))
             },
-            'calibration_error': float(self.calibration_error),
+            'calibration_error': float(self.calibration_error) if self.calibration_error is not None else 0.0,
             'detailed_error': getattr(self, 'detailed_error', {}),
             'num_poses': len(self.robot_poses),
             'calibration_date': datetime.now().isoformat(),
@@ -585,7 +590,7 @@ class HandEyeCalibration(Node):
         np_path = os.path.join(self.save_dir, 'hand_eye_calibration.npz')
         np.savez(np_path, 
                 hand_eye_transform=self.hand_eye_transform,
-                calibration_error=self.calibration_error)
+                calibration_error=self.calibration_error if self.calibration_error is not None else 0.0)
         
         # 保存位姿数据
         poses_data = {
