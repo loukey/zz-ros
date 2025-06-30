@@ -43,7 +43,7 @@ class HandEyeCalibration(Node):
         self.declare_parameter('chessboard_size', '11,8')
         self.declare_parameter('square_size', 0.025)
         self.declare_parameter('save_dir', './hand_eye_calibration_data')
-        self.declare_parameter('min_poses', 3)  # 最少标定位姿数
+        self.declare_parameter('min_poses', 10)  # 最少标定位姿数
         self.declare_parameter('calibration_file', './calibration_data/camera_calibration.yaml')
         
         # 获取参数
@@ -239,7 +239,12 @@ class HandEyeCalibration(Node):
             # 使用PnP求解标定板位姿
             # solvePnP返回的是标定板相对于相机的位姿变换
             success, rvec, tvec = cv2.solvePnP(self.objp, corners, self.camera_utils.camera_matrix, self.camera_utils.dist_coeffs)
-            
+            projected_points, _ = cv2.projectPoints(self.objp, rvec, tvec, self.camera_utils.camera_matrix, self.camera_utils.dist_coeffs)
+            projected_points = projected_points.squeeze()
+            image_points = corners.squeeze()
+            errors=np.mean(np.linalg.norm(projected_points - image_points, axis=1))
+            print(f'标定板位姿估计误差: {errors:.3f}像素')
+            self.get_logger().debug(f'标定板位姿估计误差: {errors:.3f}像素')
             if success:
                 # 转换为变换矩阵 T_target_to_cam
                 R, _ = cv2.Rodrigues(rvec)
@@ -411,16 +416,21 @@ class HandEyeCalibration(Node):
                 # 机器人位姿处理：
                 # robot_pose是从ROS话题获得的，表示T_gripper_to_base（末端执行器相对于基座）
                 # 这正是cv2.calibrateHandEye需要的格式
+                i=0
                 T_gripper_to_base = robot_pose
+                t_robot= T_gripper_to_base[:3, 3]
+                print(f"Frame {i}: robot_pose={t_robot}")
                 R_gripper2base.append(T_gripper_to_base[:3, :3])
                 t_gripper2base.append(T_gripper_to_base[:3, 3])
                 
                 # 标定板位姿处理：
                 # camera_pose是T_target_to_cam（标定板到相机），这正是cv2.calibrateHandEye需要的
                 T_target_to_cam = camera_pose
+                t_camera= T_target_to_cam[:3, 3]
+                print(f"Frame {i}: camera_pose={t_camera}")
                 R_target2cam.append(T_target_to_cam[:3, :3])
                 t_target2cam.append(T_target_to_cam[:3, 3])
-            
+                i=i+1
             # 使用OpenCV进行手眼标定
             R_cam2gripper, t_cam2gripper = cv2.calibrateHandEye(
                 R_gripper2base, t_gripper2base,

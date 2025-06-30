@@ -184,7 +184,7 @@ motion_planning_data.json
 *.png
 *.jpeg
 calibration_data/
-hand_eye_calibration_data/
+
 *.pt
 images
 annotations
