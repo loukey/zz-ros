@@ -1,6 +1,8 @@
-from .base import *
 from functools import reduce
-from math import acos, degrees
+from math import acos, degrees, sin, cos, atan2, sqrt, pi
+import numpy as np
+from .base import *
+from scipy.spatial.transform import Rotation as R
 
 
 class Kinematic6DOF:
@@ -14,6 +16,7 @@ class Kinematic6DOF:
         4 | 0.401           | pi                | 0.0856        | π/2 (90°)
         5 | 0.0             | π/2 (90°)          | 0.086        | 0.0
         6 | 0.0             | -π/2 (-90°)        | 0.0725       | 0.0
+        # 0.2062
         '''
         self.theta_list = theta_list
         self.DH_matrix = np.array([
@@ -47,8 +50,8 @@ class Kinematic6DOF:
 
     def get_end_position(self, theta_list):
         self.update_dh(theta_list)
-        A, B, C = XYZ_rotation_matrix_to_euler_angles(self.forward_rm[:3, :3])
-        return A, B, C, self.forward_rm[:3, 3]
+        quat = R.from_matrix(self.forward_rm[:3, :3]).as_quat()
+        return quat, self.forward_rm[:3, 3]
 
     @staticmethod
     def normalize_angle(angle):
@@ -57,13 +60,13 @@ class Kinematic6DOF:
     """
     逆运动学求解关节角度
     """
-    def inverse_kinematic(self, A, B, C, px, py, pz, initial_theta=None):
+    def inverse_kinematic(self, rm, pos, initial_theta=None):
         valid_solutions = []
         # rotation matrix
-        rm = XYZ_euler_angles_to_rotation_matrix(A, B, C)
         nx, ny, nz = rm[:, 0]
         ox, oy, oz = rm[:, 1]
         ax, ay, az = rm[:, 2]
+        px, py, pz = pos
         
         # DH参数
         a3 = 0.425 
@@ -181,9 +184,8 @@ class Kinematic6DOF:
         print(T06)
         target_pos = T06[:3, 3]
         target_rm = T06[:3, :3]
-        A, B, C = XYZ_rotation_matrix_to_euler_angles(target_rm)
         try:
-            solved_angles = self.inverse_kinematic(A, B, C, *target_pos)
+            solved_angles = self.inverse_kinematic(target_rm, target_pos)
             print("初始角度:", [degrees(t) for t in theta_list])
             print("解算角度:", [degrees(t) for t in solved_angles])
             if self.verify_solution(solved_angles, target_pos):
@@ -209,4 +211,4 @@ class Kinematic6DOF:
         error = np.linalg.norm(current_pos - target_pos)
         
         return error < 1e-5 
-        
+    

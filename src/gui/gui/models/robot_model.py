@@ -6,7 +6,7 @@ import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import PoseStamped
 from PyQt5.QtCore import QObject, pyqtSignal, QThread, QTimer
-from kinematic import Kinematic6DOF, quaternion_from_euler
+from kinematic import *
 from config import GlobalVars
 import time
 
@@ -53,10 +53,7 @@ class RobotPosePublisher(Node):
                 return
             
             # 使用Kinematic6DOF类计算末端位姿
-            A, B, C, position = self.kinematic_solver.get_end_position(joint_angles)
-            
-            # 将欧拉角转换为四元数
-            quaternion = quaternion_from_euler(A, B, C)  # [x, y, z, w]
+            quaternion, position = self.kinematic_solver.get_end_position(joint_angles)
             
             # 创建PoseStamped消息
             pose_msg = PoseStamped()
@@ -82,8 +79,6 @@ class RobotPosePublisher(Node):
         except Exception as e:
             self.get_logger().error(f'发布位姿失败: {str(e)}')
     
-
-
 
 class RobotModel(QObject):
     """机器人模型类 - 管理位姿发布"""

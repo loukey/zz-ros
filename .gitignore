@@ -191,3 +191,5 @@ annotations
 calibration_data
 test*
 log*
+hand_eye_calibration_data
+hand_eye_calibration_data/*
