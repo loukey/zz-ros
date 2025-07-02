@@ -530,10 +530,10 @@ class HandEyeCalibration(Node):
         t = self.hand_eye_transform[:3, 3]
         
         # 转换为四元数
-        q = self.rotation_matrix_to_quaternion(R)
+        q = Rotation.as_quat(Rotation.from_matrix(R))
         
         # 转换为欧拉角
-        euler = self.rotation_matrix_to_euler(R)
+        euler = Rotation.from_matrix(R).as_euler('xyz', degrees=True)
         
         # 准备保存数据
         calibration_data = {

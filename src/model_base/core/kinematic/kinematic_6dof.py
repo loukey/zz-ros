@@ -140,31 +140,7 @@ class Kinematic6DOF:
         print("最终解:", final_solution)
         return final_solution
         
-    """
-    test kinematic
-    """
-    def test_kinematic(self, theta_list):
-        print("测试角度:", [degrees(t) for t in theta_list])
-        self.theta_list = theta_list
-        self.update_dh(self.theta_list)
-        T06 = self.forward_kinematic()
-        print(T06)
-        target_pos = T06[:3, 3]
-        target_rm = T06[:3, :3]
-        A, B, C = XYZ_rotation_matrix_to_euler_angles(target_rm)
-        print("Euler Angles: {} {} {}".format(A, B, C))
-        print("目标位置:", target_pos)
-        
-        try:
-            solved_angles = self.inverse_kinematic(A, B, C, *target_pos)
-            print("解算角度:", [degrees(t) for t in solved_angles])
-            if self.verify_solution(solved_angles, target_pos):
-                print("解算成功！误差在允许范围内")
-            else:
-                print("警告：解算结果误差过大")
-                
-        except Exception as e:
-            print("解算失败:", str(e))
+
         
     def verify_solution(self, theta_list, target_pos):
         """验证逆解结果是否正确"""

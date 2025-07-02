@@ -258,14 +258,3 @@ def process_directory(annotations_dir="./data/annotations", output_dir="./data/i
     print(f"\n批量处理完成！成功处理 {success_count}/{len(json_files)} 个文件")
 
 
-def main():
-    """主函数"""
-    annotations_dir = "./data/annotations"
-    
-    print("开始零件尖端方向检测...")
-    process_directory(annotations_dir)
-    print("检测完成！")
-
-
-if __name__ == "__main__":
-    main() 

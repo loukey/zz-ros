@@ -19,7 +19,7 @@ from datetime import datetime
 class YOLOSegmentationTrainer:
     def __init__(self, 
                  data_config="../data/yolo_dataset/dataset.yaml",
-                 model="yolov8n-seg.pt",
+                 model="yolo11n-seg.pt",
                  project="./runs/segment",
                  name="train"):
         """
@@ -329,7 +329,7 @@ def main():
     # 基本参数
     parser.add_argument("--data", type=str, default="../data/yolo_dataset/dataset.yaml",
                        help="数据集配置文件路径")
-    parser.add_argument("--model", type=str, default="../models_cache/yolo11x-seg.pt",
+    parser.add_argument("--model", type=str, default="../models_cache/yolo11n-seg.pt",
                        help="预训练模型名称或路径")
     parser.add_argument("--project", type=str, default="./runs/segment",
                        help="训练结果保存项目目录")
@@ -337,9 +337,9 @@ def main():
                        help="训练实验名称")
     
     # 训练参数
-    parser.add_argument("--epochs", type=int, default=100, help="训练轮数")
+    parser.add_argument("--epochs", type=int, default=20, help="训练轮数")
     parser.add_argument("--imgsz", type=int, default=640, help="输入图像尺寸")
-    parser.add_argument("--batch", type=int, default=16, help="批次大小")
+    parser.add_argument("--batch", type=int, default=4, help="批次大小")
     parser.add_argument("--lr0", type=float, default=0.01, help="初始学习率")
     parser.add_argument("--device", type=str, default="cuda", help="设备选择")
     
