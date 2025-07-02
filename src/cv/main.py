@@ -21,7 +21,7 @@ def main():
     print("=== 语义分割和方向识别工具 ===")
     
     # 创建检测器
-    detector = YOLODetector(model_path='./models_cache/yolo_seg.pt')
+    detector = YOLODetector(model_path='./models_cache/yolo_seg_n.pt')
     
     # 执行检测和保存
     results = detector.process_and_save(

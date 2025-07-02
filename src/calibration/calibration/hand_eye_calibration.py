@@ -204,9 +204,69 @@ class HandEyeCalibration(Node):
         self.get_logger().info(f'机器人位姿: [{robot_pose[0,3]:.3f}, {robot_pose[1,3]:.3f}, {robot_pose[2,3]:.3f}]')
         self.get_logger().info(f'标定板位姿: [{camera_pose[0,3]:.3f}, {camera_pose[1,3]:.3f}, {camera_pose[2,3]:.3f}]')
         
+        # 添加位姿移动建议
+        self.provide_next_pose_suggestion()
+        
         if len(self.robot_poses) >= self.min_poses:
             self.get_logger().info(f'已收集足够位姿数据 ({len(self.robot_poses)}个)')
             self.get_logger().info('输入 \'calibrate\' 开始手眼标定')
+    
+    def provide_next_pose_suggestion(self):
+        """提供下一个位姿移动建议"""
+        num_poses = len(self.robot_poses)
+        
+        if num_poses == 1:
+            self.get_logger().info("建议: 将机器人向左或右移动15-20cm，保持相同高度")
+        elif num_poses == 2:
+            self.get_logger().info("建议: 改变机器人高度，向上或向下移动10-15cm")
+        elif num_poses == 3:
+            self.get_logger().info("建议: 旋转机器人末端执行器，改变观察角度15-30°")
+        elif num_poses == 4:
+            self.get_logger().info("建议: 增加观察距离，将机器人后退10-15cm")
+        elif num_poses == 5:
+            self.get_logger().info("建议: 尝试倾斜角度观察，改变Roll或Pitch角度")
+        elif num_poses < 10:
+            # 分析当前位姿分布
+            current_distance = np.linalg.norm(self.camera_poses[-1][:3, 3])
+            distances = [np.linalg.norm(pose[:3, 3]) for pose in self.camera_poses]
+            
+            if max(distances) - min(distances) < 0.15:  # 距离变化不够
+                self.get_logger().info(f"建议: 增加距离变化，当前距离范围 {min(distances):.2f}-{max(distances):.2f}m")
+            else:
+                # 检查角度变化
+                self.get_logger().info("建议: 尝试不同的观察角度，确保姿态充分变化")
+        else:
+            # 检查位姿分布质量
+            self.analyze_pose_distribution()
+    
+    def analyze_pose_distribution(self):
+        """分析位姿分布质量"""
+        if len(self.robot_poses) < 5:
+            return
+        
+        # 分析距离分布
+        distances = [np.linalg.norm(pose[:3, 3]) for pose in self.camera_poses]
+        distance_range = max(distances) - min(distances)
+        
+        # 分析角度分布
+        angles = []
+        for pose in self.camera_poses:
+            # 计算相对于垂直方向的角度
+            z_axis = pose[:3, 2]  # 相机Z轴方向
+            angle = np.arccos(np.clip(np.abs(z_axis[2]), 0, 1))
+            angles.append(np.degrees(angle))
+        
+        angle_range = max(angles) - min(angles)
+        
+        # 提供反馈
+        if distance_range < 0.20:
+            self.get_logger().warn(f"距离变化不够: {distance_range:.2f}m，建议增加到0.20m以上")
+        
+        if angle_range < 30:
+            self.get_logger().warn(f"角度变化不够: {angle_range:.1f}°，建议增加到30°以上")
+        
+        if distance_range >= 0.20 and angle_range >= 30:
+            self.get_logger().info("位姿分布良好，可以进行标定")
     
     def estimate_board_pose(self, corners):
         """
