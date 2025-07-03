@@ -1,0 +1,183 @@
+# Custom YOLO OBB + Direction Model Configuration
+# 基于PR #19615：User-definable custom module support in model YAML
+# 输出格式：class + 8个OBB角点坐标 + 1个角度值
+
+# Parameters
+nc: 1  # number of classes
+scales: # model compound scaling constants
+  # [depth, width, max_channels]
+  n: [0.50, 0.25, 1024]  # YOLO11n summary: 319 layers,  2624080 parameters,  2624064 gradients,   6.6 GFLOPs
+  s: [0.50, 0.50, 1024]  # YOLO11s summary: 319 layers,  9458752 parameters,  9458736 gradients,  21.7 GFLOPs
+  m: [0.50, 0.75, 768]   # YOLO11m summary: 409 layers, 20114688 parameters, 20114672 gradients,  68.5 GFLOPs
+  l: [1.00, 1.00, 512]   # YOLO11l summary: 631 layers, 25372160 parameters, 25372144 gradients, 87.6 GFLOPs
+  x: [1.00, 1.50, 512]   # YOLO11x summary: 631 layers, 56966176 parameters, 56966160 gradients, 196.4 GFLOPs
+
+# YOLO11n backbone
+backbone:
+  # [from, repeats, module, args]
+  - [-1, 1, Conv, [64, 3, 2]]  # 0-P1/2
+  - [-1, 1, Conv, [128, 3, 2]]  # 1-P2/4
+  - [-1, 2, C3k2, [256, False, 0.25]]
+  - [-1, 1, Conv, [256, 3, 2]]  # 3-P3/8
+  - [-1, 2, C3k2, [512, False, 0.25]]
+  - [-1, 1, Conv, [512, 3, 2]]  # 5-P4/16
+  - [-1, 2, C3k2, [512, True]]
+  - [-1, 1, Conv, [1024, 3, 2]]  # 7-P5/32
+  - [-1, 2, C3k2, [1024, True]]
+  - [-1, 1, SPPF, [1024, 5]]  # 9
+
+# YOLO11n head with custom OBB+Direction detection
+head:
+  - [-1, 1, nn.Upsample, [None, 2, 'nearest']]
+  - [[-1, 6], 1, Concat, [1]]  # cat backbone P4
+  - [-1, 2, C3k2, [512, False]]  # 12
+
+  - [-1, 1, nn.Upsample, [None, 2, 'nearest']]
+  - [[-1, 4], 1, Concat, [1]]  # cat backbone P3
+  - [-1, 2, C3k2, [256, False]]  # 15 (P3/8-small)
+
+  - [-1, 1, Conv, [256, 3, 2]]
+  - [[-1, 12], 1, Concat, [1]]  # cat head P4
+  - [-1, 2, C3k2, [512, False]]  # 18 (P4/16-medium)
+
+  - [-1, 1, Conv, [512, 3, 2]]
+  - [[-1, 9], 1, Concat, [1]]  # cat head P5
+  - [-1, 2, C3k2, [1024, False]]  # 21 (P5/32-large)
+
+  # Custom OBB + Direction Detection Head
+  - [[15, 18, 21], 1, OBBDirectionDetect, [nc]]  # OBB + Direction detection head
+
+# Custom module definition using PR #19615 format
+module:
+  init: |
+    # 自定义OBB+Direction检测头
+    # 输出格式：class + 8个OBB角点坐标 + 1个角度值
+    
+    import torch
+    import torch.nn as nn
+    from ultralytics.nn.modules import Conv, DFL
+    from ultralytics.utils.tal import dist2bbox, make_anchors
+    
+    class OBBDirectionDetect(nn.Module):
+        """
+        自定义OBB+Direction检测头
+        输出格式：[class_scores, obb_coords, direction_angle]
+        - class_scores: nc个类别分数
+        - obb_coords: 8个角点坐标
+        - direction_angle: 1个角度值
+        总输出：nc + 8 + 1 = nc + 9
+        """
+        
+        def __init__(self, nc=80, ch=()):
+            super().__init__()
+            self.nc = nc  # number of classes
+            self.no_obb = 8  # number of OBB coordinates (4 corners * 2)
+            self.no_angle = 1  # number of angle outputs
+            self.no = nc + self.no_obb + self.no_angle  # total outputs per anchor
+            self.nl = len(ch)  # number of detection layers
+            self.stride = torch.zeros(self.nl)  # strides computed during build
+            
+            # 输出层
+            c2, c3 = max((16, ch[0] // 4, self.no)), max(ch[0], min(self.nc, 100))
+            
+            # OBB坐标预测层
+            self.cv_obb = nn.ModuleList([
+                nn.Sequential(Conv(x, c2, 3), Conv(c2, c2, 3), nn.Conv2d(c2, self.no_obb, 1))
+                for x in ch
+            ])
+            
+            # 类别预测层
+            self.cv_cls = nn.ModuleList([
+                nn.Sequential(Conv(x, c3, 3), Conv(c3, c3, 3), nn.Conv2d(c3, self.nc, 1))
+                for x in ch
+            ])
+            
+            # 角度预测层
+            self.cv_angle = nn.ModuleList([
+                nn.Sequential(Conv(x, c2, 3), Conv(c2, c2, 3), nn.Conv2d(c2, self.no_angle, 1))
+                for x in ch
+            ])
+            
+            # 分布式焦点损失层
+            self.dfl = DFL(16) if hasattr(DFL, '__init__') else None
+            
+        def forward(self, x):
+            """前向传播"""
+            shape = x[0].shape  # BCHW
+            
+            for i in range(self.nl):
+                # 预测OBB坐标、类别和角度
+                obb_pred = self.cv_obb[i](x[i])
+                cls_pred = self.cv_cls[i](x[i])
+                angle_pred = self.cv_angle[i](x[i])
+                
+                # 合并预测结果
+                x[i] = torch.cat([
+                    obb_pred.view(shape[0], self.no_obb, -1),
+                    cls_pred.view(shape[0], self.nc, -1),
+                    angle_pred.view(shape[0], self.no_angle, -1)
+                ], 1)
+            
+            if self.training:
+                return x
+            
+            # 推理时的后处理
+            return self.inference(x)
+            
+        def inference(self, x):
+            """推理时的预测解码"""
+            anchors, strides = make_anchors(x, self.stride, 0.5)
+            
+            y = []
+            for i in range(self.nl):
+                xi = x[i]
+                
+                # 分离不同类型的预测
+                obb_coords = xi[:, :self.no_obb, :]  # OBB坐标
+                class_scores = xi[:, self.no_obb:self.no_obb+self.nc, :]  # 类别分数
+                direction = xi[:, self.no_obb+self.nc:, :]  # 角度
+                
+                # 应用激活函数
+                obb_coords = obb_coords.sigmoid()  # 归一化坐标到[0,1]
+                class_scores = class_scores.sigmoid()  # 类别概率
+                direction = direction.tanh() * 180  # 角度范围[-180, 180]度
+                
+                # 重新合并
+                xi = torch.cat([obb_coords, class_scores, direction], 1)
+                y.append(xi)
+                
+            return y
+            
+        def bias_init(self):
+            """初始化偏置"""
+            for a, b, c in zip(self.cv_obb, self.cv_cls, self.cv_angle):
+                a[-1].bias.data[:] = 1.0  # OBB偏置
+                b[-1].bias.data[:self.nc] = torch.log(5 / self.nc / (640 / 16) ** 2)  # 类别偏置
+                c[-1].bias.data[:] = 0.0  # 角度偏置
+
+  parse: |
+    # 自定义参数解析器
+    if m is OBBDirectionDetect:
+        c2 = args[0] if args else 80  # 类别数
+        c1 = ch[f]  # 输入通道数
+        args = [c2, c1]  # 传递给模块的参数
+
+# Training hyperparameters
+task: 'obb'  # 任务类型
+
+# Loss configuration
+loss:
+  # 多任务损失权重
+  obb: 5.0        # OBB坐标损失权重
+  cls: 0.5        # 分类损失权重
+  direction: 2.0  # 角度损失权重
+
+# Model info
+info: |
+  Custom YOLO OBB + Direction model using PR #19615 format
+  - 基于GitHub PR #19615的用户自定义模块功能
+  - 支持OBB角点坐标 + 显式角度预测
+  - 输出格式：[class_score, x1, y1, x2, y2, x3, y3, x4, y4, angle_deg]
+  - 角度范围：[-180°, 180°]，0°=向上，顺时针为正
+  - 多任务学习：OBB定位 + 角度回归 + 分类
+  - 使用扩展标签格式：class + 8坐标 + 1角度（10个值） 

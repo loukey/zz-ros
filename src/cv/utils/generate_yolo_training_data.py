@@ -374,7 +374,7 @@ def main():
     generator.generate_dataset()
     
     print("\n生成完成! 可以使用以下命令训练YOLO模型:")
-    print("yolo segment train data=./data/yolo_dataset/dataset.yaml model=yolov8n-seg.pt epochs=100")
+    print("yolo segment train data=./data/yolo_dataset/dataset.yaml model=yolo11n-seg.pt epochs=100")
 
 
 if __name__ == "__main__":

@@ -25,8 +25,8 @@ def main():
     
     # 执行检测和保存
     results = detector.process_and_save(
-        images_dir='./data/yolo_dataset/images',
-        results_dir='./data/images/result'
+        images_dir='./data/origin_img',
+        results_dir='./data/result'
     )
     
     if results:
