@@ -3,6 +3,7 @@
 """
 YOLO分割训练数据生成器
 从LabelMe标注文件生成增强的YOLO segmentation训练数据
+支持多类别目标检测
 """
 
 import os
@@ -12,21 +13,107 @@ import numpy as np
 import random
 from pathlib import Path
 import math
+from collections import defaultdict
 
 
 class YOLODataGenerator:
     def __init__(self, annotations_dir="./data/annotations", 
                  output_dir="./data/yolo_dataset", 
-                 target_count=500):
+                 target_count=500,
+                 class_mapping=None,
+                 auto_discover_classes=True):
         self.annotations_dir = annotations_dir
         self.output_dir = output_dir
         self.target_count = target_count
+        self.auto_discover_classes = auto_discover_classes
+        
+        # 类别映射相关
+        self.class_mapping = class_mapping or {}  # label_name -> class_id
+        self.reverse_mapping = {}  # class_id -> label_name
+        self.class_names = []  # 按class_id顺序排列的类别名称
+        self.unknown_labels = set()  # 记录未知的标签
         
         # 创建输出目录结构
         self.images_dir = os.path.join(output_dir, "images")
         self.labels_dir = os.path.join(output_dir, "labels")
         os.makedirs(self.images_dir, exist_ok=True)
         os.makedirs(self.labels_dir, exist_ok=True)
+        
+        # 如果需要自动发现类别，先扫描所有文件
+        if self.auto_discover_classes:
+            self.discover_classes()
+        else:
+            self.setup_class_mapping()
+    
+    def discover_classes(self):
+        """自动发现数据集中的所有类别"""
+        print("正在自动发现类别...")
+        all_labels = set()
+        
+        # 扫描所有JSON文件，收集所有标签
+        for file in os.listdir(self.annotations_dir):
+            if file.lower().endswith('.json'):
+                json_path = os.path.join(self.annotations_dir, file)
+                try:
+                    with open(json_path, 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+                    
+                    for shape in data.get('shapes', []):
+                        if shape['shape_type'] == 'polygon':
+                            label = shape.get('label', 'unknown')
+                            all_labels.add(label)
+                            
+                except Exception as e:
+                    print(f"警告: 读取文件 {file} 时出错: {e}")
+        
+        # 如果有预定义的类别映射，保留它们
+        if self.class_mapping:
+            print(f"使用预定义的类别映射: {self.class_mapping}")
+            existing_labels = set(self.class_mapping.keys())
+            new_labels = all_labels - existing_labels
+            
+            if new_labels:
+                print(f"发现新类别: {new_labels}")
+                # 为新类别分配ID
+                max_id = max(self.class_mapping.values()) if self.class_mapping else -1
+                for label in sorted(new_labels):
+                    max_id += 1
+                    self.class_mapping[label] = max_id
+        else:
+            # 创建新的类别映射
+            print(f"发现的所有类别: {sorted(all_labels)}")
+            self.class_mapping = {}
+            for i, label in enumerate(sorted(all_labels)):
+                self.class_mapping[label] = i
+        
+        self.setup_class_mapping()
+        print(f"最终类别映射: {self.class_mapping}")
+    
+    def setup_class_mapping(self):
+        """设置类别映射关系"""
+        # 创建反向映射
+        self.reverse_mapping = {v: k for k, v in self.class_mapping.items()}
+        
+        # 创建按ID排序的类别名称列表
+        max_id = max(self.class_mapping.values()) if self.class_mapping else -1
+        self.class_names = ['unknown'] * (max_id + 1)
+        
+        for label, class_id in self.class_mapping.items():
+            self.class_names[class_id] = label
+        
+        print(f"类别设置完成: {len(self.class_names)} 个类别")
+        for i, name in enumerate(self.class_names):
+            print(f"  {i}: {name}")
+    
+    def get_class_id(self, label):
+        """根据标签名获取类别ID"""
+        if label in self.class_mapping:
+            return self.class_mapping[label]
+        else:
+            # 记录未知标签
+            self.unknown_labels.add(label)
+            # 返回一个默认值或跳过
+            return -1  # 用-1表示未知类别，后续会过滤掉
 
     def load_labelme_data(self, json_path):
         """加载LabelMe标注数据"""
@@ -58,12 +145,16 @@ class YOLODataGenerator:
         for shape in shapes:
             if shape['shape_type'] == 'polygon':
                 points = np.array(shape['points'], dtype=np.float32)
-                label = shape.get('label', 'part')
-                annotations.append({
-                    'label': label,
-                    'points': points,
-                    'class_id': 0  # 假设只有一个类别
-                })
+                label = shape.get('label', 'unknown')
+                class_id = self.get_class_id(label)
+                
+                # 只保留有效的类别
+                if class_id >= 0:
+                    annotations.append({
+                        'label': label,
+                        'points': points,
+                        'class_id': class_id
+                    })
         
         return image, annotations
 
@@ -256,6 +347,14 @@ class YOLODataGenerator:
         
         return img_filename, label_filename
 
+    def print_class_statistics(self):
+        """打印类别统计信息"""
+        if self.unknown_labels:
+            print(f"\n警告: 发现 {len(self.unknown_labels)} 个未知标签:")
+            for label in sorted(self.unknown_labels):
+                print(f"  - {label}")
+            print("这些标签将被跳过。如需包含，请更新类别映射。")
+
     def generate_dataset(self):
         """生成完整数据集"""
         # 获取所有json文件
@@ -280,6 +379,7 @@ class YOLODataGenerator:
             print(f"前 {remaining_samples} 个文件额外生成 1 个样本")
         
         total_generated = 0
+        class_counts = defaultdict(int)  # 统计每个类别的样本数
         
         for file_idx, json_path in enumerate(json_files):
             print(f"\n处理文件 [{file_idx+1}/{len(json_files)}]: {os.path.basename(json_path)}")
@@ -289,6 +389,10 @@ class YOLODataGenerator:
             if image is None or not annotations:
                 print(f"跳过文件: {json_path}")
                 continue
+            
+            # 统计类别
+            for ann in annotations:
+                class_counts[ann['label']] += 1
             
             # 确定此文件要生成的样本数
             current_samples = samples_per_file
@@ -330,6 +434,15 @@ class YOLODataGenerator:
         print(f"图像保存至: {self.images_dir}")
         print(f"标签保存至: {self.labels_dir}")
         
+        # 打印类别统计
+        print(f"\n类别统计:")
+        for label, count in sorted(class_counts.items()):
+            class_id = self.get_class_id(label)
+            print(f"  {label} (ID: {class_id}): {count} 个原始样本")
+        
+        # 打印未知标签警告
+        self.print_class_statistics()
+        
         # 生成数据集配置文件
         self.create_dataset_yaml()
 
@@ -337,18 +450,23 @@ class YOLODataGenerator:
         """创建YOLO数据集配置文件"""
         yaml_content = f"""# YOLO Segmentation Dataset Configuration
 # Generated from LabelMe annotations
+# Multi-class support enabled
 
 path: {os.path.abspath(self.output_dir)}
 train: images
 val: images  # 使用相同目录，实际使用时应该分割train/val
 
 # Classes
-nc: 1  # number of classes
-names: ['part']  # class names
+nc: {len(self.class_names)}  # number of classes
+names: {self.class_names}  # class names
+
+# Class mapping
+class_mapping: {dict(self.class_mapping)}
 
 # Dataset info
 total_samples: {self.target_count}
-source_annotations: 5 LabelMe JSON files
+source_annotations: {len(os.listdir(self.annotations_dir))} LabelMe JSON files
+auto_discovered_classes: {self.auto_discover_classes}
 """
         
         yaml_path = os.path.join(self.output_dir, "dataset.yaml")
@@ -360,21 +478,51 @@ source_annotations: 5 LabelMe JSON files
 
 def main():
     """主函数"""
-    print("YOLO分割训练数据生成器")
+    print("YOLO分割训练数据生成器 (多类别支持)")
     print("=" * 50)
     
-    # 创建生成器
-    generator = YOLODataGenerator(
-        annotations_dir="./data/annotations",
-        output_dir="./data/yolo_dataset", 
-        target_count=500
+    # 示例1: 自动发现类别
+    print("\n示例1: 自动发现类别")
+    generator1 = YOLODataGenerator(
+        annotations_dir="../data/annotations",
+        output_dir="../data/yolo_dataset_auto", 
+        target_count=500,
+        auto_discover_classes=True
     )
+    
+    # 示例2: 手动指定类别映射
+    print("\n示例2: 手动指定类别映射")
+    custom_mapping = {
+        'part': 0,
+        'defect': 1,
+        'background': 2
+    }
+    generator2 = YOLODataGenerator(
+        annotations_dir="../data/annotations",
+        output_dir="../data/yolo_dataset_custom", 
+        target_count=500,
+        class_mapping=custom_mapping,
+        auto_discover_classes=False
+    )
+    
+    # 选择使用哪个生成器
+    print("\n选择生成器:")
+    print("1. 自动发现类别")
+    print("2. 使用自定义类别映射")
+    choice = input("请选择 (1 或 2): ").strip()
+    
+    if choice == "2":
+        generator = generator2
+        print("使用自定义类别映射")
+    else:
+        generator = generator1
+        print("使用自动发现类别")
     
     # 生成数据集
     generator.generate_dataset()
     
     print("\n生成完成! 可以使用以下命令训练YOLO模型:")
-    print("yolo segment train data=./data/yolo_dataset/dataset.yaml model=yolo11n-seg.pt epochs=100")
+    print(f"yolo segment train data={generator.output_dir}/dataset.yaml model=yolo11n-seg.pt epochs=100")
 
 
 if __name__ == "__main__":

@@ -19,7 +19,7 @@ from datetime import datetime
 class YOLOSegmentationTrainer:
     def __init__(self, 
                  data_config="../data/yolo_dataset/dataset.yaml",
-                 model="yolo11n-seg.pt",
+                 model="../models_cache/yolo11n-seg.pt",
                  project="./runs/segment",
                  name="train"):
         """
@@ -327,11 +327,11 @@ def main():
     parser = argparse.ArgumentParser(description="YOLO Segmentation 训练脚本")
     
     # 基本参数
-    parser.add_argument("--data", type=str, default="../data/yolo_dataset/dataset.yaml",
+    parser.add_argument("--data", type=str, default="../data/yolo_dataset_auto/dataset.yaml",
                        help="数据集配置文件路径")
     parser.add_argument("--model", type=str, default="../models_cache/yolo11n-seg.pt",
                        help="预训练模型名称或路径")
-    parser.add_argument("--project", type=str, default="./runs/segment",
+    parser.add_argument("--project", type=str, default="./runs/multi-segment",
                        help="训练结果保存项目目录")
     parser.add_argument("--name", type=str, default="train",
                        help="训练实验名称")
