@@ -101,7 +101,6 @@ class CameraController(BaseController):
                     # 如果检测开启，在图像上绘制检测框
                     if self.detection_model is not None:
                         detections = self.detection_model.get_latest_detection_result()
-                        self.display("检测结果: " + str(detections), 'color')
                         if detections:
                             display_image = self._draw_detection_boxes(image, detections, 'color')
                         else:
@@ -221,8 +220,8 @@ class CameraController(BaseController):
         central_center = detections['central_center']
         angle = detections['angle']
         depth = detections['depth']
-        cv2.circle(image, head_center, 5, (0, 0, 255), -1)
-        cv2.circle(image, central_center, 5, (0, 255, 0), -1)
+        cv2.circle(image, (int(head_center[0]), int(head_center[1])), 5, (0, 0, 255), -1)
+        cv2.circle(image, (int(central_center[0]), int(central_center[1])), 5, (0, 255, 0), -1)
         cv2.putText(image, f"angle: {angle:.2f}", (head_center[0], head_center[1] - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
         cv2.putText(image, f"depth: {depth:.2f}", (central_center[0], central_center[1] - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
         return image
