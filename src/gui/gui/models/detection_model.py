@@ -91,6 +91,7 @@ class DetectionModel(QObject):
 
             # 更新检测结果
             self.latest_detection_result = detections
+            self.error_occurred.emit(f"检测结果: {detections}")
         except Exception as e:
             self.error_occurred.emit(f"检测处理失败: {str(e)}")
             return
