@@ -217,11 +217,13 @@ class CameraController(BaseController):
     
     def _draw_detection_boxes(self, image, detections, image_type):
         head_center = detections['head_center']
+        head_center = (int(head_center[0]), int(head_center[1]))
         central_center = detections['central_center']
+        central_center = (int(central_center[0]), int(central_center[1]))
         angle = detections['angle']
         depth = detections['depth']
-        cv2.circle(image, (int(head_center[0]), int(head_center[1])), 5, (0, 0, 255), -1)
-        cv2.circle(image, (int(central_center[0]), int(central_center[1])), 5, (0, 255, 0), -1)
+        cv2.circle(image, head_center, 5, (0, 0, 255), -1)
+        cv2.circle(image, central_center, 5, (0, 255, 0), -1)
         cv2.putText(image, f"angle: {angle:.2f}", (head_center[0], head_center[1] - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
         cv2.putText(image, f"depth: {depth:.2f}", (central_center[0], central_center[1] - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
         return image
