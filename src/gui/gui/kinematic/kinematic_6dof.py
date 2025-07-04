@@ -25,7 +25,7 @@ class Kinematic6DOF:
             [0.425, pi, 0.0, self.theta_list[2]],
             [0.401, pi, 0.0856, self.theta_list[3]],
             [0.0, pi/2, 0.086, self.theta_list[4]],
-            [0.0, -pi/2, 0.0725, self.theta_list[5]]
+            [0.0, -pi/2, 0.0925, self.theta_list[5]]
         ], dtype=float)
 
         self.rm_list = []
@@ -43,6 +43,9 @@ class Kinematic6DOF:
     def forward_kinematic(self):
         return reduce(lambda x, y: x @ y, self.rm_list, np.eye(4))
     
+    def get_forward_rm(self):
+        return self.forward_rm
+
     def update_dh(self, theta_list):
         self.DH_matrix[:, 3] = theta_list
         self.get_rotation_matrix_list()

@@ -101,6 +101,7 @@ class CameraController(BaseController):
                     # 如果检测开启，在图像上绘制检测框
                     if self.detection_model is not None:
                         detections = self.detection_model.get_latest_detection_result()
+                        self.display("检测结果: " + str(detections), 'color')
                         if detections:
                             display_image = self._draw_detection_boxes(image, detections, 'color')
                         else:
