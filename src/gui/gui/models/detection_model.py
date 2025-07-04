@@ -16,7 +16,7 @@ import math
 class DetectionModel(QObject):
     """检测数据模型类"""
     
-    error_occurred = pyqtSignal(str)  # 错误信号
+    detection_msg_signal = pyqtSignal(str)  # 错误信号
     
     def __init__(self, camera_model=None):
         super().__init__()
@@ -26,7 +26,7 @@ class DetectionModel(QObject):
         self.latest_detection_result = self.yolo_segmentor.detect(cv2.imread("./test3.jpg"))
         self.latest_detection_result['depth'] = 100
         self.detect_timer = QTimer()
-        self.detect_timer.setInterval(1000)
+        self.detect_timer.setInterval(200)
         self.detect_timer.timeout.connect(self.process_detection)
         
     def set_camera_model(self, camera_model):
@@ -75,14 +75,14 @@ class DetectionModel(QObject):
     def process_detection(self):
         try:            
             if not self.is_camera_available():
-                self.error_occurred.emit("摄像头不可用")
+                self.detection_msg_signal.emit("摄像头不可用")
                 return
             
             color_image = self.get_current_color_image()
             depth_image = self.get_current_depth_image()
             
             if color_image is None:
-                self.error_occurred.emit("无法获取彩色图像")
+                self.detection_msg_signal.emit("无法获取彩色图像")
                 return
             
             detections = self.yolo_segmentor.detect(color_image)
@@ -91,9 +91,9 @@ class DetectionModel(QObject):
 
             # 更新检测结果
             self.latest_detection_result = detections
-            self.error_occurred.emit(f"检测结果: {detections}")
+            self.detection_msg_signal.emit(f"检测结果: {detections}")
         except Exception as e:
-            self.error_occurred.emit(f"检测处理失败: {str(e)}")
+            self.detection_msg_signal.emit(f"检测处理失败: {str(e)}")
             return
     
     def get_latest_detection_result(self):

@@ -35,7 +35,12 @@ class CameraController(BaseController):
         self.camera_model.depth_image_received.connect(self._on_depth_image_received)
         self.camera_model.error_occurred.connect(self._on_error_occurred)
         self.camera_model.connection_status_changed.connect(self._on_status_changed)
-    
+        if self.detection_model:
+            self.detection_model.detection_msg_signal.connect(self.display_detection_msg)
+
+    def display_detection_msg(self, msg):
+        self.display(msg, "检测")
+
     def connect_camera(self):
         """连接摄像头"""
         try:
