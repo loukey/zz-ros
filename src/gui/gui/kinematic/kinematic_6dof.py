@@ -25,7 +25,7 @@ class Kinematic6DOF:
             [0.425, pi, 0.0, self.theta_list[2]],
             [0.401, pi, 0.0856, self.theta_list[3]],
             [0.0, pi/2, 0.086, self.theta_list[4]],
-            [0.0, -pi/2, 0.0925, self.theta_list[5]]
+            [0.0, -pi/2, 0.2785, self.theta_list[5]]
         ], dtype=float)
 
         self.rm_list = []
@@ -76,7 +76,7 @@ class Kinematic6DOF:
         a4 = 0.401 
         d4 = 0.0856 
         d5 = 0.086 
-        d6 = 0.0725 
+        d6 = 0.2785
         
         # 添加奇异性判断
         if abs(ax**2 + ay**2 - d4**2) < 1e-6:
