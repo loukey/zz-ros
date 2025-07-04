@@ -23,7 +23,7 @@ class DetectionModel(QObject):
         self.camera_model = camera_model
         self.detection_enabled = False
         self.yolo_segmentor = YOLOSegmentor("./detection_models/yolo_multi_seg_n.pt")
-        self.latest_detection_result = self.yolo_segmentor.detect("./test3.jpg")
+        self.latest_detection_result = self.yolo_segmentor.detect(cv2.imread("./test3.jpg"))
         self.detect_timer = QTimer()
         self.detect_timer.setInterval(1000)
         self.detect_timer.timeout.connect(self.process_detection)
