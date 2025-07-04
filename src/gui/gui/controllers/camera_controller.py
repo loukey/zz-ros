@@ -22,8 +22,7 @@ class CameraController(BaseController):
         self.detection_model = detection_model
         self.serial_model = serial_model
         self.robot_model = robot_model
-        self.current_display_mode = None  # 'color', 'depth', or None
-        self.detection_enabled = False  # 检测开关状态
+        self.current_display_mode = None
         self.display_timer = QTimer()
         self.display_timer.timeout.connect(self._update_display)
         
@@ -100,8 +99,12 @@ class CameraController(BaseController):
                 image = self.camera_model.get_latest_color_image()
                 if image is not None:
                     # 如果检测开启，在图像上绘制检测框
-                    if self.detection_enabled and self.detection_model is not None:
-                        display_image = self._draw_detection_boxes(image, 'color')
+                    if self.detection_model is not None:
+                        detections = self.detection_model.get_latest_detection_result()
+                        if detections:
+                            display_image = self._draw_detection_boxes(image, detections, 'color')
+                        else:
+                            display_image = image
                     else:
                         display_image = image
                     
@@ -116,8 +119,12 @@ class CameraController(BaseController):
                 if image is not None:
                     vis_image = self._visualize_depth_image(image)
                     # 如果检测开启，在图像上绘制检测框
-                    if self.detection_enabled and self.detection_model is not None:
-                        display_image = self._draw_detection_boxes(vis_image, 'depth')
+                    if self.detection_model is not None:
+                        detections = self.detection_model.get_latest_detection_result()
+                        if detections:
+                            display_image = self._draw_detection_boxes(vis_image, detections, 'depth')
+                        else:
+                            display_image = vis_image
                     else:
                         display_image = vis_image
                     
@@ -199,164 +206,25 @@ class CameraController(BaseController):
         return self.camera_model.is_depth_available()
     
     def start_detection(self):
-        """开始检测"""
-        try:
-            if not self.camera_model.is_camera_connected:
-                self.status_update_requested.emit("请先连接摄像头")
-                return
-            
-            if self.detection_model is None:
-                self.status_update_requested.emit("检测模型未初始化")
-                return
-            
-            # 启用DetectionModel的检测功能
-            success = self.detection_model.enable_detection()
-            if not success:
-                self.status_update_requested.emit("检测模型启动失败")
-                return
-            
-            self.detection_enabled = True
-            self.display("开始YOLO11目标检测 (仅彩色图像)", "检测")
-            self.status_update_requested.emit("检测已开启 - YOLO11模型")
-        except Exception as e:
-            self.display(f"启动检测失败: {str(e)}", "错误")
+        if self.detection_model:
+            self.detection_model.start_auto_detection()
+            self.display("开始零件识别", "检测")
     
     def stop_detection(self):
-        """停止检测"""
-        try:
-            self.detection_enabled = False
-            
-            # 禁用DetectionModel的检测功能
-            if self.detection_model:
-                self.detection_model.disable_detection()
-            
-            self.display("停止目标检测", "检测")
-            self.status_update_requested.emit("检测已停止")
-        except Exception as e:
-            self.display(f"停止检测失败: {str(e)}", "错误")
+        if self.detection_model:
+            self.detection_model.stop_auto_detection()
+            self.display("停止零件识别", "检测")
     
-    def _draw_detection_boxes(self, image, image_type):
-        """在图像上绘制检测框和详细信息"""
-        try:
-            if self.detection_model is None or not self.detection_enabled:
-                return image
-            
-            # 只处理彩色图像的检测
-            if image_type != 'color':
-                return image
-            
-            # 运行检测并获取结果
-            detection_result = self.detection_model.process_detection("color")
-            
-            # 如果没有检测结果，直接返回原图像
-            if not detection_result or 'color' not in detection_result:
-                return image
-            
-            color_result = detection_result['color']
-            objects = color_result.get('objects', [])
-            
-            if not objects:
-                return image
-            
-            # 在图像副本上绘制检测框
-            result_image = image.copy()
-            
-            for obj in objects:
-                bbox = obj.get('bbox', [0, 0, 0, 0])
-                class_name = obj.get('type', 'object')
-                confidence = obj.get('confidence', 0.0)
-                centroid = obj.get('centroid', [0, 0])
-                orientation = obj.get('orientation', 0.0)
-                depth = obj.get('depth', None)
-                
-                if len(bbox) >= 4:
-                    x, y, w, h = bbox
-                    
-                    # 绘制边界框
-                    cv2.rectangle(result_image, (int(x), int(y)), (int(x + w), int(y + h)), (0, 255, 0), 2)
-                    
-                    # 绘制中心点
-                    if centroid and len(centroid) >= 2:
-                        center_x, center_y = int(centroid[0]), int(centroid[1])
-                        cv2.circle(result_image, (center_x, center_y), 5, (255, 0, 0), -1)
-                    
-                    # 绘制方向箭头（如果有方向信息）
-                    if orientation != 0.0 and centroid and len(centroid) >= 2:
-                        center_x, center_y = int(centroid[0]), int(centroid[1])
-                        # 计算箭头终点
-                        arrow_length = 50
-                        end_x = int(center_x + arrow_length * np.cos(np.radians(orientation)))
-                        end_y = int(center_y + arrow_length * np.sin(np.radians(orientation)))
-                        cv2.arrowedLine(result_image, (center_x, center_y), (end_x, end_y), 
-                                      (0, 255, 255), 2, tipLength=0.3)
-                    
-                    # 构建标签文本
-                    label_lines = [f"{class_name}: {confidence:.2f}"]
-                    if centroid and len(centroid) >= 2:
-                        label_lines.append(f"Center: ({centroid[0]:.1f}, {centroid[1]:.1f})")
-                    if orientation != 0.0:
-                        label_lines.append(f"Angle: {orientation:.1f}°")
-                    if depth is not None:
-                        if depth > 0:
-                            label_lines.append(f"Depth: {depth:.3f}m")
-                        else:
-                            label_lines.append("Depth: N/A")
-                    
-                    # 绘制多行标签
-                    font = cv2.FONT_HERSHEY_SIMPLEX
-                    font_scale = 0.5
-                    thickness = 1
-                    line_height = 15
-                    
-                    # 计算标签背景大小
-                    max_width = 0
-                    for line in label_lines:
-                        (text_width, text_height), _ = cv2.getTextSize(line, font, font_scale, thickness)
-                        max_width = max(max_width, text_width)
-                    
-                    total_height = len(label_lines) * line_height + 5
-                    
-                    # 绘制标签背景
-                    label_x = int(x)
-                    label_y = int(y - total_height - 5)
-                    if label_y < 0:  # 如果标签超出图像顶部，放在框内
-                        label_y = int(y + h + 5)
-                    
-                    cv2.rectangle(result_image, 
-                                (label_x, label_y), 
-                                (label_x + max_width + 10, label_y + total_height), 
-                                (0, 255, 0), -1)
-                    
-                    # 绘制标签文本
-                    for i, line in enumerate(label_lines):
-                        text_y = label_y + (i + 1) * line_height
-                        cv2.putText(result_image, line, (label_x + 5, text_y), 
-                                  font, font_scale, (0, 0, 0), thickness)
-            
-            # 在图像右上角显示检测统计信息
-            stats = self.detection_model.get_detection_stats()
-            total_objects = stats.get('total_objects', 0)
-            detection_time = stats.get('last_detection_time', 0)
-            
-            status_text = f"Objects: {total_objects} | Time: {detection_time:.3f}s"
-            (text_width, text_height), _ = cv2.getTextSize(status_text, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)
-            
-            # 绘制状态背景
-            cv2.rectangle(result_image, 
-                        (result_image.shape[1] - text_width - 15, 5), 
-                        (result_image.shape[1] - 5, text_height + 15), 
-                        (0, 0, 0), -1)
-            
-            # 绘制状态文本
-            cv2.putText(result_image, status_text, 
-                      (result_image.shape[1] - text_width - 10, text_height + 10), 
-                      cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
-            
-            return result_image
-            
-        except Exception as e:
-            self.display(f"绘制检测框失败: {str(e)}", "错误")
-            return image
+    def _draw_detection_boxes(self, image, detections, image_type):
+        head_center = detections['head_center']
+        central_center = detections['central_center']
+        angle = detections['angle']
+        depth = detections['depth']
+        cv2.circle(image, head_center, 5, (0, 0, 255), -1)
+        cv2.circle(image, central_center, 5, (0, 255, 0), -1)
+        cv2.putText(image, f"angle: {angle:.2f}", (head_center[0], head_center[1] - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
+        cv2.putText(image, f"depth: {depth:.2f}", (central_center[0], central_center[1] - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+        return image
     
     def cleanup(self):
         """清理资源"""

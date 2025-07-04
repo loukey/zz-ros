@@ -156,8 +156,6 @@ class MainWindow(QMainWindow):
         self.dynamic_controller = DynamicController(serial_model=self.serial_model)
         self.effector_controller = EffectorController(serial_model=self.serial_model)
         self.camera_controller = CameraController(camera_model=self.camera_model, detection_model=self.detection_model, serial_model=self.serial_model, robot_model=self.robot_model)
-        self.detection_controller = DetectionController(detection_model=self.detection_model, 
-                                                       camera_model=self.camera_model)
 
     def init_signals(self):
         self.port_frame.port_connect_requested.connect(self.serial_controller.connect)
@@ -200,8 +198,6 @@ class MainWindow(QMainWindow):
         self.camera_controller.connection_status_changed.connect(self.camera_display.update_connection_status)
         self.camera_controller.display_requested.connect(self.data_display.append_message)
         
-        # 添加检测控制器信号连接
-        self.detection_controller.display_requested.connect(self.data_display.append_message)
 
         self.serial_controller.display_requested.connect(self.data_display.append_message)
         self.serial_controller.connection_changed.connect(self.handle_connection_changed)
