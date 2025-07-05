@@ -153,7 +153,8 @@ class MainWindow(QMainWindow):
         self.motion_controller = MotionController(serial_model=self.serial_model,
                                                   motion_model=self.motion_model,
                                                   robot_model=self.robot_model)
-        self.dynamic_controller = DynamicController(serial_model=self.serial_model)
+        self.dynamic_controller = DynamicController(serial_model=self.serial_model,
+                                                    motion_controller=self.motion_controller)
         self.effector_controller = EffectorController(serial_model=self.serial_model)
         self.camera_controller = CameraController(camera_model=self.camera_model, detection_model=self.detection_model, serial_model=self.serial_model, robot_model=self.robot_model)
 
@@ -179,6 +180,9 @@ class MainWindow(QMainWindow):
         self.dynamics_frame.teaching_mode_toggle_requested.connect(self.dynamic_controller.handle_dynamic_command_requested)
         self.dynamics_frame.send_torque_requested.connect(self.dynamic_controller.send_dynamic_torque_command)
         self.motion_controller.torque_calculation_signal.connect(self.dynamic_controller.handle_dynamic_torque_calculation_command_requested)
+        
+        # 连接动力学框架的记录相关信号
+        self.dynamic_controller.connect_dynamics_frame_signals(self.dynamics_frame)
 
         # 添加摄像头组件信号连接
         self.camera_display.connect_camera_requested.connect(self.camera_controller.connect_camera)

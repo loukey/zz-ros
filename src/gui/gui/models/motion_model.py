@@ -17,6 +17,13 @@ class MotionModel(QObject):
         self.motion_params = []
         self.motion_index = 0
 
+        self.teach_timer = QTimer()
+        self.teach_timer.setTimerType(Qt.PreciseTimer)
+        self.teach_timer.setInterval(10)
+        self.teach_timer.timeout.connect(self.teach_timeout)
+        self.teach_params = []
+        self.teach_index = 0
+
 
     def curve_planning(self, start_angles, target_angles, dt=0.01):
         times, accelerations, velocities, positions = self.s_curve.planning(start_angles=start_angles, 
@@ -91,3 +98,31 @@ class MotionModel(QObject):
                                                effector_data=float(gripper_data[1]),
                                                encoding='hex')
         self.motion_index += 1
+
+    def clear_teach_data(self):
+        self.teach_params = []
+
+    def add_teach_data(self, params):
+        self.teach_params = params
+
+    def start_teach(self):
+        self.teach_index = 0
+        self.teach_timer.start()
+
+    def stop_teach(self):
+        self.teach_index = 0
+        self.teach_timer.stop()
+
+    def teach_timeout(self):
+        if self.teach_index >= len(self.teach_params):
+            self.teach_timer.stop()
+            return
+        positions = self.teach_params[self.teach_index]
+        self.motion_send_signal.emit(0x06, positions, 0x00, 0.0)
+        self.serial_model.send_control_command(joint_angles=positions, 
+                                               control=0x06, 
+                                               mode=0x08, 
+                                               effector_mode=0x00, 
+                                               effector_data=0.0,
+                                               encoding='hex')
+        self.teach_index += 1

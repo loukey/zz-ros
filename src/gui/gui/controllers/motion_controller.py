@@ -25,6 +25,7 @@ class MotionController(BaseController):
         self.dt = 0.01
         self.buffer = ""
         self.motion_data = []
+        self.tech_data = []
         self.motion_model.motion_send_signal.connect(self.single_motion_send)
         self.serial_model.data_received.connect(self.handle_data_received)
         self.serial_model.error_occurred.connect(self.handle_error_occurred)
@@ -239,6 +240,9 @@ class MotionController(BaseController):
                         elif self.motion_mode == 2:
                             self.motion_mode = 0
                             self.multiple_motion_starter(positions_rad)
+                        elif self.motion_mode == 3:
+                            self.motion_mode = 0
+                            self.teach_motion_starter(positions_rad)
     
     def handle_error_occurred(self, error_msg):
         self.display(f"{error_msg}", "错误")
@@ -266,10 +270,9 @@ class MotionController(BaseController):
         self.display(f"启动混合运动规划", "控制")
         self.get_current_position()
 
-    def multiple_motion_starter(self, positions):
+    def multiple_motion_starter(self, start_angles):
         self.motion_model.clear_motion_data()
         self.motion_model.set_interval(self.dt * 1000)
-        start_angles = positions
         for i, motion_data in enumerate(self.motion_data):
             mode = motion_data['mode']
             curve_type = motion_data['curve_type']
@@ -295,3 +298,23 @@ class MotionController(BaseController):
                 start_angles = target_angles
                 self.motion_model.add_motion_data(mode, {'positions': positions})
         self.motion_model.start_motion()        
+
+    def teach_motion_setting(self, positions_list):
+        self.motion_model.clear_teach_data()
+        self.tech_data = positions_list
+        self.motion_mode = 3
+        self.display(f"启动示教轨迹", "控制")
+        self.get_current_position()
+
+    def teach_motion_starter(self, start_angles):
+        positions_list = self.tech_data
+        init_rad = [0.0, -pi/2, 0.0, pi/2, 0.0, 0.0]
+        target_angles = (np.array(positions_list[0]) - np.array(init_rad)).tolist()
+        _, positions = self.motion_model.curve_planning(start_angles, target_angles, dt=self.dt)
+        positions = positions.tolist()
+        for p in positions_list:
+            p = (np.array(p) - np.array(init_rad)).tolist()
+            positions.append(p)
+        self.motion_model.add_teach_data(positions)
+        self.motion_model.start_teach()
+        self.display(f"开始发送示教轨迹: 共{len(positions)}个点", "控制")
