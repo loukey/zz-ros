@@ -6,6 +6,7 @@ import time
 from math import pi
 import numpy as np
 from scipy.signal import savgol_filter
+from scipy.interpolate import CubicSpline
 
 
 class MotionController(BaseController):    
@@ -312,7 +313,7 @@ class MotionController(BaseController):
         init_rad = [0.0, -pi/2, 0.0, pi/2, 0.0, 0.0]
         target_angles = (np.array(positions_list[0]) - np.array(init_rad)).tolist()
         _, positions = self.motion_model.curve_planning(start_angles, target_angles, dt=self.dt)
-        positions = self.smooth_positions(positions).tolist()
+        positions = self.smooth_highres_trajectory(positions).tolist()
         for p in positions_list:
             p = (np.array(p) - np.array(init_rad)).tolist()
             positions.append(p)
@@ -320,7 +321,42 @@ class MotionController(BaseController):
         self.motion_model.start_teach()
         self.display(f"开始发送示教轨迹: 共{len(positions)}个点", "控制")
 
-    def smooth_positions(self, positions, window_size=11, poly_order=3):
-        """使用Savitzky-Golay滤波器平滑位置数据"""
-        smoothed_positions = savgol_filter(positions, window_size, poly_order, axis=0)
-        return smoothed_positions
+    def smooth_highres_trajectory(self, position_list, upsample=10, sg_window=21, sg_poly=3):
+        """
+        生成高分辨率平滑轨迹：先三次样条插值，再 Savitzky–Golay 滤波。
+
+        参数
+        ----------
+        position_list : array-like, shape (N, D)
+            原始关节位置序列，N 为时间步数，D 为关节自由度（例如 6）。
+        upsample : int, optional
+            上采样倍数。输出长度 = N * upsample。
+        sg_window : int, optional
+            SG 滤波窗口长度，必须为奇数且 < N*upsample。
+        sg_poly : int, optional
+            SG 滤波多项式阶数 (< sg_window)。
+
+        返回
+        ----------
+        smoothed : np.ndarray, shape (N*upsample, D)
+            高分辨率平滑后的关节轨迹。
+        """
+        # 转为 ndarray
+        arr = np.asarray(position_list, dtype=float)
+        N, D = arr.shape
+
+        # 1) 样条插值
+        t_orig = np.arange(N)
+        t_new = np.linspace(0, N - 1, N * upsample)
+        interp = np.empty((len(t_new), D), dtype=float)
+        for j in range(D):
+            cs = CubicSpline(t_orig, arr[:, j])
+            interp[:, j] = cs(t_new)
+
+        # 2) Savitzky–Golay 滤波
+        #    axis=0 表示沿时间轴（行）滤波
+        smoothed = savgol_filter(interp,
+                                window_length=sg_window,
+                                polyorder=sg_poly,
+                                axis=0)
+        return smoothed
