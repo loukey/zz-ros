@@ -197,3 +197,6 @@ hand_eye_calibration_data/*
 *.onnx
 *.engine
 runs
+*.json
+teach_record.json
+

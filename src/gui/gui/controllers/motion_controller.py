@@ -313,7 +313,7 @@ class MotionController(BaseController):
         init_rad = [0.0, -pi/2, 0.0, pi/2, 0.0, 0.0]
         target_angles = (np.array(positions_list[0]) - np.array(init_rad)).tolist()
         _, positions = self.motion_model.curve_planning(start_angles, target_angles, dt=self.dt)
-        positions = self.smooth_highres_trajectory(positions).tolist()
+        positions = self.smooth_via_velocity_reconstruction(positions).tolist()
         for p in positions_list:
             p = (np.array(p) - np.array(init_rad)).tolist()
             positions.append(p)
@@ -321,42 +321,52 @@ class MotionController(BaseController):
         self.motion_model.start_teach()
         self.display(f"开始发送示教轨迹: 共{len(positions)}个点", "控制")
 
-    def smooth_highres_trajectory(self, position_list, upsample=10, sg_window=21, sg_poly=3):
+    def smooth_via_velocity_reconstruction(self,
+        position_list,
+        dt=0.01,
+        sg_window=11,
+        sg_poly=3
+    ):
         """
-        生成高分辨率平滑轨迹：先三次样条插值，再 Savitzky–Golay 滤波。
+        通过平滑速度曲线重建位置。
 
         参数
         ----------
         position_list : array-like, shape (N, D)
-            原始关节位置序列，N 为时间步数，D 为关节自由度（例如 6）。
-        upsample : int, optional
-            上采样倍数。输出长度 = N * upsample。
+            原始关节位置序列，共 N 步，每步 D 维。
+        dt : float, optional
+            原始采样间隔（秒），默认 0.01s (10ms)。
         sg_window : int, optional
-            SG 滤波窗口长度，必须为奇数且 < N*upsample。
+            对速度做 Savitzky–Golay 滤波时的窗口长度（奇数），默认 11。
         sg_poly : int, optional
-            SG 滤波多项式阶数 (< sg_window)。
+            SG 滤波时的多项式阶数，默认 3。
 
         返回
         ----------
-        smoothed : np.ndarray, shape (N*upsample, D)
-            高分辨率平滑后的关节轨迹。
+        pos_recon : np.ndarray, shape (N, D)
+            重建后的平滑位置序列，与输入长度一致。
         """
-        # 转为 ndarray
         arr = np.asarray(position_list, dtype=float)
         N, D = arr.shape
 
-        # 1) 样条插值
-        t_orig = np.arange(N)
-        t_new = np.linspace(0, N - 1, N * upsample)
-        interp = np.empty((len(t_new), D), dtype=float)
+        # 1) 样条求导得到速度
+        t = np.arange(N) * dt
+        vel = np.empty_like(arr)
         for j in range(D):
-            cs = CubicSpline(t_orig, arr[:, j])
-            interp[:, j] = cs(t_new)
+            cs = CubicSpline(t, arr[:, j])
+            vel[:, j] = cs(t, 1)  # 一阶导数
 
-        # 2) Savitzky–Golay 滤波
-        #    axis=0 表示沿时间轴（行）滤波
-        smoothed = savgol_filter(interp,
+        # 2) 对速度再做 SG 滤波
+        vel_smooth = savgol_filter(vel,
                                 window_length=sg_window,
                                 polyorder=sg_poly,
                                 axis=0)
-        return smoothed
+
+        # 3) 对平滑速度积分重建位置
+        pos_recon = np.empty_like(arr)
+        pos_recon[0] = arr[0]
+        for i in range(1, N):
+            pos_recon[i] = pos_recon[i-1] + vel_smooth[i] * dt
+
+        return pos_recon
+        
