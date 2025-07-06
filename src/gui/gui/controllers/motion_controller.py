@@ -321,6 +321,42 @@ class MotionController(BaseController):
         self.motion_model.start_teach()
         self.display(f"开始发送示教轨迹: 共{len(positions)}个点", "控制")
 
+    def spline_then_savgol(self,
+        position_list,
+        upsample=5,
+        sg_window=11,
+        sg_poly=3
+    ):
+        """
+        先用三次样条做上采样插值，再对插值结果做 Savitzky–Golay 滤波。
+
+        参数:
+        - position_list: 原始 N×D 数组
+        - upsample: 上采样倍数（整数 >1）
+        - sg_window: SG 滤波窗口长度（奇数）
+        - sg_poly: SG 拟合多项式阶数 (< sg_window)
+
+        返回:
+        - smoothed: (N*upsample)×D 数组
+        """
+        arr = np.asarray(position_list, dtype=float)
+        N, D = arr.shape
+
+        # 1. 样条插值
+        t = np.arange(N)
+        t_new = np.linspace(0, N - 1, N * upsample)
+        interp = np.empty((len(t_new), D), dtype=float)
+        for j in range(D):
+            cs = CubicSpline(t, arr[:, j])
+            interp[:, j] = cs(t_new)
+
+        # 2. Savitzky–Golay 滤波
+        #    axis=0 表示在时间轴上滤波
+        smoothed = savgol_filter(interp, window_length=sg_window,
+                                polyorder=sg_poly, axis=0)
+
+        return smoothed
+
     def smooth_via_velocity_reconstruction(self,
         position_list,
         dt=0.01,
@@ -369,4 +405,3 @@ class MotionController(BaseController):
             pos_recon[i] = pos_recon[i-1] + vel_smooth[i] * dt
 
         return pos_recon
-        
