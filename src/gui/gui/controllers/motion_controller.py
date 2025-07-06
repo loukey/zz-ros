@@ -314,7 +314,7 @@ class MotionController(BaseController):
         target_angles = (np.array(positions_list[0]) - np.array(init_rad)).tolist()
         _, positions = self.motion_model.curve_planning(start_angles, target_angles, dt=self.dt)
         positions = positions.tolist()
-        positions_list = self.spline_then_savgol(positions_list).tolist()
+        positions_list = self.smooth_via_velocity_reconstruction(positions_list).tolist()
         for p in positions_list:
             p = (np.array(p) - np.array(init_rad)).tolist()
             positions.append(p)
