@@ -313,7 +313,7 @@ class MotionController(BaseController):
         init_rad = [0.0, -pi/2, 0.0, pi/2, 0.0, 0.0]
         target_angles = (np.array(positions_list[0]) - np.array(init_rad)).tolist()
         _, positions = self.motion_model.curve_planning(start_angles, target_angles, dt=self.dt)
-        positions = self.spline_then_savgol(positions).tolist()
+        positions_list = self.spline_then_savgol(positions_list).tolist()
         for p in positions_list:
             p = (np.array(p) - np.array(init_rad)).tolist()
             positions.append(p)
@@ -351,7 +351,6 @@ class MotionController(BaseController):
         # 2. 三次样条插值 (再插值)
         t = np.arange(N)
         t_new = np.linspace(0, N - 1, N * upsample)
-        print("111")
         interp = np.empty((len(t_new), D), dtype=float)
         for j in range(D):
             cs = CubicSpline(t, smoothed[:, j])
