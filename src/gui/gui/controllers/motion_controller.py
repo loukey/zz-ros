@@ -5,6 +5,7 @@ from config import GlobalVars
 import time
 from math import pi
 import numpy as np
+from scipy.signal import savgol_filter
 
 
 class MotionController(BaseController):    
@@ -311,10 +312,15 @@ class MotionController(BaseController):
         init_rad = [0.0, -pi/2, 0.0, pi/2, 0.0, 0.0]
         target_angles = (np.array(positions_list[0]) - np.array(init_rad)).tolist()
         _, positions = self.motion_model.curve_planning(start_angles, target_angles, dt=self.dt)
-        positions = positions.tolist()
+        positions = self.smooth_positions(positions).tolist()
         for p in positions_list:
             p = (np.array(p) - np.array(init_rad)).tolist()
             positions.append(p)
         self.motion_model.add_teach_data(positions)
         self.motion_model.start_teach()
         self.display(f"开始发送示教轨迹: 共{len(positions)}个点", "控制")
+
+    def smooth_positions(self, positions, window_size=11, poly_order=3):
+        """使用Savitzky-Golay滤波器平滑位置数据"""
+        smoothed_positions = savgol_filter(positions, window_size, poly_order, axis=0)
+        return smoothed_positions
