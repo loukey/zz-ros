@@ -313,7 +313,7 @@ class MotionController(BaseController):
         init_rad = [0.0, -pi/2, 0.0, pi/2, 0.0, 0.0]
         target_angles = (np.array(positions_list[0]) - np.array(init_rad)).tolist()
         _, positions = self.motion_model.curve_planning(start_angles, target_angles, dt=self.dt)
-        positions = self.smooth_via_velocity_reconstruction(positions).tolist()
+        positions = self.spline_then_savgol(positions).tolist()
         for p in positions_list:
             p = (np.array(p) - np.array(init_rad)).tolist()
             positions.append(p)
@@ -342,20 +342,24 @@ class MotionController(BaseController):
         arr = np.asarray(position_list, dtype=float)
         N, D = arr.shape
 
-        # 1. 样条插值
+        # 1. Savitzky–Golay平滑 (先平滑)
+        smoothed = savgol_filter(arr,
+                                 window_length=sg_window,
+                                 polyorder=sg_poly,
+                                 axis=0)
+
+        # 2. 三次样条插值 (再插值)
         t = np.arange(N)
         t_new = np.linspace(0, N - 1, N * upsample)
+        print("111")
         interp = np.empty((len(t_new), D), dtype=float)
         for j in range(D):
-            cs = CubicSpline(t, arr[:, j])
+            cs = CubicSpline(t, smoothed[:, j])
             interp[:, j] = cs(t_new)
-
-        # 2. Savitzky–Golay 滤波
-        #    axis=0 表示在时间轴上滤波
-        smoothed = savgol_filter(interp, window_length=sg_window,
-                                polyorder=sg_poly, axis=0)
-
-        return smoothed
+        
+        indices = np.linspace(0,len(t_new)-1,N).astype(int)
+        resampled = interp[indices,:]
+        return resampled
 
     def smooth_via_velocity_reconstruction(self,
         position_list,
