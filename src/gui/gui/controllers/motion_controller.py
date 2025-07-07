@@ -314,7 +314,7 @@ class MotionController(BaseController):
         target_angles = (np.array(positions_list[0]) - np.array(init_rad)).tolist()
         _, positions = self.motion_model.curve_planning(start_angles, target_angles, dt=self.dt)
         positions = positions.tolist()
-        positions_list = self.smooth_via_velocity_reconstruction(positions_list).tolist()
+        positions_list = self.spline_then_savgol(positions_list).tolist()
         for p in positions_list:
             p = (np.array(p) - np.array(init_rad)).tolist()
             positions.append(p)
@@ -325,7 +325,7 @@ class MotionController(BaseController):
     def spline_then_savgol(self,
         position_list,
         upsample=5,
-        sg_window=11,
+        sg_window=211,
         sg_poly=3
     ):
         """
@@ -359,6 +359,10 @@ class MotionController(BaseController):
         
         indices = np.linspace(0,len(t_new)-1,N).astype(int)
         resampled = interp[indices,:]
+        resampled = savgol_filter(resampled,
+                                 window_length=sg_window,
+                                 polyorder=sg_poly,
+                                 axis=0)
         return resampled
 
     def smooth_via_velocity_reconstruction(self,
