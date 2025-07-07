@@ -32,6 +32,7 @@ class HandEyeTransform:
         px = (px - self.cx) / self.fx
         py = (py - self.cy) / self.fy
         pz *= 0.001
+        rotation_angle *= pi / 180
         part_pos = self.get_Z_rotation_matrix(rotation_angle)
         part_pos[:3, 3] = [px, py, pz]
         end_pos = self.hand_eye_transform_rm @ part_pos
