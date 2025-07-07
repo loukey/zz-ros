@@ -33,12 +33,16 @@ class HandEyeTransform:
         py = (py - self.cy) / self.fy
         pz *= 0.001
         rotation_angle *= pi / 180
-        part_pos = self.get_Z_rotation_matrix(rotation_angle)
+        z_rotate_m = self.get_Z_rotation_matrix(rotation_angle)
+        part_pos = np.zeros((4, 4))
+        part_pos[:3, :3] = z_rotate_m[:3, :3]
         part_pos[:3, 3] = [px, py, pz]
+        part_pos[3, 3] = 1
         end_pos = self.hand_eye_transform_rm @ part_pos
         theta_list_now = GlobalVars.get_current_joint_angles()
         self.kinematic_solver.update_dh(theta_list_now)
         forward_rm = self.kinematic_solver.get_forward_rm()
+        forward_rm = forward_rm @ z_rotate_m
         base_pos = forward_rm @ end_pos
         theta_list = self.kinematic_solver.inverse_kinematic(base_pos[:3, :3], base_pos[:3, 3])
 
