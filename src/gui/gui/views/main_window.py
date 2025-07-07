@@ -201,6 +201,7 @@ class MainWindow(QMainWindow):
         self.camera_controller.status_update_requested.connect(self.camera_display.update_status)
         self.camera_controller.image_info_updated.connect(self.camera_display.update_image_info)
         self.camera_controller.connection_status_changed.connect(self.camera_display.update_connection_status)
+        self.camera_controller.detection_state_changed.connect(self.camera_display.update_detection_state)
         self.camera_controller.display_requested.connect(self.data_display.append_message)
         
         # 连接摄像头控制器的运动信号到运动控制器

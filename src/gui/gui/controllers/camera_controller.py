@@ -17,6 +17,7 @@ class CameraController(BaseController):
     image_info_updated = pyqtSignal(dict)  # 图像信息更新信号
     connection_status_changed = pyqtSignal(bool)  # 连接状态变化信号
     send_angles_requested = pyqtSignal(dict)
+    detection_state_changed = pyqtSignal(bool)  # 检测状态变化信号
     
     def __init__(self, camera_model, detection_model=None, serial_model=None, robot_model=None):
         super().__init__()
@@ -217,11 +218,15 @@ class CameraController(BaseController):
         if self.detection_model:
             self.detection_model.start_auto_detection()
             self.display("开始零件识别", "检测")
+            # 发送检测状态变化信号
+            self.detection_state_changed.emit(True)
     
     def stop_detection(self):
         if self.detection_model:
             self.detection_model.stop_auto_detection()
             self.display("停止零件识别", "检测")
+            # 发送检测状态变化信号
+            self.detection_state_changed.emit(False)
     
     def _draw_detection_boxes(self, image, detections):
         head_center = detections['head_center']
@@ -311,6 +316,10 @@ class CameraController(BaseController):
                     self.send_angles_requested.emit({
                         'target_angles': theta_list,
                     })
+                    
+                    # 运动后关闭检测
+                    self.stop_detection()
+                    self.display("已关闭检测", "控制")
                 else:
                     self.display("未检测到零件，无法执行运动", "警告")
             else:

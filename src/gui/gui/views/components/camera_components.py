@@ -243,6 +243,16 @@ class CameraFrame(QGroupBox):
         self.color_button.setChecked(color_active)
         self.depth_button.setChecked(depth_active)
     
+    def update_detection_state(self, detection_active):
+        """更新检测状态"""
+        self.start_detection_button.setChecked(detection_active)
+        if detection_active:
+            self.start_detection_button.setText("停止检测")
+            self.move_button.setEnabled(True)
+        else:
+            self.start_detection_button.setText("开始检测")
+            self.move_button.setEnabled(False)
+    
     def display_image(self, image, image_type):
         """显示图像"""
         try:
@@ -361,6 +371,10 @@ class CameraDisplayWidget(QWidget):
     def update_button_states(self, color_active, depth_active):
         """更新按钮状态"""
         self.camera_frame.update_button_states(color_active, depth_active)
+    
+    def update_detection_state(self, detection_active):
+        """更新检测状态"""
+        self.camera_frame.update_detection_state(detection_active)
     
     def clear_display(self):
         """清除显示"""
