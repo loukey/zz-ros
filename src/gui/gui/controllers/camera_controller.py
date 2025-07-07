@@ -5,6 +5,7 @@ from PyQt5.QtCore import pyqtSignal, QTimer
 from .base_controller import BaseController
 import numpy as np
 import cv2
+from kinematic import HandEyeTransform
 
 
 class CameraController(BaseController):
@@ -15,6 +16,7 @@ class CameraController(BaseController):
     status_update_requested = pyqtSignal(str)  # 状态更新信号
     image_info_updated = pyqtSignal(dict)  # 图像信息更新信号
     connection_status_changed = pyqtSignal(bool)  # 连接状态变化信号
+    send_angles_requested = pyqtSignal(dict)
     
     def __init__(self, camera_model, detection_model=None, serial_model=None, robot_model=None):
         super().__init__()
@@ -23,6 +25,7 @@ class CameraController(BaseController):
         self.serial_model = serial_model
         self.robot_model = robot_model
         self.current_display_mode = None
+        self.hand_eye_transform = HandEyeTransform()
         self.display_timer = QTimer()
         self.display_timer.timeout.connect(self._update_display)
         
@@ -107,7 +110,7 @@ class CameraController(BaseController):
                     if self.detection_model is not None:
                         detections = self.detection_model.get_latest_detection_result()
                         if detections:
-                            display_image = self._draw_detection_boxes(image, detections, 'color')
+                            display_image = self._draw_detection_boxes(image, detections)
                         else:
                             display_image = image
                     else:
@@ -127,7 +130,7 @@ class CameraController(BaseController):
                     if self.detection_model is not None:
                         detections = self.detection_model.get_latest_detection_result()
                         if detections:
-                            display_image = self._draw_detection_boxes(vis_image, detections, 'depth')
+                            display_image = self._draw_detection_boxes(vis_image, detections)
                         else:
                             display_image = vis_image
                     else:
@@ -220,7 +223,7 @@ class CameraController(BaseController):
             self.detection_model.stop_auto_detection()
             self.display("停止零件识别", "检测")
     
-    def _draw_detection_boxes(self, image, detections, image_type):
+    def _draw_detection_boxes(self, image, detections):
         head_center = detections['head_center']
         head_center = (int(head_center[0]), int(head_center[1]))
         central_center = detections['central_center']
@@ -293,3 +296,24 @@ class CameraController(BaseController):
             self.status_update_requested.emit("位姿发布已停止")
         except Exception as e:
             self.display(f"停止位姿发布失败: {str(e)}", "错误") 
+
+    def move_to_part(self):
+        """运动到检测到的零件位置"""
+        try:
+            if self.detection_model is not None:
+                detections = self.detection_model.get_latest_detection_result()
+                if detections:
+                    central_center = detections['central_center']
+                    depth = detections['depth']
+                    angle = detections['angle']
+                    theta_list = self.hand_eye_transform.get_theta_list(central_center, angle)
+                    self.display(f"中心点: {central_center}, 深度: {depth}, 角度: {angle}, 角度列表: {theta_list}", "控制")
+                    self.send_angles_requested.emit({
+                        'target_angles': theta_list,
+                    })
+                else:
+                    self.display("未检测到零件，无法执行运动", "警告")
+            else:
+                self.display("检测模型未初始化", "错误")
+        except Exception as e:
+            self.display(f"运动到零件位置失败: {str(e)}", "错误")

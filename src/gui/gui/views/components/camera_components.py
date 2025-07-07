@@ -23,6 +23,7 @@ class CameraFrame(QGroupBox):
     stop_detection_requested = pyqtSignal()   # 停止检测请求
     start_pose_publish_requested = pyqtSignal()  # 开始位姿发布请求
     stop_pose_publish_requested = pyqtSignal()   # 停止位姿发布请求
+    move_to_part_requested = pyqtSignal()  # 运动到零件位置请求
     
     def __init__(self, parent=None):
         super().__init__("摄像头控制", parent)
@@ -83,6 +84,13 @@ class CameraFrame(QGroupBox):
         self.start_detection_button.setEnabled(False)  # 初始不可用
         self.start_detection_button.clicked.connect(self._on_detection_button_clicked)
         button_layout.addWidget(self.start_detection_button)
+        
+        # 运动按钮
+        self.move_button = QPushButton("运动")
+        self.move_button.setFont(default_font)
+        self.move_button.setEnabled(False)  # 初始不可用
+        self.move_button.clicked.connect(self._on_move_button_clicked)
+        button_layout.addWidget(self.move_button)
         
         # 添加分隔线
         separator3 = QFrame()
@@ -183,9 +191,13 @@ class CameraFrame(QGroupBox):
         if self.start_detection_button.isChecked():
             self.start_detection_button.setText("停止检测")
             self.start_detection_requested.emit()
+            # 检测开启时，启用运动按钮
+            self.move_button.setEnabled(True)
         else:
             self.start_detection_button.setText("开始检测")
             self.stop_detection_requested.emit()
+            # 检测停止时，禁用运动按钮
+            self.move_button.setEnabled(False)
     
     def _on_pose_publish_button_clicked(self):
         """位姿发布按钮点击事件"""
@@ -195,6 +207,10 @@ class CameraFrame(QGroupBox):
         else:
             self.pose_publish_button.setText("开启位姿发布")
             self.stop_pose_publish_requested.emit()
+    
+    def _on_move_button_clicked(self):
+        """运动按钮点击事件"""
+        self.move_to_part_requested.emit()
     
     def update_connection_status(self, connected):
         """更新连接状态"""
@@ -212,6 +228,7 @@ class CameraFrame(QGroupBox):
             self.depth_button.setEnabled(False)
             self.stop_button.setEnabled(False)
             self.start_detection_button.setEnabled(False)
+            self.move_button.setEnabled(False)
             self.pose_publish_button.setEnabled(False)
             # 清除选中状态
             self.color_button.setChecked(False)
@@ -293,6 +310,7 @@ class CameraDisplayWidget(QWidget):
     stop_detection_requested = pyqtSignal()
     start_pose_publish_requested = pyqtSignal()
     stop_pose_publish_requested = pyqtSignal()
+    move_to_part_requested = pyqtSignal()
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -317,6 +335,7 @@ class CameraDisplayWidget(QWidget):
         self.camera_frame.stop_detection_requested.connect(self.stop_detection_requested.emit)
         self.camera_frame.start_pose_publish_requested.connect(self.start_pose_publish_requested.emit)
         self.camera_frame.stop_pose_publish_requested.connect(self.stop_pose_publish_requested.emit)
+        self.camera_frame.move_to_part_requested.connect(self.move_to_part_requested.emit)
         
         # 添加伸缩项
         layout.addStretch()

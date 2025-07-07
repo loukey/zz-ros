@@ -194,6 +194,7 @@ class MainWindow(QMainWindow):
         self.camera_display.stop_detection_requested.connect(self.camera_controller.stop_detection)
         self.camera_display.start_pose_publish_requested.connect(self.camera_controller.start_pose_publish)
         self.camera_display.stop_pose_publish_requested.connect(self.camera_controller.stop_pose_publish)
+        self.camera_display.move_to_part_requested.connect(self._handle_move_to_part)
         
         # 连接摄像头控制器信号到显示组件
         self.camera_controller.image_display_requested.connect(self.camera_display.display_image)
@@ -201,6 +202,9 @@ class MainWindow(QMainWindow):
         self.camera_controller.image_info_updated.connect(self.camera_display.update_image_info)
         self.camera_controller.connection_status_changed.connect(self.camera_display.update_connection_status)
         self.camera_controller.display_requested.connect(self.data_display.append_message)
+        
+        # 连接摄像头控制器的运动信号到运动控制器
+        self.camera_controller.send_angles_requested.connect(self.motion_controller.handle_angles_requested)
         
 
         self.serial_controller.display_requested.connect(self.data_display.append_message)
@@ -262,6 +266,13 @@ class MainWindow(QMainWindow):
         self.angle_control_frame.update_connection_status(connected)
         self.dynamics_frame.update_connection_status(connected)
 
+    def _handle_move_to_part(self):
+        """处理运动到零件位置的请求"""
+        try:
+            self.camera_controller.move_to_part()
+        except Exception as e:
+            print(f"运动到零件位置失败: {str(e)}")
+    
     def closeEvent(self, event=None):
         """关闭窗口事件处理"""
         # 断开串口连接

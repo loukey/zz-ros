@@ -91,9 +91,9 @@ class MotionController(BaseController):
     
     def send_angles(self, 
                     target_angles, 
-                    curve_type, 
-                    frequency,
-                    contour_params,
+                    curve_type='S型', 
+                    frequency=0.01,
+                    contour_params=[[0.0] * 6, [0.0] * 6, [0.0] * 6],
                     encoding_type='hex',
                     run_mode=0x08):
         self.display(f"目标角度: [{', '.join([f'{angle:.4f}' for angle in target_angles])}]", "控制")

@@ -1,9 +1,5 @@
 from math import cos, sin
 import numpy as np
-import cv2
-import torch
-from sklearn.decomposition import PCA
-
 
 def dh_to_rotation_matrix(a, alpha, d, theta):
     c_theta = cos(theta)
