@@ -1,11 +1,19 @@
 from .base import *
 from .kinematic_6dof import Kinematic6DOF
+from math import pi
 
 
 class Dynamic:
     def __init__(self):
-        self.kinematic = Kinematic6DOF()
         self.link_masses = [4.64,10.755,3.925,1.24,1.24,2.549]
+        self.DH_matrix = np.array([
+            [0.0, 0.0, 0.0, 0.0],
+            [0.0, -pi/2, 0.0, -pi/2],
+            [0.425, pi, 0.0, 0.0],
+            [0.401, pi, 0.0856, pi/2],
+            [0.0, pi/2, 0.086, 0.0],
+            [0.0, -pi/2, 0.0725, 0.0]
+        ], dtype=float)
         self.link_com_positions = [
             np.array([0, 0, 0]),
             np.array([0.2125, 0, 0.134]),
@@ -48,9 +56,9 @@ class Dynamic:
         输出：该质心对joint_index关节的雅可比列（3维向量）
         """
         # 计算joint_index关节的转动轴在基坐标系下的方向
-        z_axis = self.get_joint_axis_in_base(q, self.kinematic.DH_matrix, joint_index)  # 3维向量
+        z_axis = self.get_joint_axis_in_base(q, self.DH_matrix, joint_index)  # 3维向量
         # 计算joint_index关节在基坐标系下的位置
-        joint_pos = self.get_joint_position_in_base(q, self.kinematic.DH_matrix, joint_index)  # 3维向量
+        joint_pos = self.get_joint_position_in_base(q, self.DH_matrix, joint_index)  # 3维向量
         # 计算质心相对该关节的矢量
         r = com_base - joint_pos
         # 旋转关节的雅可比列为 z_axis × r
@@ -66,7 +74,7 @@ class Dynamic:
         for i in range(self.n):  # 对每个关节
             for j in range(i, self.n):  # 对每个后续连杆（含自身）
                 # 1. 计算第j连杆质心在基坐标系下的位置
-                com_base = self.get_link_com_in_base(q, self.kinematic.DH_matrix, self.link_com_positions, j)
+                com_base = self.get_link_com_in_base(q, self.DH_matrix, self.link_com_positions, j)
                 # 2. 计算该质心对第i关节的雅可比列
                 J_col = self.get_jacobian_column(q, j, com_base, i)
                 # 3. 计算重力对该关节的力矩贡献
