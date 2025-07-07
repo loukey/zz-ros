@@ -29,7 +29,7 @@ class DetectionModel(QObject):
         self.latest_detection_result['angle'] = 0
         self.latest_detection_result['depth'] = 100
         self.detect_timer = QTimer()
-        self.detect_timer.setInterval(200)
+        self.detect_timer.setInterval(500)
         self.detect_timer.timeout.connect(self.process_detection)
         
     def set_camera_model(self, camera_model):

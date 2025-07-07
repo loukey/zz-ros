@@ -40,10 +40,15 @@ class HandEyeTransform:
         part_pos[3, 3] = 1
         end_pos = self.hand_eye_transform_rm @ part_pos
         theta_list_now = GlobalVars.get_current_joint_angles()
+        print("获取当前关节角度", theta_list_now)
         self.kinematic_solver.update_dh(theta_list_now)
         forward_rm = self.kinematic_solver.get_forward_rm()
         forward_rm = forward_rm @ z_rotate_m
         base_pos = forward_rm @ end_pos
+        print("计算目标位置", base_pos)
         theta_list = self.kinematic_solver.inverse_kinematic(base_pos[:3, :3], base_pos[:3, 3])
+        origin_theta_list = [0, -pi/2, 0, pi/2, 0, 0]
+        theta_list = (np.array(theta_list) - np.array(origin_theta_list)).tolist()
+        print("计算目标关节角度", theta_list)
 
         return theta_list
