@@ -165,9 +165,8 @@ class MotionController(BaseController):
                     
                     # 将编码器位置转换为弧度角度
                     positions_rad = position_to_radian(positions)
-                    init_rad = [0.0, -pi/2, 0.0, pi/2, 0.0, 0.0]
                     # 更新全局位姿变量（每次解析到位置数据都更新）
-                    GlobalVars.update_joint_pose(positions, (np.array(positions_rad) + np.array(init_rad)).tolist())
+                    GlobalVars.update_joint_pose(positions, positions_rad)
 
                     # 状态字1-6 (每个2字节，共12字节)
                     status = []
@@ -231,7 +230,8 @@ class MotionController(BaseController):
                 if run_mode == "0A":                            
                     if GlobalVars.dynamic_teach_flag and current_command in ["06", "07"]:
                         GlobalVars.add_to_array(positions)
-                        self.torque_calculation_signal.emit(positions_rad)
+                        init_radian = [0.0, -pi/2, 0.0, pi/2, 0.0, 0.0]
+                        self.torque_calculation_signal.emit((np.array(positions_rad) - np.array(init_radian)).tolist())
                 elif run_mode == "08":
                     if current_command == "07":
                         if self.motion_mode == 0:
@@ -310,14 +310,11 @@ class MotionController(BaseController):
 
     def teach_motion_starter(self, start_angles):
         positions_list = self.tech_data
-        init_rad = [0.0, -pi/2, 0.0, pi/2, 0.0, 0.0]
-        target_angles = (np.array(positions_list[0]) - np.array(init_rad)).tolist()
+        target_angles = positions_list[0]
         _, positions = self.motion_model.curve_planning(start_angles, target_angles, dt=self.dt)
         positions = positions.tolist()
         positions_list = self.smooth_via_velocity_reconstruction(positions_list).tolist()
-        for p in positions_list:
-            p = (np.array(p) - np.array(init_rad)).tolist()
-            positions.append(p)
+        positions.extend(positions_list)
         self.motion_model.add_teach_data(positions)
         self.motion_model.start_teach()
         self.display(f"开始发送示教轨迹: 共{len(positions)}个点", "控制")
@@ -325,7 +322,7 @@ class MotionController(BaseController):
     def spline_then_savgol(self,
         position_list,
         upsample=5,
-        sg_window=11,
+        sg_window=211,
         sg_poly=3
     ):
         """
@@ -359,6 +356,10 @@ class MotionController(BaseController):
         
         indices = np.linspace(0,len(t_new)-1,N).astype(int)
         resampled = interp[indices,:]
+        resampled = savgol_filter(resampled,
+                                 window_length=sg_window,
+                                 polyorder=sg_poly,
+                                 axis=0)
         return resampled
 
     def smooth_via_velocity_reconstruction(self,

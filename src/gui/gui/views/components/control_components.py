@@ -291,5 +291,6 @@ class AngleControlFrame(QGroupBox):
     def zero_angles(self):
         """归零处理"""
         # 将所有角度值设置为0
-        for angle_var in self.angle_vars:
-            angle_var.setText("0.0")
+        zero_angles = [0.0, -pi/2, 0.0, pi/2, 0.0, 0.0]
+        for i, angle_var in enumerate(self.angle_vars):
+            angle_var.setText(f"{zero_angles[i]:.4f}")
