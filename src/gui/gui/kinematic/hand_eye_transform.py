@@ -20,25 +20,69 @@ class HandEyeTransform:
         self.hand_eye_transform_rm = hand_eye_transform_rm
 
     def get_Z_rotation_matrix(self, rotation_angle):
+        c = cos(rotation_angle)
+        s = sin(rotation_angle)
         return np.array([
-            [cos(rotation_angle), -sin(rotation_angle), 0, 0],
-            [sin(rotation_angle), cos(rotation_angle), 0, 0],
+            [c, -s, 0, 0],
+            [s, c, 0, 0],
             [0, 0, 1, 0],
+            [0, 0, 0, 1]
+        ])
+
+    def get_Y_rotation_matrix(self, rotation_angle):
+        c = cos(rotation_angle)
+        s = sin(rotation_angle)
+        return np.array([
+            [c, 0, s, 0],
+            [0, 1, 0, 0],
+            [-s, 0,c, 0],
+            [0, 0, 0, 1]
+        ])
+
+    def get_X_rotation_matrix(self, rotation_angle):
+        c = cos(rotation_angle)
+        s = sin(rotation_angle)
+        return np.array([
+            [1, 0, 0, 0],
+            [0, c, -s, 0],
+            [0, s, c, 0],
             [0, 0, 0, 1]
         ])
 
     def get_theta_list(self, pos, rotation_angle):
         px, py, pz = pos
-        px = (px - self.cx) / self.fx
-        py = (py - self.cy) / self.fy
         pz *= 0.001
-        part_pos = self.get_Z_rotation_matrix(rotation_angle)
-        part_pos[:3, 3] = [px, py, pz]
-        end_pos = self.hand_eye_transform_rm @ part_pos
+        px = (px - self.cx)*pz / self.fx
+        py = (py - self.cy)*pz / self.fy     
+        
+        rotation_angle += 180 if rotation_angle < 0 else -180
+        rotation_angle *= pi / 180
+        v_cam = np.array([-sin(rotation_angle), cos(rotation_angle), 0])
+
         theta_list_now = GlobalVars.get_current_joint_angles()
-        self.kinematic_solver.update_dh(theta_list_now)
-        forward_rm = self.kinematic_solver.get_forward_rm()
-        base_pos = forward_rm @ end_pos
-        theta_list = self.kinematic_solver.inverse_kinematic(base_pos[:3, :3], base_pos[:3, 3])
+        print("thetalist_now:",theta_list_now)
+        forward_rm = self.kinematic_solver.update_dh(theta_list_now)
+        T_cam2base = forward_rm @ self.hand_eye_transform_rm  
+        print("T_cam2base:",T_cam2base)
+        R_cam2base = T_cam2base[:3,:3]
+
+        p_cam = np.array([px, py, pz, 1])
+        p_base = T_cam2base @ p_cam
+        print("p_base",p_base)
+        v_base = R_cam2base @ v_cam
+        print("v_base:",v_base)
+        theta = np.arctan2(v_base[0],v_base[1])
+        print("theta:",theta)
+        T_target2base = self.get_Z_rotation_matrix(theta)
+        T_target2base[:, 3] = p_base
+        
+        T_offset2target = np.eye(4)
+        T_offset2target[:3,3] = np.array([0.01,0,0.05])
+        T_target2base = T_target2base @ T_offset2target
+        T_target2base = T_target2base @ self.get_Y_rotation_matrix(-135*pi/180) @ self.get_Z_rotation_matrix(90*pi/180)
+        print("T_target2base:",T_target2base)
+        theta_list = self.kinematic_solver.inverse_kinematic(T_target2base[:3, :3], T_target2base[:3, 3])
+        print(theta_list)
 
         return theta_list
+
