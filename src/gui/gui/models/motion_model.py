@@ -11,14 +11,12 @@ class MotionModel(QObject):
         self.serial_model = serial_model
         self.s_curve = SCurve()
         self.motion_timer = QTimer()
-        self.motion_timer.setTimerType(Qt.PreciseTimer)
         self.motion_timer.setInterval(10)
         self.motion_timer.timeout.connect(self.motion_timeout)
         self.motion_params = []
         self.motion_index = 0
 
         self.teach_timer = QTimer()
-        self.teach_timer.setTimerType(Qt.PreciseTimer)
         self.teach_timer.setInterval(10)
         self.teach_timer.timeout.connect(self.teach_timeout)
         self.teach_params = []
@@ -26,9 +24,9 @@ class MotionModel(QObject):
 
 
     def curve_planning(self, start_angles, target_angles, dt=0.01):
-        times, accelerations, velocities, positions = self.s_curve.planning(start_angles=start_angles, 
-                                                                            target_angles=target_angles, 
-                                                                            dt=dt)
+        times, _, _, positions = self.s_curve.planning(start_angles=start_angles, 
+                                                        target_angles=target_angles, 
+                                                        dt=dt)
         return times, positions
 
     def set_interval(self, interval):

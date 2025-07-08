@@ -16,7 +16,7 @@ class MainWindow(QMainWindow):
         super(MainWindow, self).__init__(parent)
         
         # 设置窗口标题和大小
-        self.setWindowTitle("镇中科技机械臂控制工具v0.2.25")
+        self.setWindowTitle("镇中科技机械臂控制工具v0.5")
         self.resize(1400, 1000)
         self.init_models()
         self.init_controllers()
