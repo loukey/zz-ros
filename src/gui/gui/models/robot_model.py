@@ -6,8 +6,8 @@ import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import PoseStamped
 from PyQt5.QtCore import QObject, pyqtSignal, QThread, QTimer
-from kinematic import *
-from config import GlobalVars
+from gui.kinematic import *
+from gui.config import GlobalVars
 import time
 
 
@@ -91,7 +91,6 @@ class RobotModel(QObject):
         self.pose_publisher_node = None
         self.ros_thread = None
         self.is_publishing = False
-        print("RobotModel: 初始化完成，等待手动启动位姿发布...")
     
     def start_pose_publishing(self):
         """启动位姿发布节点"""
@@ -99,7 +98,6 @@ class RobotModel(QObject):
             if self.is_publishing:
                 return True
                 
-            print("RobotModel: 创建ROS线程...")
             # 创建ROS2线程
             self.ros_thread = RosThread()
             self.ros_thread.start()
@@ -112,22 +110,17 @@ class RobotModel(QObject):
             while elapsed_time < max_wait_time:
                 self.pose_publisher_node = self.ros_thread.get_pose_publisher()
                 if self.pose_publisher_node is not None:
-                    print("RobotModel: ROS节点创建成功!")
                     break
                 time.sleep(wait_interval)
                 elapsed_time += wait_interval
-                print(f"RobotModel: 等待ROS节点创建... ({elapsed_time:.1f}s)")
             
             if self.pose_publisher_node is None:
-                print("RobotModel: ROS节点创建超时!")
                 return False
             
             self.is_publishing = True
-            print("RobotModel: 位姿发布启动成功!")
             return True
             
         except Exception as e:
-            print(f"RobotModel: 启动位姿发布失败: {str(e)}")
             self.error_occurred.emit(f"启动位姿发布失败: {str(e)}")
             return False
     
@@ -145,11 +138,9 @@ class RobotModel(QObject):
                 self.ros_thread = None
                 
             self.pose_publisher_node = None
-            print("RobotModel: 位姿发布已停止")
             return True
             
         except Exception as e:
-            print(f"RobotModel: 停止位姿发布失败: {str(e)}")
             self.error_occurred.emit(f"停止位姿发布失败: {str(e)}")
             return False
 
@@ -165,37 +156,27 @@ class RosThread(QThread):
     def run(self):
         """运行ROS2节点"""
         try:
-            print("RosThread: 开始运行...")
             # 初始化ROS2
             try:
                 rclpy.init()
-                print("RosThread: ROS2初始化成功")
             except RuntimeError as e:
-                print(f"RosThread: ROS2已经初始化 ({e})")
                 # ROS2 already initialized
                 pass
             
             # 创建位姿发布节点
-            print("RosThread: 创建位姿发布节点...")
             self.pose_publisher = RobotPosePublisher()
-            print("RosThread: 位姿发布节点创建完成!")
             
-            # 运行节点
-            print("RosThread: 开始spin循环...")
             while not self.should_stop:
                 try:
                     rclpy.spin_once(self.pose_publisher, timeout_sec=0.1)
                 except Exception as e:
-                    print(f"RosThread: spin出错: {e}")
                     break
                 
         except Exception as e:
-            print(f"RosThread: 运行错误: {str(e)}")
+            pass
         finally:
             if self.pose_publisher:
-                print("RosThread: 销毁节点...")
                 self.pose_publisher.destroy_node()
-            print("RosThread: 线程结束")
     
     def get_pose_publisher(self):
         """获取位姿发布节点"""

@@ -24,8 +24,7 @@ def calculate_crc16(data):
         try:
             data = bytes.fromhex(data.strip())
         except Exception as e:
-            print(e)
-            print(data)
+            return False
         
     # 计算CRC16-CCITT
     crc = 0xFFFF

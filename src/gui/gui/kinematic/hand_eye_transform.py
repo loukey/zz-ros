@@ -1,5 +1,5 @@
 from .kinematic_6dof import *
-from config import GlobalVars
+from gui.config import GlobalVars
 
 
 class HandEyeTransform:

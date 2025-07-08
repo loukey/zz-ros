@@ -5,7 +5,7 @@ from PyQt5.QtCore import pyqtSignal, QTimer
 from .base_controller import BaseController
 import numpy as np
 import cv2
-from kinematic import HandEyeTransform
+from gui.kinematic import HandEyeTransform
 from math import pi
 
 

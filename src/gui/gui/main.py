@@ -3,7 +3,7 @@
 """
 import sys
 from PyQt5.QtWidgets import QApplication
-from views import MainWindow
+from gui.views import MainWindow
 
 
 def main():

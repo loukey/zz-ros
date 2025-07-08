@@ -22,12 +22,25 @@ class DetectionModel(QObject):
         super().__init__()
         self.camera_model = camera_model
         self.detection_enabled = False
-        self.yolo_segmentor = YOLOSegmentor("./detection_models/yolo_multi_seg_n.pt")
-        self.latest_detection_result = self.yolo_segmentor.detect(cv2.imread("./test3.jpg"))
-        self.latest_detection_result['head_center'] = (100, 100)
-        self.latest_detection_result['central_center'] = (100, 100)
-        self.latest_detection_result['angle'] = 0
-        self.latest_detection_result['depth'] = 100
+        import os
+        # 获取包的安装路径
+        from ament_index_python.packages import get_package_share_directory
+        try:
+            package_share_dir = get_package_share_directory('gui')
+            model_path = os.path.join(package_share_dir, "detection_models", "yolo_multi_seg_n.pt")
+        except Exception:
+            # 如果在开发环境中，使用相对路径
+            package_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            model_path = os.path.join(package_dir, "detection_models", "yolo_multi_seg_n.pt")
+        self.yolo_segmentor = YOLOSegmentor(model_path)
+        self.yolo_segmentor.detect(np.ones((1080, 1920, 3), dtype=np.uint8))
+        # 初始化默认检测结果，避免在启动时进行检测
+        self.latest_detection_result = {
+            'head_center': (100, 100),
+            'central_center': (100, 100),
+            'angle': 0,
+            'depth': 100
+        }
         self.detect_timer = QTimer()
         self.detect_timer.setInterval(200)
         self.detect_timer.timeout.connect(self.process_detection)
@@ -182,6 +195,11 @@ class YOLOSegmentor:
     def detect(self, image):
         results = self.model.predict(image, conf=0.25, iou=0.5)
         detection_result = results[0]
+        
+        # 检查是否有检测结果
+        if detection_result.masks is None or detection_result.boxes is None:
+            return {}
+        
         masks = detection_result.masks.data.cpu().numpy()
         scores = detection_result.boxes.conf.cpu().numpy()
         classes = detection_result.boxes.cls.cpu().numpy().astype(int)

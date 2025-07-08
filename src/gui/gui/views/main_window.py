@@ -4,9 +4,9 @@
 from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QTabWidget, QMessageBox, 
                            QHBoxLayout, QStatusBar, QProgressBar, QToolBar, QApplication,
                            QMenu, QAction, QPushButton)
-from views.components import *
-from controllers import *
-from models import *
+from gui.views.components import *
+from gui.controllers import *
+from gui.models import *
 
 
 class MainWindow(QMainWindow):
