@@ -81,7 +81,7 @@ class HandEyeTransform:
         p_base = T_cam2base @ p_cam
         print("p_base",p_base)
         v_base = R_cam2base @ v_cam
-        print("v_base:",v_base)
+        
         theta = np.arctan2(v_base[1], v_base[0])
         print("theta:",theta)
         T_target2base = self.get_Z_rotation_matrix(theta)
