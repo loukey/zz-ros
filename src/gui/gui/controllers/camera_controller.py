@@ -312,7 +312,7 @@ class CameraController(BaseController):
                     central_center = detections['central_center']
                     depth = detections['depth']
                     angle = detections['angle']
-                    theta_list = self.hand_eye_transform.get_theta_list(central_center, angle)
+                    theta_list = self.hand_eye_transform.get_theta_list([central_center[0], central_center[1], depth], angle)
                     self.display(f"中心点: {central_center}, 深度: {depth}, 角度: {angle}, 角度列表: {theta_list}", "控制")
                     self.send_angles_requested.emit({
                         'target_angles': theta_list,
