@@ -199,4 +199,4 @@ hand_eye_calibration_data/*
 runs
 *.json
 teach_record.json
-
+*.sh
