@@ -5,9 +5,9 @@ from gui.config import GlobalVars
 class HandEyeTransform:
     def __init__(self):
         self.hand_eye_transform_rm = np.array([
-            [ 0.9996605 ,  0.02568488,  0.00437868, -0.01748838],
-            [-0.02513582,  0.99491608,  0.09752014, -0.06800609],
-            [-0.00686121,  0.09737697,  0.99522392, -0.03227995],
+            [ 0.99927428,  0.03697782, -0.00914077, -0.00990620],
+            [-0.03793413,  0.98783005, -0.15084031, -0.06102098],
+            [ 0.00345179,  0.15107759,  0.98851588, -0.22443320],
             [ 0.        ,  0.        ,  0.        ,  1.        ]
         ])
         self.kinematic_solver = Kinematic6DOF()
@@ -64,52 +64,11 @@ class HandEyeTransform:
         ])
 
     def get_theta_list(self, pos, rotation_angle):
-        # px, py, pz = pos
-        # pz *= 0.001
-        # px = (px - self.cx) * pz / self.fx
-        # py = (py - self.cy) * pz / self.fy     
-        # v_cam = np.array([-sin(rotation_angle), cos(rotation_angle), 0])
-
-        # theta_list_now = GlobalVars.get_current_joint_angles()
-        # print("thetalist_now:",theta_list_now)
-        # forward_rm = self.kinematic_solver.update_dh(theta_list_now)
-        # T_cam2base = forward_rm @ self.hand_eye_transform_rm  
-        # print("T_cam2base:",T_cam2base)
-        # R_cam2base = T_cam2base[:3,:3]
-
-        # p_cam = np.array([px, py, pz, 1])
-        # p_base = T_cam2base @ p_cam
-        # print("p_base",p_base)
-        # v_base = R_cam2base @ v_cam
-        # print("v_base:",v_base)
-        # theta = np.arctan2(v_base[1], v_base[0])
-        # print("theta:",theta)
-        # T_target2base = self.get_Z_rotation_matrix(theta)
-        # T_target2base[:, 3] = p_base
-        
-        # T_offset2target = np.eye(4)
-        # T_offset2target[:3,3] = np.array([0.01, 0, 0.05])
-        # T_target2base = T_target2base @ T_offset2target
-        # T_target2base = T_target2base @ self.get_XYZ_rotation_matrix(0, -135*pi/180, pi/2)
-        # print("T_target2base:",T_target2base)
-        # theta_list = self.kinematic_solver.inverse_kinematic(T_target2base[:3, :3], T_target2base[:3, 3])
-        # print(theta_list)
-        # return theta_list
-
         px, py, pz = pos
         pz *= 0.001
-        px = (px - self.cx) / self.fx
-        py = (py - self.cy) / self.fy     
-        px = px*pz
-        py = py*pz  
-        print("x:",px)
-        print("y:",py)
-
-        v_cam = np.array([
-            -np.sin(rotation_angle),
-            np.cos(rotation_angle),
-            0
-            ])
+        px = (px - self.cx) * pz / self.fx
+        py = (py - self.cy) * pz / self.fy     
+        v_cam = np.array([-sin(rotation_angle), cos(rotation_angle), 0])
 
         theta_list_now = GlobalVars.get_current_joint_angles()
         print("thetalist_now:",theta_list_now)
@@ -117,35 +76,25 @@ class HandEyeTransform:
         T_cam2base = forward_rm @ self.hand_eye_transform_rm  
         print("T_cam2base:",T_cam2base)
         R_cam2base = T_cam2base[:3,:3]
-        t_cam2base = T_cam2base[:3,3]
 
-        p_cam = np.array([px,py,pz])
-        p_base = R_cam2base @ p_cam + t_cam2base
+        p_cam = np.array([px, py, pz, 1])
+        p_base = T_cam2base @ p_cam
         print("p_base",p_base)
         v_base = R_cam2base @ v_cam
         print("v_base:",v_base)
-        v_xy = np.array([v_base[0],v_base[1]])
-        theta = np.arctan2(v_xy[1],v_xy[0])
+        theta = np.arctan2(v_base[1], v_base[0])
         print("theta:",theta)
-        c,s = np.cos(theta),np.sin(theta)
-        Rz = np.array([
-            [c,-s,0],
-            [s, c,0],
-            [0, 0,1]
-        ])
-
-        T_target2base = np.eye(4)
-        T_target2base[:3,:3] = Rz
-        T_target2base[:3,3]=p_base
-
-        T_offset2target = np.eye(4)
-        T_offset2target[:3,3] = np.array([0.01,0,0.05])
-        T_target2base = T_target2base @ T_offset2target
-        T_target2base = T_target2base @ self.get_Y_rotation_matrix(-135*pi/180) @ self.get_Z_rotation_matrix(90*pi/180)
+        T_target2base = self.get_Z_rotation_matrix(theta)
+        T_target2base[:, 3] = p_base
         print("T_target2base:",T_target2base)
+        
+        T_offset2target = np.eye(4)
+        T_offset2target[:3,3] = np.array([0.01, 0, 0.05])
+        T_target2base = T_target2base @ T_offset2target
+        T_target2base = T_target2base @ self.get_Y_rotation_matrix(-135*pi/180) @ self.get_Z_rotation_matrix(pi/2)
         theta_list = self.kinematic_solver.inverse_kinematic(T_target2base[:3, :3], T_target2base[:3, 3])
         print(theta_list)
 
-
         return theta_list
+
 
