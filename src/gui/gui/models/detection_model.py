@@ -13,8 +13,12 @@ import time
 class DetectionSubscriberNode(Node):
     """ROS2检测结果订阅节点"""
     
-    def __init__(self, detection_model):
-        super().__init__('detection_subscriber')
+    def __init__(self, detection_model, node_id=None):
+        # 使用唯一节点名称
+        node_name = 'detection_subscriber'
+        if node_id:
+            node_name = f'detection_subscriber_{node_id}'
+        super().__init__(node_name)
         self.detection_model = detection_model
         
         # 创建订阅者
@@ -67,6 +71,7 @@ class DetectionModel(QObject):
         self.ros_node = None
         self.ros_thread = None
         self.ros_executor = None
+        self.node_counter = 0  # 用于生成唯一节点ID
         
     def init_ros_node(self):
         """初始化ROS节点"""
@@ -74,8 +79,12 @@ class DetectionModel(QObject):
             if not rclpy.ok():
                 rclpy.init()
             
+            # 生成唯一节点ID
+            self.node_counter += 1
+            node_id = self.node_counter
+            
             # 创建ROS节点
-            self.ros_node = DetectionSubscriberNode(self)
+            self.ros_node = DetectionSubscriberNode(self, node_id)
             
             # 创建执行器
             from rclpy.executors import SingleThreadedExecutor
@@ -86,7 +95,7 @@ class DetectionModel(QObject):
             self.ros_thread = threading.Thread(target=self.ros_executor.spin, daemon=True)
             self.ros_thread.start()
             
-            self.detection_msg_signal.emit("ROS节点已启动，等待检测结果...")
+            self.detection_msg_signal.emit(f"ROS节点已启动 (ID: {node_id})，等待检测结果...")
             
         except Exception as e:
             self.detection_msg_signal.emit(f"ROS节点启动失败: {e}")
