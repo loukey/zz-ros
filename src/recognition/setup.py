@@ -1,13 +1,10 @@
-#!/usr/bin/env python3
-import os
-import sys
 from setuptools import find_packages, setup
 
-package_name = 'gui'
+package_name = 'recognition'
 
 setup(
     name=package_name,
-    version='0.2.13',
+    version='0.0.0',
     packages=find_packages(exclude=['test']),
     data_files=[
         ('share/ament_index/resource_index/packages',
@@ -17,12 +14,13 @@ setup(
     install_requires=['setuptools'],
     zip_safe=True,
     maintainer='za',
-    maintainer_email='529768926@qq.com',
+    maintainer_email='neu.ycl.za@gmail.com',
     description='TODO: Package description',
     license='TODO: License declaration',
+    tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'gui = gui.main:main',
+            'recognition_pub = recognition.recognition_pub:main',
         ],
     },
 )

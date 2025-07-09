@@ -144,7 +144,7 @@ class MainWindow(QMainWindow):
         self.serial_model = SerialModel()
         self.motion_model = MotionModel(self.serial_model)
         self.camera_model = CameraModel()
-        self.detection_model = DetectionModel(self.camera_model)
+        self.detection_model = DetectionModel()
         self.robot_model = RobotModel()
 
     def init_controllers(self):

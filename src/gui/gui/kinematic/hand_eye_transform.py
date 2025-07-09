@@ -48,15 +48,26 @@ class HandEyeTransform:
             [0, s, c, 0],
             [0, 0, 0, 1]
         ])
+    
+    def get_XYZ_rotation_matrix(self, x_angle, y_angle, z_angle):
+        c_x = cos(x_angle)
+        s_x = sin(x_angle)
+        c_y = cos(y_angle)
+        s_y = sin(y_angle)
+        c_z = cos(z_angle)
+        s_z = sin(z_angle)
+        return np.array([
+            [c_y*c_z, -c_x*s_z + s_x*s_y*c_z, s_x*s_z + c_x*s_y*c_z, 0],
+            [c_y*s_z, c_x*c_z + s_x*s_y*s_z, -s_x*c_z + c_x*s_y*s_z, 0],
+            [-s_y, s_x*c_y, c_x*c_y, 0],
+            [0, 0, 0, 1]
+        ])
 
     def get_theta_list(self, pos, rotation_angle):
         px, py, pz = pos
         pz *= 0.001
         px = (px - self.cx)*pz / self.fx
         py = (py - self.cy)*pz / self.fy     
-        
-        rotation_angle += 180 if rotation_angle < 0 else -180
-        rotation_angle *= pi / 180
         v_cam = np.array([-sin(rotation_angle), cos(rotation_angle), 0])
 
         theta_list_now = GlobalVars.get_current_joint_angles()
@@ -77,9 +88,9 @@ class HandEyeTransform:
         T_target2base[:, 3] = p_base
         
         T_offset2target = np.eye(4)
-        T_offset2target[:3,3] = np.array([0.01,0,0.05])
+        T_offset2target[:3,3] = np.array([0.01, 0, 0.05])
         T_target2base = T_target2base @ T_offset2target
-        T_target2base = T_target2base @ self.get_Y_rotation_matrix(-135*pi/180) @ self.get_Z_rotation_matrix(90*pi/180)
+        T_target2base = T_target2base @ self.get_XYZ_rotation_matrix(0, -135*pi/180, pi/2)
         print("T_target2base:",T_target2base)
         theta_list = self.kinematic_solver.inverse_kinematic(T_target2base[:3, :3], T_target2base[:3, 3])
         print(theta_list)

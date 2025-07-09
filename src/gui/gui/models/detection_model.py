@@ -1,116 +1,135 @@
 """
-检测数据模型
+检测数据模型 - 从recognition节点获取检测结果
 """
 import numpy as np
 from PyQt5.QtCore import QObject, QTimer, pyqtSignal
-import cv2
-import numpy as np
-from ultralytics import YOLO
+import rclpy
+from rclpy.node import Node
+from interface.msg import DetectionResult
+import threading
 import time
-import numpy as np
-from typing import Optional, Dict, Tuple
-import cv2
-import math
+
+
+class DetectionSubscriberNode(Node):
+    """ROS2检测结果订阅节点"""
+    
+    def __init__(self, detection_model):
+        super().__init__('detection_subscriber')
+        self.detection_model = detection_model
+        
+        # 创建订阅者
+        self.subscription = self.create_subscription(
+            DetectionResult,
+            'recognition_result',
+            self.detection_callback,
+            10
+        )
+        
+    def detection_callback(self, msg):
+        """接收检测结果的回调函数"""
+        try:
+            # 将ROS消息转换为字典格式
+            detection_result = {
+                'head_center': tuple(msg.head_center),
+                'central_center': tuple(msg.central_center),
+                'angle': msg.angle,
+                'depth': msg.depth
+            }
+            
+            # 更新检测模型
+            self.detection_model.update_detection_result(detection_result)
+            
+        except Exception as e:
+            self.get_logger().error(f'处理检测结果失败: {e}')
 
 
 class DetectionModel(QObject):
-    """检测数据模型类"""
+    """检测数据模型类 - 从recognition节点获取结果
     
-    detection_msg_signal = pyqtSignal(str)  # 错误信号
+    注意：此模型不依赖摄像头连接，可以独立运行
+    它只负责订阅来自recognition节点的检测结果
+    """
     
-    def __init__(self, camera_model=None):
+    detection_msg_signal = pyqtSignal(str)  # 消息信号
+    
+    def __init__(self):
         super().__init__()
-        self.camera_model = camera_model
-        self.detection_enabled = False
-        import os
-        # 获取包的安装路径
-        from ament_index_python.packages import get_package_share_directory
-        try:
-            package_share_dir = get_package_share_directory('gui')
-            model_path = os.path.join(package_share_dir, "detection_models", "yolo_multi_seg_n.pt")
-        except Exception:
-            # 如果在开发环境中，使用相对路径
-            package_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            model_path = os.path.join(package_dir, "detection_models", "yolo_multi_seg_n.pt")
-        self.yolo_segmentor = YOLOSegmentor(model_path)
-        self.yolo_segmentor.detect(np.ones((1080, 1920, 3), dtype=np.uint8))
-        # 初始化默认检测结果，避免在启动时进行检测
+        
+        # 初始化默认检测结果
         self.latest_detection_result = {
             'head_center': (100, 100),
             'central_center': (100, 100),
             'angle': 0,
             'depth': 100
         }
-        self.detect_timer = QTimer()
-        self.detect_timer.setInterval(200)
-        self.detect_timer.timeout.connect(self.process_detection)
         
-    def set_camera_model(self, camera_model):
-        """设置摄像头模型"""
-        self.camera_model = camera_model
+        # 初始化ROS2
+        self.ros_node = None
+        self.ros_thread = None
+        self.ros_executor = None
         
-    def get_current_color_image(self):
-        """获取当前彩色图像"""
-        if self.camera_model and self.camera_model.is_camera_connected:
-            return self.camera_model.get_latest_color_image()
-        return None
+    def init_ros_node(self):
+        """初始化ROS节点"""
+        try:
+            if not rclpy.ok():
+                rclpy.init()
+            
+            # 创建ROS节点
+            self.ros_node = DetectionSubscriberNode(self)
+            
+            # 创建执行器
+            from rclpy.executors import SingleThreadedExecutor
+            self.ros_executor = SingleThreadedExecutor()
+            self.ros_executor.add_node(self.ros_node)
+            
+            # 在单独的线程中运行ROS节点
+            self.ros_thread = threading.Thread(target=self.ros_executor.spin, daemon=True)
+            self.ros_thread.start()
+            
+            self.detection_msg_signal.emit("ROS节点已启动，等待检测结果...")
+            
+        except Exception as e:
+            self.detection_msg_signal.emit(f"ROS节点启动失败: {e}")
     
-    def get_current_depth_image(self):
-        """获取当前深度图像"""
-        if self.camera_model and self.camera_model.is_camera_connected:
-            return self.camera_model.get_latest_depth_image()
-        return None
-    
-    def is_camera_available(self):
-        """检查摄像头是否可用"""
-        return (self.camera_model and 
-                self.camera_model.is_camera_connected and
-                self.camera_model.is_color_available() and
-                self.camera_model.is_depth_available())
-    
+    def update_detection_result(self, detection_result):
+        """更新检测结果"""
+        self.latest_detection_result = detection_result
+        self.detection_msg_signal.emit(f"收到检测结果: {detection_result}")
+        
     def start_auto_detection(self):
-        self.detect_timer.start()
+        """开始自动检测 - 启动ROS节点
+        
+        注意：此方法不依赖摄像头连接状态，可以直接调用
+        它会启动ROS节点来监听recognition节点的检测结果
+        """
+        if self.ros_node is None:
+            self.init_ros_node()
+        self.detection_msg_signal.emit("开始监听检测结果...")
     
     def stop_auto_detection(self):
-        self.detect_timer.stop()
-
-    def get_depth_at_position(self, depth_image, x, y):
-        """获取指定位置的深度值"""
-        try:
-            if depth_image is None:
-                return None
-            height, width = depth_image.shape[:2]
-            x = max(0, min(int(x), width - 1))
-            y = max(0, min(int(y), height - 1))
-            depth_value = depth_image[y, x]
-            return float(depth_value)
-            
-        except Exception as e:
-            return None
+        """停止自动检测 - 停止ROS节点"""
+        self.stop_ros_node()
+        self.detection_msg_signal.emit("停止监听检测结果")
     
-    def process_detection(self):
-        try:            
-            if not self.is_camera_available():
-                self.detection_msg_signal.emit("摄像头不可用")
-                return
+    def stop_ros_node(self):
+        """停止ROS节点"""
+        try:
+            if self.ros_executor:
+                self.ros_executor.shutdown()
             
-            color_image = self.get_current_color_image()
-            depth_image = self.get_current_depth_image()
+            if self.ros_thread and self.ros_thread.is_alive():
+                self.ros_thread.join(timeout=1.0)
             
-            if color_image is None:
-                self.detection_msg_signal.emit("无法获取彩色图像")
-                return
+            self.ros_node = None
+            self.ros_executor = None
+            self.ros_thread = None
             
-            detections = self.yolo_segmentor.detect(color_image)
-            depth = self.get_depth_at_position(depth_image, *detections['central_center'])
-            detections['depth'] = depth
-
-            # 更新检测结果
-            self.latest_detection_result = detections
-            self.detection_msg_signal.emit(f"检测结果: {detections}")
         except Exception as e:
-            self.detection_msg_signal.emit(f"检测处理失败: {str(e)}")
-            return
+            self.detection_msg_signal.emit(f"停止ROS节点失败: {e}")
+
+    def is_detection_running(self):
+        """检查检测是否正在运行"""
+        return self.ros_node is not None and self.ros_thread is not None and self.ros_thread.is_alive()
     
     def get_latest_detection_result(self):
         """获取最新检测结果"""
@@ -119,106 +138,11 @@ class DetectionModel(QObject):
     def clear_detection_result(self):
         """清除检测结果"""
         self.latest_detection_result = {}
-
-
-class YOLOSegmentor:
-
-    def __init__(self, model_path):
-        self.model = YOLO(model_path)
-        self.class_mapping = {
-            "central": 0,
-            "head": 1
-        }
-
-    def _calculate_mask_center(self, mask: np.ndarray) -> Tuple[float, float]:
-        """计算掩码中心点"""
-        binary_mask = (mask > 0.5).astype(np.uint8)
-        moments = cv2.moments(binary_mask)
-        
-        if moments['m00'] == 0:
-            h, w = mask.shape
-            return (w / 2, h / 2)
-        
-        cx = moments['m10'] / moments['m00']
-        cy = moments['m01'] / moments['m00']
-        
-        return (cx, cy)
-
-    def _extract_target_info(self, masks: np.ndarray, scores: np.ndarray, 
-                            classes: np.ndarray, target_class: str, 
-                            scale_x: float, scale_y: float) -> Optional[Dict]:
-        """提取目标信息，并将中心点坐标缩放到原图像尺寸"""
-        if target_class not in self.class_mapping:
-            return None
-        
-        target_class_id = self.class_mapping[target_class]
-        class_indices = np.where(classes == target_class_id)[0]
-        
-        if len(class_indices) == 0:
-            return None
-        
-        # 选择置信度最高的
-        best_idx = class_indices[np.argmax(scores[class_indices])]
-        
-        mask = masks[best_idx]
-        confidence = scores[best_idx]
-        center = self._calculate_mask_center(mask)
-        
-        # 将中心点坐标缩放到原图像尺寸
-        scaled_center = (center[0] * scale_x, center[1] * scale_y)
-        
-        return {
-            'center': scaled_center,
-            'confidence': confidence
-        }
-
-    def _calculate_angle(self, central_center: Tuple[float, float], 
-                        head_center: Tuple[float, float]) -> float:
-        """
-        计算角度
-        直着向上为0度，顺时针为正值，范围[-180, 180]
-        """
-        dx = head_center[0] - central_center[0]
-        dy = head_center[1] - central_center[1]
-        
-        angle_rad = math.atan2(dx, -dy)
-        angle_deg = math.degrees(angle_rad)
-        
-        # 确保角度在[-180, 180]范围内
-        if angle_deg > 180:
-            angle_deg -= 360
-        elif angle_deg < -180:
-            angle_deg += 360
-        
-        return angle_deg
-
-    def detect(self, image):
-        results = self.model.predict(image, conf=0.25, iou=0.5)
-        detection_result = results[0]
-        
-        # 检查是否有检测结果
-        if detection_result.masks is None or detection_result.boxes is None:
-            return {}
-        
-        masks = detection_result.masks.data.cpu().numpy()
-        scores = detection_result.boxes.conf.cpu().numpy()
-        classes = detection_result.boxes.cls.cpu().numpy().astype(int)
-
-        # 计算缩放比例
-        origin_height, origin_width = image.shape[:2]
-        mask_height, mask_width = masks.shape[1], masks.shape[2]
-        
-        scale_x = origin_width / mask_width
-        scale_y = origin_height / mask_height
-
-        head_info = self._extract_target_info(masks, scores, classes, "head", scale_x, scale_y)
-        central_info = self._extract_target_info(masks, scores, classes, "central", scale_x, scale_y)
-
-        if head_info and central_info:
-            angle = self._calculate_angle(central_info["center"], head_info["center"])
-            return {
-                "head_center": head_info["center"],
-                "central_center": central_info["center"],
-                "angle": angle
-            }
-        return {}
+    
+    def cleanup(self):
+        """清理资源"""
+        try:
+            self.stop_ros_node()
+                
+        except Exception as e:
+            self.detection_msg_signal.emit(f"清理资源失败: {e}")
