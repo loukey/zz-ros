@@ -81,7 +81,7 @@ class CameraFrame(QGroupBox):
         self.start_detection_button = QPushButton("开始检测")
         self.start_detection_button.setFont(default_font)
         self.start_detection_button.setCheckable(True)  # 可切换状态
-        self.start_detection_button.setEnabled(False)  # 初始不可用
+        self.start_detection_button.setEnabled(True)  # 始终可用，不依赖摄像头连接
         self.start_detection_button.clicked.connect(self._on_detection_button_clicked)
         button_layout.addWidget(self.start_detection_button)
         
@@ -220,21 +220,20 @@ class CameraFrame(QGroupBox):
             self.color_button.setEnabled(True)
             self.depth_button.setEnabled(True)
             self.stop_button.setEnabled(True)
-            self.start_detection_button.setEnabled(True)
+            # 检测按钮始终保持启用状态，不依赖摄像头连接
             self.pose_publish_button.setEnabled(True)
         else:
             self.connect_button.setText("连接摄像头")
             self.color_button.setEnabled(False)
             self.depth_button.setEnabled(False)
             self.stop_button.setEnabled(False)
-            self.start_detection_button.setEnabled(False)
+            # 检测按钮保持启用，但重置其状态
             self.move_button.setEnabled(False)
             self.pose_publish_button.setEnabled(False)
             # 清除选中状态
             self.color_button.setChecked(False)
             self.depth_button.setChecked(False)
-            self.start_detection_button.setChecked(False)
-            self.start_detection_button.setText("开始检测")
+            # 不重置检测按钮状态，让用户自己控制
             self.pose_publish_button.setChecked(False)
             self.pose_publish_button.setText("开启位姿发布")
     

@@ -4,9 +4,9 @@
 from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QTabWidget, QMessageBox, 
                            QHBoxLayout, QStatusBar, QProgressBar, QToolBar, QApplication,
                            QMenu, QAction, QPushButton)
-from views.components import *
-from controllers import *
-from models import *
+from gui.views.components import *
+from gui.controllers import *
+from gui.models import *
 
 
 class MainWindow(QMainWindow):
@@ -144,7 +144,7 @@ class MainWindow(QMainWindow):
         self.serial_model = SerialModel()
         self.motion_model = MotionModel(self.serial_model)
         self.camera_model = CameraModel()
-        self.detection_model = DetectionModel(self.camera_model)
+        self.detection_model = DetectionModel()
         self.robot_model = RobotModel()
 
     def init_controllers(self):

@@ -50,6 +50,7 @@ class Kinematic6DOF:
         self.DH_matrix[:, 3] = theta_list
         self.get_rotation_matrix_list()
         self.forward_rm = self.forward_kinematic()
+        return self.forward_rm
 
     def get_end_position(self, theta_list):
         self.update_dh(theta_list)

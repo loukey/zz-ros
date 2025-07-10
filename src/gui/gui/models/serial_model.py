@@ -7,8 +7,8 @@ import time
 from PyQt5.QtCore import QObject, pyqtSignal, pyqtSlot
 import os
 import glob
-from utils import *
-from config import *
+from gui.utils import *
+from gui.config import *
 from queue import Queue
 
 

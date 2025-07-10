@@ -1,3 +1,6 @@
+#!/usr/bin/env python3
+import os
+import sys
 from setuptools import find_packages, setup
 
 package_name = 'gui'
@@ -7,6 +10,8 @@ setup(
     version='0.2.13',
     packages=find_packages(exclude=['test']),
     data_files=[
+        ('share/ament_index/resource_index/packages',
+            ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
     ],
     install_requires=['setuptools'],
@@ -15,9 +20,9 @@ setup(
     maintainer_email='529768926@qq.com',
     description='TODO: Package description',
     license='TODO: License declaration',
-    tests_require=['pytest'],
     entry_points={
         'console_scripts': [
+            'gui = gui.main:main',
         ],
     },
 )
