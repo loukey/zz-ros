@@ -486,7 +486,7 @@ def main():
     generator1 = YOLODataGenerator(
         annotations_dir="../data/annotations",
         output_dir="../data/yolo_dataset_auto", 
-        target_count=500,
+        target_count=2200,
         auto_discover_classes=True
     )
     
@@ -500,7 +500,7 @@ def main():
     generator2 = YOLODataGenerator(
         annotations_dir="../data/annotations",
         output_dir="../data/yolo_dataset_custom", 
-        target_count=500,
+        target_count=2200,
         class_mapping=custom_mapping,
         auto_discover_classes=False
     )
