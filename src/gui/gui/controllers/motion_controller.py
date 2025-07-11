@@ -312,7 +312,7 @@ class MotionController(BaseController):
         target_angles = positions_list[0]
         _, positions = self.motion_model.curve_planning(start_angles, target_angles, dt=self.dt)
         positions = positions.tolist()
-        positions_list = self.smooth_via_velocity_reconstruction(positions_list).tolist()
+        positions_list = self.spline_then_savgol(positions_list).tolist()
         positions.extend(positions_list)
         self.motion_model.add_teach_data(positions)
         self.motion_model.start_teach()

@@ -1,10 +1,22 @@
 from .base import *
+<<<<<<< HEAD
+from .kinematic_6dof import Kinematic6DOF
+=======
+>>>>>>> v0.5
 from math import pi
 
 
 class Dynamic:
     def __init__(self):
         self.link_masses = [4.64,10.755,3.925,1.24,1.24,2.549]
+        self.DH_matrix = np.array([
+            [0.0, 0.0, 0.0, 0.0],
+            [0.0, -pi/2, 0.0, -pi/2],
+            [0.425, pi, 0.0, 0.0],
+            [0.401, pi, 0.0856, pi/2],
+            [0.0, pi/2, 0.086, 0.0],
+            [0.0, -pi/2, 0.0725, 0.0]
+        ], dtype=float)
         self.link_com_positions = [
             np.array([0, 0, 0]),
             np.array([0.2125, 0, 0.134]),
