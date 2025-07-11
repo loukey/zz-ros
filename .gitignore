@@ -200,3 +200,4 @@ runs
 *.json
 teach_record.json
 *.sh
+runs/

@@ -1,5 +1,4 @@
 import numpy as np
-import cv2
 import math
 from typing import Tuple, Optional, Dict
 from ultralytics import YOLO
@@ -9,97 +8,84 @@ class YOLOSegmentor:
 
     def __init__(self, model_path):
         self.model = YOLO(model_path)
-        self.class_mapping = {
-            "central": 0,
-            "head": 1
-        }
 
-    def _calculate_mask_center(self, mask: np.ndarray) -> Tuple[float, float]:
-        """计算掩码中心点"""
-        binary_mask = (mask > 0.5).astype(np.uint8)
-        moments = cv2.moments(binary_mask)
-        
-        if moments['m00'] == 0:
-            h, w = mask.shape
-            return (w / 2, h / 2)
-        
-        cx = moments['m10'] / moments['m00']
-        cy = moments['m01'] / moments['m00']
-        
-        return (cx, cy)
+    def _calculate_obb_center(self, coords: np.ndarray) -> Tuple[float, float]:
+        """计算OBB中心点"""
+        corners = coords.reshape(4, 2)
+        center_x = corners[:, 0].mean()
+        center_y = corners[:, 1].mean()
+        return (float(center_x), float(center_y))
 
-    def _extract_target_info(self, masks: np.ndarray, scores: np.ndarray, 
-                            classes: np.ndarray, target_class: str, 
-                            scale_x: float, scale_y: float) -> Optional[Dict]:
-        """提取目标信息，并将中心点坐标缩放到原图像尺寸"""
-        if target_class not in self.class_mapping:
+    def _calculate_obb_angle(self, coords: np.ndarray) -> float:
+        """计算OBB角度 - 直着向上为0度，顺时针为正值"""
+        points = coords.reshape(4, 2)
+        
+        # 计算长边的方向向量
+        edge1 = points[1] - points[0]
+        edge2 = points[2] - points[1]
+        
+        # 选择较长的边作为主方向
+        if np.linalg.norm(edge1) > np.linalg.norm(edge2):
+            main_edge = edge1
+        else:
+            main_edge = edge2
+        
+        # 计算角度 - 直着向上为0度，顺时针为正值
+        angle_rad = math.atan2(main_edge[0], -main_edge[1])
+        
+        # 标准化到[-180, 180]度
+        if angle_rad > math.pi:
+            angle_rad -= 2 * math.pi
+        elif angle_rad < -math.pi:
+            angle_rad += 2 * math.pi
+        
+        return angle_rad
+
+    def _extract_best_detection(self, obb, target_class_id: int) -> Optional[Dict]:
+        """提取指定类别的最佳检测结果"""
+        if obb is None or len(obb) == 0:
             return None
         
-        target_class_id = self.class_mapping[target_class]
-        class_indices = np.where(classes == target_class_id)[0]
+        # 找到目标类别的检测结果
+        class_indices = []
+        for i in range(len(obb)):
+            if int(obb.cls[i].cpu().numpy()) == target_class_id:
+                class_indices.append(i)
         
-        if len(class_indices) == 0:
+        if not class_indices:
             return None
         
         # 选择置信度最高的
-        best_idx = class_indices[np.argmax(scores[class_indices])]
+        best_idx = max(class_indices, key=lambda i: float(obb.conf[i].cpu().numpy()))
         
-        mask = masks[best_idx]
-        confidence = scores[best_idx]
-        center = self._calculate_mask_center(mask)
-        
-        # 将中心点坐标缩放到原图像尺寸
-        scaled_center = (center[0] * scale_x, center[1] * scale_y)
+        coords = obb.xyxyxyxy[best_idx].cpu().numpy()
+        confidence = float(obb.conf[best_idx].cpu().numpy())
+        center = self._calculate_obb_center(coords)
+        angle = self._calculate_obb_angle(coords)
         
         return {
-            'center': scaled_center,
-            'confidence': confidence
+            'center': center,
+            'confidence': confidence,
+            'angle': angle
         }
 
-    def _calculate_angle(self, central_center: Tuple[float, float], 
-                        head_center: Tuple[float, float]) -> float:
-        """
-        计算角度
-        直着向上为0度，顺时针为正值，范围[-180, 180]
-        """
-        dx = central_center[0] - head_center[0]
-        dy = central_center[1] - head_center[1]
-        
-        angle_rad = math.atan2(dx, -dy)
-        if angle_rad > math.pi:
-            angle_rad -= 2 * math.pi
-        elif angle_rad < -math.pi/2:
-            angle_rad += 2 * math.pi
-            
-        return angle_rad
-
     def detect(self, image):
-        results = self.model.predict(image, conf=0.25, iou=0.5)
-        detection_result = results[0]
+        results = self.model(image)
         
-        # 检查是否有检测结果
-        if detection_result.masks is None or detection_result.boxes is None:
+        if not results or results[0].obb is None:
             return {}
         
-        masks = detection_result.masks.data.cpu().numpy()
-        scores = detection_result.boxes.conf.cpu().numpy()
-        classes = detection_result.boxes.cls.cpu().numpy().astype(int)
-
-        # 计算缩放比例
-        origin_height, origin_width = image.shape[:2]
-        mask_height, mask_width = masks.shape[1], masks.shape[2]
+        obb = results[0].obb
         
-        scale_x = origin_width / mask_width
-        scale_y = origin_height / mask_height
-
-        head_info = self._extract_target_info(masks, scores, classes, "head", scale_x, scale_y)
-        central_info = self._extract_target_info(masks, scores, classes, "central", scale_x, scale_y)
-
-        if head_info and central_info:
-            angle = self._calculate_angle(central_info["center"], head_info["center"])
+        # 提取central和head的检测结果 (假设central=0, head=1)
+        central_info = self._extract_best_detection(obb, 0)
+        head_info = self._extract_best_detection(obb, 1)
+        
+        if central_info and head_info:
             return {
                 "head_center": head_info["center"],
                 "central_center": central_info["center"],
-                "angle": angle
+                "angle": central_info["angle"]  # 使用central的角度
             }
+        
         return {}

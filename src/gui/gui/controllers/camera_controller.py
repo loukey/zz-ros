@@ -236,11 +236,45 @@ class CameraController(BaseController):
         central_center = (int(central_center[0]), int(central_center[1]))
         angle = detections['angle']
         depth = detections['depth']
-        cv2.circle(image, head_center, 5, (0, 0, 255), -1)
-        cv2.circle(image, central_center, 5, (0, 255, 0), -1)
+        
+        # 绘制中心点
+        cv2.circle(image, head_center, 5, (0, 0, 255), -1)  # 红色 head
+        cv2.circle(image, central_center, 5, (0, 255, 0), -1)  # 绿色 central
+        
+        # 绘制方向箭头
+        self._draw_direction_arrow(image, central_center, angle)
+        
+        # 绘制文本信息
         cv2.putText(image, f"angle: {angle:.2f}", (head_center[0], head_center[1] - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
         cv2.putText(image, f"depth: {depth:.2f}", (central_center[0], central_center[1] - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+        
         return image
+    
+    def _draw_direction_arrow(self, image, center, angle):
+        """
+        绘制方向箭头
+        
+        Args:
+            image: 图像
+            center: 中心点坐标 (x, y)
+            angle: 角度 (弧度) - 直着向上为0，顺时针为正
+        """
+        import math
+        
+        # 箭头参数
+        arrow_length = 50  # 箭头长度
+        arrow_color = (255, 0, 0)  # 蓝色
+        arrow_thickness = 3
+        
+        # 计算箭头终点
+        # 角度系统：直着向上为0，顺时针为正
+        # 向上方向为 (0, -1)，因为图像坐标系Y轴向下
+        end_x = center[0] + arrow_length * math.sin(angle)
+        end_y = center[1] - arrow_length * math.cos(angle)
+        end_point = (int(end_x), int(end_y))
+        
+        # 绘制箭头
+        cv2.arrowedLine(image, center, end_point, arrow_color, arrow_thickness, tipLength=0.3)
     
     def cleanup(self):
         """清理资源"""

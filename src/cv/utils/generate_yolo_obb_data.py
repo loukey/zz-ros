@@ -1,705 +1,629 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-YOLO OBB 训练数据生成器
-从分割模型结果生成旋转边界框(OBB)训练数据
-基于PCA方法计算零件的中心点和方向
+YOLO11-OBB 训练数据生成器
+从LabelMe标注文件生成增强的YOLO11-OBB训练数据
+支持旋转边界框(Oriented Bounding Box)检测
 """
 
 import os
-import sys
+import json
 import cv2
 import numpy as np
-import yaml
 import random
 from pathlib import Path
-import torch
-from sklearn.decomposition import PCA
-from ultralytics import YOLO
-import time
-from datetime import datetime
-
-# 直接实现所需的函数，避免导入问题
-def calculate_extension_distance(mask, start_point, direction_vector, width, height):
-    """
-    计算从起始点沿指定方向能在掩码内延伸的最大距离
-    """
-    # 标准化方向向量
-    direction_vector = direction_vector / np.linalg.norm(direction_vector)
-    
-    max_distance = 0
-    step_size = 0.5
-    
-    # 逐步延伸直到离开掩码边界
-    for step in range(1, int(max(width, height) * 2)):
-        # 计算当前点
-        current_point = start_point + step * step_size * direction_vector
-        
-        # 检查边界
-        x, y = int(round(current_point[0])), int(round(current_point[1]))
-        if x < 0 or x >= width or y < 0 or y >= height:
-            break
-        
-        # 检查是否仍在掩码内
-        if mask[y, x] > 0.5:
-            max_distance = step * step_size
-        else:
-            break
-    
-    return max_distance
+import math
+from collections import defaultdict
+import yaml
+from typing import List, Tuple, Dict, Any
 
 
-def calculate_part_orientation(mask):
-    """
-    检测零件尖端方向
-    角度系统：尖端向上为0度，顺时针为正角度
-    返回: (角度, 质心, 尖端向量)
-    """
-    if torch.is_tensor(mask):
-        mask_np = mask.cpu().numpy()
-    else:
-        mask_np = mask
-    
-    # 获取掩码的像素坐标
-    y_coords, x_coords = np.where(mask_np > 0.5)
-    
-    if len(x_coords) < 10:
-        return None, None, None
-    
-    # 构造坐标点矩阵
-    points = np.column_stack((x_coords, y_coords))
-    
-    # 计算质心
-    centroid = np.mean(points, axis=0)
-    
-    # 使用PCA计算主轴方向
-    pca = PCA(n_components=2)
-    pca.fit(points)
-    principal_vector = pca.components_[0]
-    
-    # 计算沿主轴正负方向的延伸距离
-    mask_height, mask_width = mask_np.shape
-    
-    # 正方向延伸距离
-    positive_distance = calculate_extension_distance(
-        mask_np, centroid, principal_vector, mask_width, mask_height
-    )
-    
-    # 负方向延伸距离
-    negative_distance = calculate_extension_distance(
-        mask_np, centroid, -principal_vector, mask_width, mask_height
-    )
-    
-    # 尖端在延伸更远的方向
-    if positive_distance > negative_distance:
-        tip_vector = principal_vector
-    else:
-        tip_vector = -principal_vector
-    
-    # 计算尖端方向角度（从正y轴向上开始，顺时针为正）
-    # tip_vector[0] = x分量, tip_vector[1] = y分量
-    # 注意：图像坐标系中y轴向下，所以需要取负号
-    angle_to_up = np.degrees(np.arctan2(tip_vector[0], -tip_vector[1]))
-    
-    # 标准化角度到[-180, 180]范围
-    while angle_to_up > 180:
-        angle_to_up -= 360
-    while angle_to_up <= -180:
-        angle_to_up += 360
-    
-    return angle_to_up, centroid, tip_vector
-
-
-class YOLOOBBDataGenerator:
-    """YOLO OBB数据生成器"""
-    
-    def __init__(self, 
-                 seg_model_path='../models_cache/yolo_seg_n.pt',
-                 images_dir='../data/yolo_dataset/images',
-                 output_dir='../data/yolo_obb_dataset',
-                 device=None):
-        """
-        初始化OBB数据生成器
-        
-        Args:
-            seg_model_path: 分割模型路径
-            images_dir: 输入图像目录
-            output_dir: 输出数据集目录
-            device: 设备选择
-        """
-        self.seg_model_path = seg_model_path
-        self.images_dir = images_dir
+class YOLO11OBBDataGenerator:
+    def __init__(self, annotations_dir="./data/annotations", 
+                 output_dir="./data/yolo11_obb_dataset", 
+                 target_count=500,
+                 class_mapping=None,
+                 auto_discover_classes=True,
+                 train_ratio=0.7,
+                 val_ratio=0.2,
+                 test_ratio=0.1):
+        self.annotations_dir = annotations_dir
         self.output_dir = output_dir
+        self.target_count = target_count
+        self.auto_discover_classes = auto_discover_classes
+        self.train_ratio = train_ratio
+        self.val_ratio = val_ratio
+        self.test_ratio = test_ratio
         
-        # 设备选择
-        if device is None:
-            self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        # 验证比例总和
+        total_ratio = train_ratio + val_ratio + test_ratio
+        if abs(total_ratio - 1.0) > 1e-6:
+            raise ValueError(f"数据集分割比例总和必须为1.0，当前为{total_ratio}")
+        
+        # 类别映射相关
+        self.class_mapping = class_mapping or {}  # label_name -> class_id
+        self.reverse_mapping = {}  # class_id -> label_name
+        self.class_names = []  # 按class_id顺序排列的类别名称
+        self.unknown_labels = set()  # 记录未知的标签
+        
+        # 创建输出目录结构
+        self.create_output_directories()
+        
+        # 如果需要自动发现类别，先扫描所有文件
+        if self.auto_discover_classes:
+            self.discover_classes()
         else:
-            self.device = device
+            self.setup_class_mapping()
+    
+    def create_output_directories(self):
+        """创建输出目录结构"""
+        # 主目录
+        os.makedirs(self.output_dir, exist_ok=True)
+        
+        # 图像目录
+        self.images_dir = os.path.join(self.output_dir, "images")
+        self.train_images_dir = os.path.join(self.images_dir, "train")
+        self.val_images_dir = os.path.join(self.images_dir, "val")
+        self.test_images_dir = os.path.join(self.images_dir, "test")
+        
+        # 标签目录
+        self.labels_dir = os.path.join(self.output_dir, "labels")
+        self.train_labels_dir = os.path.join(self.labels_dir, "train")
+        self.val_labels_dir = os.path.join(self.labels_dir, "val")
+        self.test_labels_dir = os.path.join(self.labels_dir, "test")
+        
+        # 创建所有目录
+        for dir_path in [self.train_images_dir, self.val_images_dir, self.test_images_dir,
+                        self.train_labels_dir, self.val_labels_dir, self.test_labels_dir]:
+            os.makedirs(dir_path, exist_ok=True)
+        
+        print(f"输出目录结构创建完成: {self.output_dir}")
+    
+    def discover_classes(self):
+        """自动发现数据集中的所有类别"""
+        print("正在自动发现类别...")
+        all_labels = set()
+        
+        # 扫描所有JSON文件，收集所有标签
+        for file in os.listdir(self.annotations_dir):
+            if file.lower().endswith('.json'):
+                json_path = os.path.join(self.annotations_dir, file)
+                try:
+                    with open(json_path, 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+                    
+                    for shape in data.get('shapes', []):
+                        if shape['shape_type'] == 'polygon':
+                            label = shape.get('label', 'unknown')
+                            all_labels.add(label)
+                            
+                except Exception as e:
+                    print(f"警告: 读取文件 {file} 时出错: {e}")
+        
+        # 如果有预定义的类别映射，保留它们
+        if self.class_mapping:
+            print(f"使用预定义的类别映射: {self.class_mapping}")
+            existing_labels = set(self.class_mapping.keys())
+            new_labels = all_labels - existing_labels
             
-        print(f"使用设备: {self.device}")
+            if new_labels:
+                print(f"发现新类别: {new_labels}")
+                # 为新类别分配ID
+                max_id = max(self.class_mapping.values()) if self.class_mapping else -1
+                for label in sorted(new_labels):
+                    max_id += 1
+                    self.class_mapping[label] = max_id
+        else:
+            # 创建新的类别映射
+            print(f"发现的所有类别: {sorted(all_labels)}")
+            self.class_mapping = {}
+            for i, label in enumerate(sorted(all_labels)):
+                self.class_mapping[label] = i
         
-        # 创建输出目录
-        self.images_output_dir = os.path.join(output_dir, 'images')
-        self.labels_output_dir = os.path.join(output_dir, 'labels')
-        os.makedirs(self.images_output_dir, exist_ok=True)
-        os.makedirs(self.labels_output_dir, exist_ok=True)
-        
-        # 加载分割模型
-        self.load_segmentation_model()
-        
-        # 统计信息
-        self.total_images = 0
-        self.total_objects = 0
-        self.successful_obb = 0
+        self.setup_class_mapping()
+        print(f"最终类别映射: {self.class_mapping}")
     
-    def load_segmentation_model(self):
-        """加载分割模型"""
-        try:
-            self.seg_model = YOLO(self.seg_model_path)
-            self.seg_model.to(self.device)
-            print(f"✓ 分割模型加载成功: {self.seg_model_path}")
-        except Exception as e:
-            raise RuntimeError(f"分割模型加载失败: {e}")
+    def setup_class_mapping(self):
+        """设置类别映射关系"""
+        # 创建反向映射
+        self.reverse_mapping = {v: k for k, v in self.class_mapping.items()}
+        
+        # 创建按ID排序的类别名称列表
+        max_id = max(self.class_mapping.values()) if self.class_mapping else -1
+        self.class_names = ['unknown'] * (max_id + 1)
+        
+        for label, class_id in self.class_mapping.items():
+            self.class_names[class_id] = label
+        
+        print(f"类别设置完成: {len(self.class_names)} 个类别")
+        for i, name in enumerate(self.class_names):
+            print(f"  {i}: {name}")
     
-    def get_mask_from_segmentation(self, image_path):
+    def get_class_id(self, label):
+        """根据标签名获取类别ID"""
+        if label in self.class_mapping:
+            return self.class_mapping[label]
+        else:
+            # 记录未知标签
+            self.unknown_labels.add(label)
+            # 返回一个默认值或跳过
+            return -1  # 用-1表示未知类别，后续会过滤掉
+
+    def load_labelme_data(self, json_path):
+        """加载LabelMe标注数据"""
+        with open(json_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        
+        # 获取图像路径
+        json_dir = os.path.dirname(json_path)
+        image_path = data['imagePath']
+        if image_path.startswith('..'):
+            full_image_path = os.path.normpath(os.path.join(json_dir, image_path))
+        else:
+            full_image_path = os.path.join(json_dir, os.path.basename(image_path))
+        
+        # 读取图像
+        if not os.path.exists(full_image_path):
+            print(f"警告: 图像文件不存在 {full_image_path}")
+            return None, None
+        
+        image = cv2.imread(full_image_path)
+        if image is None:
+            print(f"警告: 无法读取图像 {full_image_path}")
+            return None, None
+        
+        # 处理标注
+        shapes = data['shapes']
+        annotations = []
+        
+        for shape in shapes:
+            if shape['shape_type'] == 'polygon':
+                points = np.array(shape['points'], dtype=np.float32)
+                label = shape.get('label', 'unknown')
+                class_id = self.get_class_id(label)
+                
+                # 只保留有效的类别
+                if class_id >= 0:
+                    annotations.append({
+                        'label': label,
+                        'points': points,
+                        'class_id': class_id
+                    })
+        
+        return image, annotations
+
+    def compute_obb_from_polygon(self, points: np.ndarray) -> Tuple[np.ndarray, float]:
         """
-        从分割模型获取mask
+        从多边形计算最小面积旋转边界框(OBB)
         
         Args:
-            image_path: 图像路径
+            points: 多边形顶点坐标 (N, 2)
             
         Returns:
-            tuple: (原图像, mask列表)
+            obb_points: 旋转边界框的四个顶点坐标 (4, 2)
+            angle: 旋转角度(弧度)
         """
-        # 读取原始图像
-        image = cv2.imread(image_path)
-        if image is None:
-            print(f"无法读取图像: {image_path}")
-            return None, []
+        # 确保多边形是凸的
+        hull = cv2.convexHull(points)
+        hull = hull.reshape(-1, 2)
         
-        # 使用分割模型进行预测
-        try:
-            if self.device == 'cuda':
-                with torch.autocast(device_type='cuda'):
-                    results = self.seg_model(image_path, device=self.device)
-            else:
-                results = self.seg_model(image_path, device=self.device)
-        except Exception as e:
-            print(f"分割预测失败: {e}")
-            return image, []
+        if len(hull) < 3:
+            # 如果点太少，返回原始边界框
+            x_min, y_min = np.min(hull, axis=0)
+            x_max, y_max = np.max(hull, axis=0)
+            obb_points = np.array([
+                [x_min, y_min],
+                [x_max, y_min],
+                [x_max, y_max],
+                [x_min, y_max]
+            ], dtype=np.float32)
+            return obb_points, 0.0
         
-        masks = []
+        # 计算最小面积旋转边界框
+        # 使用OpenCV的minAreaRect
+        rect = cv2.minAreaRect(hull)
+        box = cv2.boxPoints(rect)
+        box = np.array(box, dtype=np.float32)
+        
+        # 获取旋转角度
+        angle = rect[2]
+        if angle < -45:
+            angle += 90
+        
+        return box, np.radians(angle)
+
+    def apply_random_augmentation(self, image, annotations):
+        """应用随机数据增强"""
+        img_height, img_width = image.shape[:2]
+        aug_image = image.copy()
+        aug_annotations = []
+        
+        for ann in annotations:
+            aug_points = ann['points'].copy()
+            aug_annotations.append({
+                'label': ann['label'],
+                'points': aug_points,
+                'class_id': ann['class_id']
+            })
+        
+        # 随机选择增强操作
+        operations = []
+        
+        # 翻转操作
+        if random.random() < 0.4:
+            operations.append('horizontal_flip')
+        if random.random() < 0.2:
+            operations.append('vertical_flip')
+        
+        # 旋转操作
+        if random.random() < 0.6:
+            angle = random.uniform(-30, 30)  # OBB旋转角度限制更小
+            operations.append(('rotate', angle))
+        
+        # 亮度对比度调整
+        if random.random() < 0.5:
+            brightness = random.uniform(-30, 30)
+            contrast = random.uniform(0.8, 1.2)
+            operations.append(('brightness_contrast', brightness, contrast))
+        
+        # 噪声
+        if random.random() < 0.3:
+            operations.append('noise')
+        
+        # 模糊
+        if random.random() < 0.2:
+            operations.append('blur')
+        
+        # 应用增强操作
+        for op in operations:
+            if op == 'horizontal_flip':
+                aug_image, aug_annotations = self.horizontal_flip(aug_image, aug_annotations)
+            elif op == 'vertical_flip':
+                aug_image, aug_annotations = self.vertical_flip(aug_image, aug_annotations)
+            elif isinstance(op, tuple) and op[0] == 'rotate':
+                aug_image, aug_annotations = self.rotate_image(aug_image, aug_annotations, op[1])
+            elif isinstance(op, tuple) and op[0] == 'brightness_contrast':
+                aug_image = self.adjust_brightness_contrast(aug_image, op[1], op[2])
+            elif op == 'noise':
+                aug_image = self.add_noise(aug_image)
+            elif op == 'blur':
+                aug_image = self.add_blur(aug_image)
+        
+        return aug_image, aug_annotations
+
+    def horizontal_flip(self, image, annotations):
+        """水平翻转"""
+        img_height, img_width = image.shape[:2]
+        flipped_image = cv2.flip(image, 1)
+        
+        flipped_annotations = []
+        for ann in annotations:
+            flipped_points = ann['points'].copy()
+            flipped_points[:, 0] = img_width - flipped_points[:, 0]
+            flipped_annotations.append({
+                'label': ann['label'],
+                'points': flipped_points,
+                'class_id': ann['class_id']
+            })
+        
+        return flipped_image, flipped_annotations
+
+    def vertical_flip(self, image, annotations):
+        """垂直翻转"""
+        img_height, img_width = image.shape[:2]
+        flipped_image = cv2.flip(image, 0)
+        
+        flipped_annotations = []
+        for ann in annotations:
+            flipped_points = ann['points'].copy()
+            flipped_points[:, 1] = img_height - flipped_points[:, 1]
+            flipped_annotations.append({
+                'label': ann['label'],
+                'points': flipped_points,
+                'class_id': ann['class_id']
+            })
+        
+        return flipped_image, flipped_annotations
+
+    def rotate_image(self, image, annotations, angle):
+        """旋转图像和标注"""
         img_height, img_width = image.shape[:2]
         
-        # 处理分割结果
-        for r in results:
-            if r.masks is not None:
-                # 获取掩码数据
-                masks_data = r.masks.data
-                
-                # 批量处理掩码
-                if self.device == 'cuda':
-                    target_size = (img_height, img_width)
-                    masks_resized = torch.nn.functional.interpolate(
-                        masks_data.unsqueeze(1).float(), 
-                        size=target_size, 
-                        mode='bilinear', 
-                        align_corners=False
-                    ).squeeze(1)
-                    masks_cpu = masks_resized.cpu().numpy()
-                else:
-                    masks_cpu = masks_data.cpu().numpy()
-                
-                # 处理每个mask
-                for mask in masks_cpu:
-                    if self.device != 'cuda':
-                        mask_resized = cv2.resize(mask, (img_width, img_height))
-                    else:
-                        mask_resized = mask
-                    
-                    # 转换为布尔mask
-                    mask_bool = mask_resized > 0.5
-                    
-                    # 确保mask尺寸正确
-                    if mask_bool.shape != (img_height, img_width):
-                        mask_bool = cv2.resize(mask_bool.astype(np.uint8), 
-                                             (img_width, img_height)) > 0.5
-                    
-                    masks.append(mask_bool)
+        # 计算旋转中心
+        center = (img_width / 2, img_height / 2)
         
-        # 清理GPU内存
-        if self.device == 'cuda':
-            torch.cuda.empty_cache()
+        # 计算旋转矩阵
+        rotation_matrix = cv2.getRotationMatrix2D(center, angle, 1.0)
         
-        return image, masks
-    
-    def calculate_obb_from_mask(self, mask):
-        """
-        从mask计算OBB参数
-        基于PCA尖端方向和mask的精确投影计算
+        # 计算新图像尺寸
+        cos_val = abs(rotation_matrix[0, 0])
+        sin_val = abs(rotation_matrix[0, 1])
+        new_width = int((img_height * sin_val) + (img_width * cos_val))
+        new_height = int((img_height * cos_val) + (img_width * sin_val))
         
-        Args:
-            mask: 布尔mask数组
+        # 调整旋转矩阵
+        rotation_matrix[0, 2] += (new_width / 2) - center[0]
+        rotation_matrix[1, 2] += (new_height / 2) - center[1]
+        
+        # 旋转图像
+        rotated_image = cv2.warpAffine(image, rotation_matrix, (new_width, new_height))
+        
+        # 旋转标注点
+        rotated_annotations = []
+        for ann in annotations:
+            rotated_points = ann['points'].copy()
             
-        Returns:
-            dict: OBB参数 {'center_x', 'center_y', 'width', 'height', 'angle'}
-        """
-        # 使用PCA计算方向和质心
-        angle, centroid, tip_vector = calculate_part_orientation(mask)
-        
-        if angle is None or centroid is None or tip_vector is None:
-            return None
-        
-        # 获取mask的像素坐标
-        y_coords, x_coords = np.where(mask > 0.5)
-        
-        if len(x_coords) < 3:
-            return None
-        
-        # 构造坐标点矩阵
-        points = np.column_stack((x_coords, y_coords))
-        
-        # 使用已计算好的tip_vector作为主轴方向（尖端方向）
-        principal_axis = tip_vector / np.linalg.norm(tip_vector)  # 标准化
-        
-        # 计算垂直轴（次轴）- 垂直于尖端方向
-        secondary_axis = np.array([-principal_axis[1], principal_axis[0]])  # 逆时针旋转90度
-        
-        # 将坐标转换到局部坐标系（相对于质心）
-        centered_points = points - centroid
-        
-        # 投影到主轴和次轴
-        proj_principal = np.dot(centered_points, principal_axis)  # 沿尖端方向的投影
-        proj_secondary = np.dot(centered_points, secondary_axis)  # 沿垂直方向的投影
-        
-        # 按照用户要求的方式计算OBB尺寸：
-        # 1. 沿着PCA尖端方向，找到mask的最远投影点
-        max_proj_principal = np.max(proj_principal)
-        min_proj_principal = np.min(proj_principal)
-        
-        # 2. 沿着PCA尖端方向的垂直方向，找到mask的最远投影点
-        max_proj_secondary = np.max(proj_secondary)
-        min_proj_secondary = np.min(proj_secondary)
-        
-        # 计算OBB的宽度和高度
-        # 主轴方向（尖端方向）上的最大投影范围
-        obb_length = max_proj_principal - min_proj_principal
-        # 次轴方向（垂直方向）上的最大投影范围
-        obb_width = max_proj_secondary - min_proj_secondary
-        
-        # 计算OBB的真实中心点
-        # 沿主轴方向得到两端最远投影的中点作为中心点
-        center_proj_principal = (max_proj_principal + min_proj_principal) / 2
-        center_proj_secondary = (max_proj_secondary + min_proj_secondary) / 2
-        
-        # 将投影中心转换回图像坐标系
-        obb_center = centroid + center_proj_principal * principal_axis + center_proj_secondary * secondary_axis
-        
-        # 直接使用PCA计算的真实角度（包含方向信息）
-        # angle已经包含了正确的方向信息：朝上是0°，逆时针是负，顺时针是正
-        obb_angle_deg = angle
-        obb_angle_rad = np.radians(angle)
-        
-        return {
-            'center_x': float(obb_center[0]),
-            'center_y': float(obb_center[1]),
-            'width': float(obb_length),    # 主轴方向（尖端方向）的长度
-            'height': float(obb_width),    # 次轴方向（垂直方向）的宽度
-            'angle': float(obb_angle_rad),
-            'angle_deg': float(obb_angle_deg),
-            'principal_axis': principal_axis,  # 保存主轴方向用于可视化
-            'secondary_axis': secondary_axis,  # 保存次轴方向用于可视化
-            'projection_info': {  # 调试信息
-                'max_principal': float(max_proj_principal),
-                'min_principal': float(min_proj_principal),
-                'max_secondary': float(max_proj_secondary),
-                'min_secondary': float(min_proj_secondary),
-                'centroid': centroid.tolist(),
-                'obb_center': obb_center.tolist()
-            }
-        }
-    
-    def normalize_obb(self, obb_params, img_width, img_height):
-        """
-        将OBB参数归一化到[0,1]范围
-        
-        Args:
-            obb_params: OBB参数字典
-            img_width: 图像宽度
-            img_height: 图像高度
+            # 转换点坐标
+            for i in range(len(rotated_points)):
+                x, y = rotated_points[i]
+                new_x = rotation_matrix[0, 0] * x + rotation_matrix[0, 1] * y + rotation_matrix[0, 2]
+                new_y = rotation_matrix[1, 0] * x + rotation_matrix[1, 1] * y + rotation_matrix[1, 2]
+                rotated_points[i] = [new_x, new_y]
             
-        Returns:
-            dict: 归一化后的OBB参数
-        """
-        normalized = {
-            'center_x': obb_params['center_x'] / img_width,
-            'center_y': obb_params['center_y'] / img_height,
-            'width': obb_params['width'] / img_width,
-            'height': obb_params['height'] / img_height,
-            'angle': obb_params['angle'],  # 角度不需要归一化
-            'angle_deg': obb_params['angle_deg']
-        }
+            rotated_annotations.append({
+                'label': ann['label'],
+                'points': rotated_points,
+                'class_id': ann['class_id']
+            })
         
-        # 确保坐标在有效范围内
-        normalized['center_x'] = np.clip(normalized['center_x'], 0.0, 1.0)
-        normalized['center_y'] = np.clip(normalized['center_y'], 0.0, 1.0)
-        normalized['width'] = np.clip(normalized['width'], 0.0, 1.0)
-        normalized['height'] = np.clip(normalized['height'], 0.0, 1.0)
+        return rotated_image, rotated_annotations
+
+    def adjust_brightness_contrast(self, image, brightness, contrast):
+        """调整亮度和对比度"""
+        return cv2.convertScaleAbs(image, alpha=contrast, beta=brightness)
+
+    def add_noise(self, image):
+        """添加噪声"""
+        noise = np.random.normal(0, 25, image.shape).astype(np.uint8)
+        noisy_image = cv2.add(image, noise)
+        return np.clip(noisy_image, 0, 255)
+
+    def add_blur(self, image):
+        """添加模糊"""
+        kernel_size = random.choice([3, 5])
+        return cv2.GaussianBlur(image, (kernel_size, kernel_size), 0)
+
+    def normalize_obb_coordinates(self, obb_points, img_width, img_height):
+        """归一化OBB坐标到[0,1]范围"""
+        normalized_points = obb_points.copy()
+        normalized_points[:, 0] /= img_width
+        normalized_points[:, 1] /= img_height
+        return normalized_points
+
+    def obb_points_to_yolo_format(self, obb_points):
+        """将OBB点转换为YOLO11-OBB格式"""
+        # YOLO11-OBB格式: class_id x1 y1 x2 y2 x3 y3 x4 y4
+        # 其中(x1,y1), (x2,y2), (x3,y3), (x4,y4)是四个角点的归一化坐标
+        flattened = obb_points.flatten()
+        return ' '.join([f'{coord:.6f}' for coord in flattened])
+
+    def save_obb_data(self, image, annotations, base_name, index, split='train'):
+        """保存OBB数据"""
+        img_height, img_width = image.shape[:2]
         
-        return normalized
-    
-    def save_obb_data(self, image, obb_list, base_name):
-        """
-        保存OBB数据
-        
-        Args:
-            image: 图像数组
-            obb_list: OBB参数列表
-            base_name: 基础文件名
-            
-        Returns:
-            tuple: (图像文件名, 标签文件名)
-        """
-        # 生成文件名
-        img_filename = f"{base_name}.jpg"
-        label_filename = f"{base_name}.txt"
-        
-        img_path = os.path.join(self.images_output_dir, img_filename)
-        label_path = os.path.join(self.labels_output_dir, label_filename)
+        # 选择保存目录
+        if split == 'train':
+            images_dir = self.train_images_dir
+            labels_dir = self.train_labels_dir
+        elif split == 'val':
+            images_dir = self.val_images_dir
+            labels_dir = self.val_labels_dir
+        else:  # test
+            images_dir = self.test_images_dir
+            labels_dir = self.test_labels_dir
         
         # 保存图像
-        cv2.imwrite(img_path, image)
+        image_filename = f"{base_name}_{index:03d}.jpg"
+        image_path = os.path.join(images_dir, image_filename)
+        cv2.imwrite(image_path, image)
         
         # 保存标签
-        img_height, img_width = image.shape[:2]
+        label_filename = f"{base_name}_{index:03d}.txt"
+        label_path = os.path.join(labels_dir, label_filename)
         
-        with open(label_path, 'w') as f:
-            for obb in obb_list:
-                # 归一化OBB参数
-                normalized_obb = self.normalize_obb(obb, img_width, img_height)
+        with open(label_path, 'w', encoding='utf-8') as f:
+            for ann in annotations:
+                # 计算OBB
+                obb_points, angle = self.compute_obb_from_polygon(ann['points'])
                 
-                # 先在像素坐标系中计算角点，然后再归一化
-                center_x_px, center_y_px = obb['center_x'], obb['center_y']  # 像素坐标
-                width_px, height_px = obb['width'], obb['height']  # 像素尺寸
+                # 归一化坐标
+                normalized_obb = self.normalize_obb_coordinates(obb_points, img_width, img_height)
                 
-                # 直接使用主轴和次轴方向来计算角点（避免角度转换的误差）
-                principal_axis = obb['principal_axis']  # 主轴方向（尖端方向）
-                secondary_axis = obb['secondary_axis']  # 次轴方向（垂直方向）
-                
-                # 计算四个角点相对于中心点的位置
-                # 使用主轴和次轴方向直接计算，确保OBB与轴方向完全对齐
-                half_width = width_px / 2   # 主轴方向的一半长度
-                half_height = height_px / 2  # 次轴方向的一半长度
-                
-                # 四个角点在主轴/次轴坐标系中的位置
-                corners_in_local = [
-                    (-half_width, -half_height),  # 左下
-                    (half_width, -half_height),   # 右下
-                    (half_width, half_height),    # 右上
-                    (-half_width, half_height)    # 左上
-                ]
-                
-                # 转换到图像坐标系
-                rotated_corners_px = []
-                for local_x, local_y in corners_in_local:
-                    # 使用主轴和次轴方向计算实际坐标
-                    # local_x沿主轴方向，local_y沿次轴方向
-                    point_vector = local_x * principal_axis + local_y * secondary_axis
-                    
-                    # 转换到图像坐标系（加上中心点坐标）
-                    point_x = center_x_px + point_vector[0]
-                    point_y = center_y_px + point_vector[1]
-                    rotated_corners_px.append([point_x, point_y])
-                
-                rotated_corners_px = np.array(rotated_corners_px)
-                
-                # 归一化角点坐标
-                rotated_corners = rotated_corners_px.copy()
-                rotated_corners[:, 0] /= img_width   # 归一化x坐标
-                rotated_corners[:, 1] /= img_height  # 归一化y坐标
-                
-                # 确保坐标在有效范围内
-                rotated_corners = np.clip(rotated_corners, 0.0, 1.0)
-                
-                # 扩展YOLO OBB格式: class_id x1 y1 x2 y2 x3 y3 x4 y4 angle
-                # 展平角点坐标
-                coords = rotated_corners.flatten()
-                coords_str = ' '.join([f"{coord:.6f}" for coord in coords])
-                
-                # 添加角度信息（转换为度数）
-                angle_deg = obb['angle_deg']
-                
-                line = f"0 {coords_str} {angle_deg:.6f}\n"
-                f.write(line)
+                # 转换为YOLO格式
+                yolo_line = f"{ann['class_id']} {self.obb_points_to_yolo_format(normalized_obb)}"
+                f.write(yolo_line + '\n')
         
-        return img_filename, label_filename
-    
-    def process_single_image(self, image_path):
-        """
-        处理单张图像生成OBB数据
+        return image_filename, label_filename
+
+    def print_class_statistics(self):
+        """打印类别统计信息"""
+        if self.unknown_labels:
+            print(f"警告: 发现未知标签: {self.unknown_labels}")
         
-        Args:
-            image_path: 图像路径
-            
-        Returns:
-            bool: 是否成功处理
-        """
-        print(f"正在处理: {os.path.basename(image_path)}")
-        
-        # 从分割模型获取mask
-        image, masks = self.get_mask_from_segmentation(image_path)
-        
-        if image is None or not masks:
-            print(f"  - 跳过: 无法获取有效的分割结果")
-            return False
-        
-        print(f"  - 检测到 {len(masks)} 个对象")
-        
-        # 计算每个mask的OBB参数
-        obb_list = []
-        for i, mask in enumerate(masks):
-            obb_params = self.calculate_obb_from_mask(mask)
-            if obb_params is not None:
-                obb_list.append(obb_params)
-                print(f"    对象 {i+1}: 中心({obb_params['center_x']:.1f}, {obb_params['center_y']:.1f}), "
-                      f"尺寸({obb_params['width']:.1f}x{obb_params['height']:.1f}), "
-                      f"角度{obb_params['angle_deg']:.1f}°")
-                self.successful_obb += 1
-            else:
-                print(f"    对象 {i+1}: OBB计算失败")
-        
-        if not obb_list:
-            print(f"  - 跳过: 没有有效的OBB数据")
-            return False
-        
-        # 保存OBB数据
-        base_name = os.path.splitext(os.path.basename(image_path))[0]
-        img_filename, label_filename = self.save_obb_data(image, obb_list, base_name)
-        
-        print(f"  - 保存成功: {img_filename}, {label_filename}")
-        self.total_objects += len(obb_list)
-        
-        return True
-    
+        print(f"\n类别统计:")
+        for class_id, class_name in enumerate(self.class_names):
+            print(f"  {class_id}: {class_name}")
+
     def generate_dataset(self):
-        """
-        生成完整的OBB数据集
+        """生成完整的数据集"""
+        print(f"\n开始生成YOLO11-OBB数据集...")
+        print(f"目标数量: {self.target_count}")
+        print(f"输出目录: {self.output_dir}")
         
-        Returns:
-            tuple: (处理的图像数量, 生成的OBB数量)
-        """
-        print("开始生成YOLO OBB训练数据集...")
-        print("=" * 60)
-        
-        # 检查输入目录
-        if not os.path.exists(self.images_dir):
-            print(f"错误: 输入目录不存在 {self.images_dir}")
-            return 0, 0
-        
-        # 获取所有图像文件
-        image_files = []
-        for ext in ['*.jpg', '*.jpeg', '*.png', '*.bmp']:
-            image_files.extend(Path(self.images_dir).glob(ext))
-            image_files.extend(Path(self.images_dir).glob(ext.upper()))
-        
-        if not image_files:
-            print(f"错误: 在 {self.images_dir} 中没有找到图像文件")
-            return 0, 0
-        
-        print(f"找到 {len(image_files)} 个图像文件")
-        
-        # 处理每个图像
-        start_time = time.time()
-        
-        for i, image_path in enumerate(image_files, 1):
-            print(f"\n[{i}/{len(image_files)}] ", end="")
-            
-            if self.process_single_image(str(image_path)):
-                self.total_images += 1
-        
-        # 处理完成统计
-        total_time = time.time() - start_time
-        
-        print(f"\n" + "=" * 60)
-        print(f"OBB数据集生成完成!")
-        print(f"✅ 处理图像: {self.total_images}/{len(image_files)}")
-        print(f"✅ 生成对象: {self.total_objects}")
-        print(f"✅ 成功OBB: {self.successful_obb}")
-        print(f"✅ 总用时: {total_time:.2f}秒")
-        print(f"✅ 平均每张: {total_time/len(image_files):.2f}秒")
-        
-        # 生成数据集配置文件
-        self.create_dataset_yaml()
-        
-        return self.total_images, self.total_objects
-    
-    def create_dataset_yaml(self):
-        """创建YOLO OBB数据集配置文件"""
-        yaml_content = f"""# YOLO OBB Dataset Configuration
-# Generated from segmentation model results using PCA-based orientation
-# Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-
-path: {os.path.abspath(self.output_dir)}
-train: images
-val: images  # 使用相同目录，实际使用时应该分割train/val
-
-# Classes
-nc: 1  # number of classes
-names: ['part']  # class names
-
-# Dataset info
-total_images: {self.total_images}
-total_objects: {self.total_objects}
-successful_obb: {self.successful_obb}
-source_model: {self.seg_model_path}
-
-# Extended OBB format: class_id x1 y1 x2 y2 x3 y3 x4 y4 angle
-# 8 coordinates representing 4 corners of oriented bounding box + angle in degrees
-# Coordinates are normalized to [0,1]
-# Corner order: left-bottom, right-bottom, right-top, left-top
-# Angle in degrees: 0° = tip pointing up, positive = clockwise, negative = counterclockwise
-# Range: [-180°, 180°]
-
-# Angle Information:
-# Explicit angle value is saved as the 10th parameter
-# Generated using PCA-based tip direction detection
-# This enables training models that predict both OBB corners and explicit angle
-
-# Training Command:
-# yolo obb train data={os.path.abspath(self.output_dir)}/dataset.yaml model=yolo11n-obb.pt epochs=100
-# Or use custom config: model=detection_models/configs/yolo_obb_model.yaml
-"""
-        
-        yaml_path = os.path.join(self.output_dir, "dataset.yaml")
-        with open(yaml_path, 'w', encoding='utf-8') as f:
-            f.write(yaml_content)
-        
-        print(f"✅ 数据集配置文件已保存: {yaml_path}")
-    
-    def visualize_obb(self, image_path, save_path=None):
-        """
-        可视化OBB结果
-        
-        Args:
-            image_path: 图像路径
-            save_path: 保存路径
-        """
-        image, masks = self.get_mask_from_segmentation(image_path)
-        
-        if image is None or not masks:
-            print("无法获取有效的分割结果")
+        # 获取所有JSON文件
+        json_files = [f for f in os.listdir(self.annotations_dir) if f.lower().endswith('.json')]
+        if not json_files:
+            print(f"❌ 在 {self.annotations_dir} 中没有找到JSON文件")
             return
         
-        vis_image = image.copy()
+        print(f"找到 {len(json_files)} 个标注文件")
         
-        for i, mask in enumerate(masks):
-            obb_params = self.calculate_obb_from_mask(mask)
-            if obb_params is None:
+        # 统计数据
+        total_generated = 0
+        class_counts = defaultdict(int)
+        split_counts = {'train': 0, 'val': 0, 'test': 0}
+        
+        # 处理每个原始文件
+        for json_file in json_files:
+            json_path = os.path.join(self.annotations_dir, json_file)
+            base_name = os.path.splitext(json_file)[0]
+            
+            print(f"\n处理文件: {json_file}")
+            
+            # 加载数据
+            image, annotations = self.load_labelme_data(json_path)
+            if image is None or not annotations:
+                print(f"跳过文件 {json_file} (无有效数据)")
                 continue
             
-            # 绘制OBB
-            center_x, center_y = obb_params['center_x'], obb_params['center_y']
-            width, height = obb_params['width'], obb_params['height']
-            principal_axis = obb_params['principal_axis']
-            secondary_axis = obb_params['secondary_axis']
+            # 计算每个文件需要生成的增强样本数
+            samples_per_file = max(1, self.target_count // len(json_files))
             
-            # 直接使用主轴和次轴方向来计算角点（与保存标签逻辑一致）
-            # 计算四个角点相对于中心点的位置
-            # 使用主轴和次轴方向直接计算，确保OBB与轴方向完全对齐
-            half_width = width / 2   # 主轴方向的一半长度
-            half_height = height / 2  # 次轴方向的一半长度
+            # 生成原始样本
+            split = self.determine_split(split_counts)
+            image_filename, label_filename = self.save_obb_data(
+                image, annotations, base_name, 0, split
+            )
+            split_counts[split] += 1
+            total_generated += 1
             
-            # 四个角点在主轴/次轴坐标系中的位置
-            corners_in_local = [
-                (-half_width, -half_height),  # 左下
-                (half_width, -half_height),   # 右下
-                (half_width, half_height),    # 右上
-                (-half_width, half_height)    # 左上
-            ]
+            # 统计类别
+            for ann in annotations:
+                class_counts[ann['class_id']] += 1
             
-            # 转换到图像坐标系
-            rotated_corners = []
-            for local_x, local_y in corners_in_local:
-                # 使用主轴和次轴方向计算实际坐标
-                # local_x沿主轴方向，local_y沿次轴方向
-                point_vector = local_x * principal_axis + local_y * secondary_axis
+            print(f"  原始样本: {image_filename}")
+            
+            # 生成增强样本
+            for i in range(1, samples_per_file):
+                if total_generated >= self.target_count:
+                    break
                 
-                # 转换到图像坐标系（加上中心点坐标）
-                point = (center_x + point_vector[0], center_y + point_vector[1])
-                rotated_corners.append(point)
-            
-            rotated_corners = np.array(rotated_corners).astype(np.int32)
-            
-            # 绘制OBB
-            cv2.polylines(vis_image, [rotated_corners], True, (0, 255, 0), 2)
-            
-            # 绘制中心点
-            cv2.circle(vis_image, (int(center_x), int(center_y)), 5, (0, 0, 255), -1)
-            
-            # 绘制尖端方向箭头（沿主轴方向）
-            arrow_length = 50
-            # 直接使用主轴方向绘制箭头，确保与OBB框方向一致
-            arrow_vector = arrow_length * principal_axis
-            arrow_end_x = center_x + arrow_vector[0]
-            arrow_end_y = center_y + arrow_vector[1]
-            cv2.arrowedLine(vis_image, 
-                          (int(center_x), int(center_y)), 
-                          (int(arrow_end_x), int(arrow_end_y)), 
-                          (255, 0, 0), 2, tipLength=0.3)
-            
-            # 添加角度文本
-            angle_text = f"{obb_params['angle_deg']:.1f}°"
-            cv2.putText(vis_image, angle_text, 
-                       (int(center_x) + 10, int(center_y) - 10),
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+                # 应用数据增强
+                aug_image, aug_annotations = self.apply_random_augmentation(image, annotations)
+                
+                # 确定分割
+                split = self.determine_split(split_counts)
+                
+                # 保存增强样本
+                image_filename, label_filename = self.save_obb_data(
+                    aug_image, aug_annotations, base_name, i, split
+                )
+                split_counts[split] += 1
+                total_generated += 1
+                
+                # 统计类别
+                for ann in aug_annotations:
+                    class_counts[ann['class_id']] += 1
+                
+                print(f"  增强样本 {i}: {image_filename}")
         
-        if save_path:
-            cv2.imwrite(save_path, vis_image)
-            print(f"可视化结果已保存到: {save_path}")
+        # 打印统计信息
+        print(f"\n数据集生成完成!")
+        print(f"总样本数: {total_generated}")
+        print(f"训练集: {split_counts['train']}")
+        print(f"验证集: {split_counts['val']}")
+        print(f"测试集: {split_counts['test']}")
         
-        return vis_image
+        print(f"\n类别分布:")
+        for class_id, count in sorted(class_counts.items()):
+            class_name = self.class_names[class_id]
+            print(f"  {class_id} ({class_name}): {count}")
+        
+        # 创建数据集配置文件
+        self.create_dataset_yaml()
+        
+        print(f"\n数据集已保存到: {self.output_dir}")
+        print(f"配置文件: {os.path.join(self.output_dir, 'dataset.yaml')}")
+
+    def determine_split(self, split_counts):
+        """根据当前分布确定数据分割"""
+        total = sum(split_counts.values())
+        if total == 0:
+            return 'train'
+        
+        current_train_ratio = split_counts['train'] / total
+        current_val_ratio = split_counts['val'] / total
+        
+        if current_train_ratio < self.train_ratio:
+            return 'train'
+        elif current_val_ratio < self.val_ratio:
+            return 'val'
+        else:
+            return 'test'
+
+    def create_dataset_yaml(self):
+        """创建数据集配置文件"""
+        config = {
+            'path': os.path.abspath(self.output_dir),
+            'train': 'images/train',
+            'val': 'images/val',
+            'test': 'images/test',
+            'nc': len(self.class_names),
+            'names': self.class_names,
+            'dataset_info': {
+                'total_images': sum([
+                    len([f for f in os.listdir(self.train_images_dir) if f.lower().endswith(('.jpg', '.jpeg', '.png', '.bmp'))]),
+                    len([f for f in os.listdir(self.val_images_dir) if f.lower().endswith(('.jpg', '.jpeg', '.png', '.bmp'))]),
+                    len([f for f in os.listdir(self.test_images_dir) if f.lower().endswith(('.jpg', '.jpeg', '.png', '.bmp'))])
+                ]),
+                'train_images': len([f for f in os.listdir(self.train_images_dir) if f.lower().endswith(('.jpg', '.jpeg', '.png', '.bmp'))]),
+                'val_images': len([f for f in os.listdir(self.val_images_dir) if f.lower().endswith(('.jpg', '.jpeg', '.png', '.bmp'))]),
+                'test_images': len([f for f in os.listdir(self.test_images_dir) if f.lower().endswith(('.jpg', '.jpeg', '.png', '.bmp'))])
+            },
+            'class_mapping': self.class_mapping,
+            'task': 'obb'  # Oriented Bounding Box detection
+        }
+        
+        yaml_path = os.path.join(self.output_dir, 'dataset.yaml')
+        with open(yaml_path, 'w', encoding='utf-8') as f:
+            yaml.dump(config, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
+        
+        print(f"数据集配置文件已创建: {yaml_path}")
 
 
 def main():
     """主函数"""
-    print("YOLO OBB 训练数据生成器")
-    print("基于PCA方法计算零件方向和边界框")
-    print("扩展格式：OBB角点 + 显式角度信息（用于训练OBB+角度预测模型）")
-    print("=" * 60)
+    import argparse
     
-    # 创建生成器
-    generator = YOLOOBBDataGenerator(
-        seg_model_path='../models_cache/yolo_seg_n.pt',
-        images_dir='../data/yolo_dataset/images',
-        output_dir='../data/yolo_obb_dataset'
+    parser = argparse.ArgumentParser(description='YOLO11-OBB训练数据生成器')
+    parser.add_argument('--annotations', type=str, default='../data/annotations',
+                       help='LabelMe标注文件目录')
+    parser.add_argument('--output', type=str, default='../data/yolo11_obb_dataset',
+                       help='输出目录')
+    parser.add_argument('--target_count', type=int, default=500,
+                       help='目标生成样本数量')
+    parser.add_argument('--train_ratio', type=float, default=0.7,
+                       help='训练集比例')
+    parser.add_argument('--val_ratio', type=float, default=0.2,
+                       help='验证集比例')
+    parser.add_argument('--test_ratio', type=float, default=0.1,
+                       help='测试集比例')
+    parser.add_argument('--class_mapping', type=str, default=None,
+                       help='类别映射文件路径(JSON格式)')
+    
+    args = parser.parse_args()
+    
+    # 加载类别映射
+    class_mapping = None
+    if args.class_mapping and os.path.exists(args.class_mapping):
+        with open(args.class_mapping, 'r', encoding='utf-8') as f:
+            class_mapping = json.load(f)
+        print(f"加载类别映射: {class_mapping}")
+    
+    # 创建数据生成器
+    generator = YOLO11OBBDataGenerator(
+        annotations_dir=args.annotations,
+        output_dir=args.output,
+        target_count=args.target_count,
+        class_mapping=class_mapping,
+        auto_discover_classes=class_mapping is None,
+        train_ratio=args.train_ratio,
+        val_ratio=args.val_ratio,
+        test_ratio=args.test_ratio
     )
     
     # 生成数据集
-    total_images, total_objects = generator.generate_dataset()
-    
-    if total_images > 0:
-        print(f"\n🎉 数据集生成成功!")
-        print(f"✅ 扩展OBB格式：8个角点坐标 + 1个角度值")
-        print(f"✅ 角度信息：0°=向上，顺时针为正，范围[-180°,180°]")
-        print(f"✅ 支持训练OBB+角度预测模型")
-        
-        print(f"\n📋 训练命令:")
-        print(f"标准训练:")
-        print(f"  yolo obb train data=../data/yolo_obb_dataset/dataset.yaml model=yolo11n-obb.pt epochs=100")
-        print(f"使用自定义配置:")
-        print(f"  yolo obb train data=../data/yolo_obb_dataset/dataset.yaml model=detection_models/configs/yolo_obb_model.yaml epochs=100")
-        
-        # 可视化一个样例
-        if total_objects > 0:
-            import glob
-            sample_images = glob.glob('../data/yolo_dataset/images/*.jpg')[:1]
-            if sample_images:
-                print(f"\n生成可视化样例...")
-                vis_path = '../data/yolo_obb_dataset/visualization_sample.jpg'
-                generator.visualize_obb(sample_images[0], vis_path)
-    else:
-        print(f"\n❌ 数据集生成失败，请检查输入目录和模型路径")
+    generator.generate_dataset()
 
 
 if __name__ == "__main__":
