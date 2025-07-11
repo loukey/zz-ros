@@ -2,12 +2,11 @@
 检测数据模型 - 从recognition节点获取检测结果
 """
 import numpy as np
-from PyQt5.QtCore import QObject, QTimer, pyqtSignal
+from PyQt5.QtCore import QObject, pyqtSignal
 import rclpy
 from rclpy.node import Node
 from interface.msg import DetectionResult
 import threading
-import time
 
 
 class DetectionSubscriberNode(Node):
@@ -58,28 +57,9 @@ class DetectionModel(QObject):
     
     def __init__(self):
         super().__init__()
-<<<<<<< HEAD
-        self.camera_model = camera_model
-        self.detection_enabled = False
-        self.yolo_segmentor = YOLOSegmentor("./detection_models/yolo_multi_seg_n.pt")
-        self.latest_detection_result = self.yolo_segmentor.detect(cv2.imread("./test3.jpg"))
-        self.latest_detection_result['head_center'] = (100, 100)
-        self.latest_detection_result['central_center'] = (100, 100)
-        self.latest_detection_result['angle'] = 0
-        self.latest_detection_result['depth'] = 100
-        self.detect_timer = QTimer()
-        self.detect_timer.setInterval(500)
-        self.detect_timer.timeout.connect(self.process_detection)
-=======
->>>>>>> v0.5
         
         # 初始化默认检测结果
-        self.latest_detection_result = {
-            'head_center': (100, 100),
-            'central_center': (100, 100),
-            'angle': 0,
-            'depth': 100
-        }
+        self.latest_detection_result = None
         
         # 初始化ROS2
         self.ros_node = None
