@@ -1,8 +1,4 @@
 from .base import *
-<<<<<<< HEAD
-from .kinematic_6dof import Kinematic6DOF
-=======
->>>>>>> v0.5
 from math import pi
 
 

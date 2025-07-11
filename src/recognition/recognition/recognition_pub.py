@@ -29,7 +29,7 @@ class RecognitionPub(Node):
             10
         )
         
-        self.yolo_segmentor = YOLOSegmentor(model_path='./yolo_multi_seg_n.pt')
+        self.yolo_segmentor = YOLOSegmentor(model_path='./yolo_obb.pt')
         self.get_logger().info('RecognitionPub initialized')
         
         self.publisher_ = self.create_publisher(
