@@ -78,12 +78,9 @@ class DetectionModel(QObject):
             if not rclpy.ok():
                 rclpy.init()
             
-            # 生成唯一节点ID
-            self.node_counter += 1
-            node_id = self.node_counter
             
             # 创建ROS节点
-            self.ros_node = DetectionSubscriberNode(self, node_id)
+            self.ros_node = DetectionSubscriberNode(self)
             
             # 创建执行器
             from rclpy.executors import SingleThreadedExecutor
@@ -94,7 +91,7 @@ class DetectionModel(QObject):
             self.ros_thread = threading.Thread(target=self.ros_executor.spin, daemon=True)
             self.ros_thread.start()
             
-            self.detection_msg_signal.emit(f"ROS节点已启动 (ID: {node_id})，等待检测结果...")
+            self.detection_msg_signal.emit(f"ROS节点已启动，等待检测结果...")
             
         except Exception as e:
             self.detection_msg_signal.emit(f"ROS节点启动失败: {e}")
