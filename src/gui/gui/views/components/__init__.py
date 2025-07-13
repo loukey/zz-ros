@@ -10,6 +10,7 @@ from .contour_components import ContourSettings
 from .dynamic_components import DynamicsFrame
 from .motion_planning import *
 from .camera_components import CameraFrame, CameraDisplayWidget
+from .param_components import ParameterFrame, VelocityCalibrationFrame
 
 __all__ = [
     "ControlButtonsFrame",
@@ -25,5 +26,7 @@ __all__ = [
     "MotionPlanningFrame",
     "CameraFrame",
     "CameraDisplayWidget",
+    "ParameterFrame",
+    "VelocityCalibrationFrame",
 ]
 

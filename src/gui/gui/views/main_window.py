@@ -3,7 +3,8 @@
 """
 from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QTabWidget, QMessageBox, 
                            QHBoxLayout, QStatusBar, QProgressBar, QToolBar, QApplication,
-                           QMenu, QAction, QPushButton)
+                           QMenu, QAction, QPushButton, QLabel)
+from PyQt5.QtCore import Qt
 from gui.views.components import *
 from gui.controllers import *
 from gui.models import *
@@ -120,6 +121,18 @@ class MainWindow(QMainWindow):
         # 添加摄像头标签
         self.top_tab_widget.addTab(camera_tab, "摄像头")
 
+        # 创建参数标签
+        param_tab = QWidget()
+        param_layout = QVBoxLayout(param_tab)
+        param_layout.setContentsMargins(6, 6, 6, 6)  # 设置适当的内部边距
+        
+        # 添加参数相关的组件
+        self.parameter_frame = ParameterFrame(self)
+        param_layout.addWidget(self.parameter_frame)
+        
+        # 添加参数标签
+        self.top_tab_widget.addTab(param_tab, "参数")
+
         # 将标签页添加到左侧部分
         left_panel.addWidget(self.top_tab_widget)
         
@@ -157,6 +170,7 @@ class MainWindow(QMainWindow):
                                                     motion_controller=self.motion_controller)
         self.effector_controller = EffectorController(serial_model=self.serial_model)
         self.camera_controller = CameraController(camera_model=self.camera_model, detection_model=self.detection_model, serial_model=self.serial_model, robot_model=self.robot_model)
+        self.param_controller = ParamController(detection_model=self.detection_model)
 
     def init_signals(self):
         self.port_frame.port_connect_requested.connect(self.serial_controller.connect)
@@ -211,6 +225,15 @@ class MainWindow(QMainWindow):
         self.serial_controller.display_requested.connect(self.data_display.append_message)
         self.serial_controller.connection_changed.connect(self.handle_connection_changed)
         self.serial_controller.ports_updated.connect(self.port_frame.set_ports)
+        
+        # 连接参数控制器信号
+        velocity_frame = self.parameter_frame.get_velocity_calibration_frame()
+        velocity_frame.start_velocity_collection_requested.connect(self.param_controller.start_velocity_collection)
+        velocity_frame.stop_velocity_collection_requested.connect(self.param_controller.stop_velocity_collection)
+        velocity_frame.save_velocity_requested.connect(self.param_controller.save_velocity_to_config)
+        self.param_controller.velocity_updated.connect(velocity_frame.update_velocity_display)
+        self.param_controller.history_velocity_updated.connect(velocity_frame.update_history_velocity_display)
+        self.param_controller.display_requested.connect(self.data_display.append_message)
 
     def _create_toolbar(self):
         toolbar = QToolBar()

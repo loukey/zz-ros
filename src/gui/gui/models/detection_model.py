@@ -59,12 +59,7 @@ class DetectionModel(QObject):
         super().__init__()
         
         # 初始化默认检测结果
-        self.latest_detection_result = {
-            'head_center': (200, 200),
-            'central_center': (100, 100),
-            'angle': 1.57,
-            'depth': 100
-        }
+        self.latest_detection_result = {}
         
         # 初始化ROS2
         self.ros_node = None
