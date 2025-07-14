@@ -54,7 +54,7 @@ class VelocityCalibrationFrame(QGroupBox):
         realtime_velocity_layout = QVBoxLayout()
         
         # 实时速度标签
-        realtime_velocity_title = QLabel("实时速度:")
+        realtime_velocity_title = QLabel("测量速度:")
         realtime_velocity_title.setFont(default_font)
         realtime_velocity_layout.addWidget(realtime_velocity_title)
         
@@ -110,8 +110,11 @@ class VelocityCalibrationFrame(QGroupBox):
         if not self.is_collecting:
             # 开始收集
             self.start_velocity_collection_requested.emit()
-            self.velocity_button.setText("关闭速度收集")
+            self.velocity_button.setText("结束速度收集")
             self.is_collecting = True
+            # 在测量过程中显示等待状态
+            self.velocity_x_label.setText("Vx: 测量中...")
+            self.velocity_y_label.setText("Vy: 测量中...")
         else:
             # 停止收集
             self.stop_velocity_collection_requested.emit()
@@ -123,9 +126,15 @@ class VelocityCalibrationFrame(QGroupBox):
         self.save_velocity_requested.emit()
     
     def update_velocity_display(self, vx, vy):
-        """更新实时速度显示"""
-        self.velocity_x_label.setText(f"Vx: {vx:.2f} px/s")
-        self.velocity_y_label.setText(f"Vy: {vy:.2f} px/s")
+        """更新测量速度显示"""
+        if self.is_collecting:
+            # 如果正在收集，这意味着测量完成了
+            self.velocity_x_label.setText(f"Vx: {vx:.2f} px/s")
+            self.velocity_y_label.setText(f"Vy: {vy:.2f} px/s")
+        else:
+            # 如果不在收集状态，显示最终结果
+            self.velocity_x_label.setText(f"Vx: {vx:.2f} px/s")
+            self.velocity_y_label.setText(f"Vy: {vy:.2f} px/s")
     
     def update_history_velocity_display(self, vx, vy):
         """更新历史速度显示"""
