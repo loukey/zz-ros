@@ -92,11 +92,21 @@ class RecognitionPub(Node):
         result = self.yolo_segmentor.detect(color_image)
         if result:
             height, width = depth_image.shape[:2]
+            
+            # 计算central_center的深度
             x, y = result['central_center']
             x = max(0, min(int(x), width - 1))
             y = max(0, min(int(y), height - 1))
             depth_value = depth_image[y, x]
             result['depth'] = float(depth_value)
+            
+            # 计算real_center的深度
+            real_x, real_y = result['real_center']
+            real_x = max(0, min(int(real_x), width - 1))
+            real_y = max(0, min(int(real_y), height - 1))
+            real_depth_value = depth_image[real_y, real_x]
+            result['real_depth'] = float(real_depth_value)
+            
         return result
 
     def publish_detection_result(self, detection_result):
@@ -105,11 +115,13 @@ class RecognitionPub(Node):
         msg.header.frame_id = 'camera_link'
         msg.head_center = [float(x) for x in detection_result['head_center']]
         msg.central_center = [float(x) for x in detection_result['central_center']]
+        msg.real_center = [float(x) for x in detection_result['real_center']]
         msg.angle = float(detection_result['angle'])
         msg.depth = float(detection_result['depth'])
+        msg.real_depth = float(detection_result['real_depth'])
         
         self.publisher_.publish(msg)
-        self.get_logger().debug(f'发布检测结果: head_center={msg.head_center}, central_center={msg.central_center}, angle={msg.angle:.2f}, depth={msg.depth:.3f}m')
+        self.get_logger().debug(f'发布检测结果: head_center={msg.head_center}, central_center={msg.central_center}, real_center={msg.real_center}, angle={msg.angle:.2f}, depth={msg.depth:.3f}m, real_depth={msg.real_depth:.3f}m')
     
 def main():
     rclpy.init()

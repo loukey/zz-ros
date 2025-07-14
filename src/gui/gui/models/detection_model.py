@@ -35,8 +35,10 @@ class DetectionSubscriberNode(Node):
             detection_result = {
                 'head_center': tuple(msg.head_center),
                 'central_center': tuple(msg.central_center),
+                'real_center': tuple(msg.real_center),
                 'angle': msg.angle,
-                'depth': msg.depth
+                'depth': msg.depth,
+                'real_depth': msg.real_depth
             }
             
             # 更新检测模型

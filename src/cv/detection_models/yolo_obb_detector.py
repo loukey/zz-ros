@@ -159,16 +159,15 @@ class YOLO11OBBDetector:
                     center_x = corners_array[:, 0].mean()
                     center_y = corners_array[:, 1].mean()
                     
-                    # 计算旋转角度
-                    angle = self.calculate_obb_angle(coords)
-                    
                     detection = {
                         'class_id': cls_id,
                         'class_name': cls_name,
                         'confidence': conf,
                         'center': [float(center_x), float(center_y)],
                         'corners': corners_array.tolist(),
-                        'angle': angle,
+                        'coords': coords,  # 保存原始坐标用于后续计算
+                        'angle': 0.0,  # 初始角度
+                        'real_center': [float(center_x), float(center_y)],  # 初始real_center
                         'bbox': [
                             float(corners_array[:, 0].min()),  # x_min
                             float(corners_array[:, 1].min()),  # y_min
@@ -207,13 +206,18 @@ class YOLO11OBBDetector:
                     center_x = (x1 + x2) / 2
                     center_y = (y1 + y2) / 2
                     
+                    # 转换为OBB格式的坐标
+                    coords = corners.flatten()
+                    
                     detection = {
                         'class_id': cls_id,
                         'class_name': cls_name,
                         'confidence': conf,
                         'center': [float(center_x), float(center_y)],
                         'corners': corners.tolist(),
-                        'angle': 0.0,  # 矩形角度为0
+                        'coords': coords,  # 保存原始坐标用于后续计算
+                        'angle': 0.0,  # 初始角度
+                        'real_center': [float(center_x), float(center_y)],  # 初始real_center
                         'bbox': [float(x1), float(y1), float(x2), float(y2)]
                     }
                     detections.append(detection)
@@ -229,6 +233,33 @@ class YOLO11OBBDetector:
         
         final_detections = list(best_detections.values())
         
+        # 查找central和head检测结果
+        central_detection = None
+        head_detection = None
+        
+        for detection in final_detections:
+            if detection['class_name'] == 'central':
+                central_detection = detection
+            elif detection['class_name'] == 'head':
+                head_detection = detection
+        
+        # 如果同时检测到central和head，重新计算角度和real_center
+        if central_detection is not None and head_detection is not None:
+            central_center = tuple(central_detection['center'])
+            head_center = tuple(head_detection['center'])
+            
+            # 重新计算central的角度
+            central_detection['angle'] = self.calculate_obb_angle(
+                central_detection['coords'], central_center, head_center
+            )
+            
+            # 计算real_center
+            central_detection['real_center'] = list(self.calculate_real_center(
+                central_detection['coords'], central_center, head_center
+            ))
+            
+            print(f"重新计算结果: 角度={math.degrees(central_detection['angle']):.1f}°, real_center={central_detection['real_center']}")
+        
         print(f"原始检测结果: {len(detections)} 个")
         print(f"筛选后检测结果: {len(final_detections)} 个")
         for detection in final_detections:
@@ -237,24 +268,27 @@ class YOLO11OBBDetector:
         return {
             'image_shape': image_shape,
             'detections': final_detections,
-            'total_detections': len(final_detections)
+            'total_detections': len(final_detections),
+            'central_detection': central_detection,
+            'head_detection': head_detection
         }
     
-    def calculate_obb_angle(self, coords: np.ndarray) -> float:
+    def calculate_obb_angle(self, coords: np.ndarray, central_center: Tuple[float, float], head_center: Tuple[float, float]) -> float:
         """
-        计算OBB的旋转角度
+        计算OBB的旋转角度 - 长边指向head方向与垂直向下方向的夹角，左侧为正，右侧为负
         
         Args:
             coords: 四个角点坐标 [x1,y1,x2,y2,x3,y3,x4,y4]
+            central_center: central目标的中心点坐标
+            head_center: head目标的中心点坐标
             
         Returns:
-            旋转角度(度) - 直着向上为0度，顺时针为正值，范围[-180, 180]
+            旋转角度(弧度) - 与垂直向下方向的夹角，左侧为正，右侧为负
         """
         # 重新排列为4x2的坐标矩阵
         points = coords.reshape(4, 2)
         
         # 计算长边的方向向量
-        # 假设前两个点是长边的端点
         edge1 = points[1] - points[0]
         edge2 = points[2] - points[1]
         
@@ -264,23 +298,85 @@ class YOLO11OBBDetector:
         else:
             main_edge = edge2
         
-        # 计算角度 - 直着向上为0度，顺时针为正值
-        # 向上的向量是 (0, -1)，因为图像坐标系Y轴向下
-        # 使用 atan2 计算方向向量与向上方向的夹角
-        angle_rad = math.atan2(main_edge[0], -main_edge[1])
-        angle_deg = math.degrees(angle_rad)
+        # 计算从central中心到head中心的方向向量
+        central_to_head = np.array([head_center[0] - central_center[0], 
+                                   head_center[1] - central_center[1]])
+        
+        # 计算长边方向与central到head方向的点积
+        dot_product = np.dot(main_edge, central_to_head)
+        
+        # 如果点积为负，说明长边方向与head方向相反，需要取反
+        if dot_product < 0:
+            main_edge = -main_edge
+        
+        # 计算角度 - 与垂直向下方向的夹角，左侧为正，右侧为负
+        # 垂直向下的向量是 [0, 1]（图像坐标系中y向下为正）
+        # 使用 -atan2(main_edge[0], main_edge[1]) 来实现左侧为正，右侧为负
+        angle_rad = -math.atan2(main_edge[0], main_edge[1])
         
         # 标准化到[-180, 180]度
-        if angle_deg > 180:
-            angle_deg -= 360
-        elif angle_deg < -180:
-            angle_deg += 360
+        if angle_rad > math.pi:
+            angle_rad -= 2 * math.pi
+        elif angle_rad < -math.pi:
+            angle_rad += 2 * math.pi
         
-        return angle_deg
+        return angle_rad
+    
+    def calculate_real_center(self, coords: np.ndarray, central_center: Tuple[float, float], head_center: Tuple[float, float]) -> Tuple[float, float]:
+        """
+        计算real_center点：从central_center出发，沿着正方向前进长边长度的1/3距离的点
+        
+        Args:
+            coords: 四个角点坐标 [x1,y1,x2,y2,x3,y3,x4,y4]
+            central_center: central目标的中心点坐标
+            head_center: head目标的中心点坐标
+            
+        Returns:
+            real_center点的坐标
+        """
+        # 重新排列为4x2的坐标矩阵
+        points = coords.reshape(4, 2)
+        
+        # 计算长边的方向向量
+        edge1 = points[1] - points[0]
+        edge2 = points[2] - points[1]
+        
+        # 选择较长的边作为主方向
+        if np.linalg.norm(edge1) > np.linalg.norm(edge2):
+            main_edge = edge1
+        else:
+            main_edge = edge2
+        
+        # 计算从central中心到head中心的方向向量
+        central_to_head = np.array([head_center[0] - central_center[0], 
+                                   head_center[1] - central_center[1]])
+        
+        # 计算长边方向与central到head方向的点积
+        dot_product = np.dot(main_edge, central_to_head)
+        
+        # 如果点积为负，说明长边方向与head方向相反，需要取反
+        if dot_product < 0:
+            main_edge = -main_edge
+        
+        # 计算长边长度
+        edge_length = np.linalg.norm(main_edge)
+        
+        # 计算单位方向向量
+        if edge_length > 0:
+            unit_direction = main_edge / edge_length
+            # 计算real_center：从central_center沿正方向前进长边长度的1/3
+            real_center = (
+                float(central_center[0] + unit_direction[0] * edge_length / 5),
+                float(central_center[1] + unit_direction[1] * edge_length / 5)
+            )
+        else:
+            real_center = central_center
+        
+        return real_center
     
     def visualize_detections(self, image: np.ndarray, detection_results: Dict[str, Any]) -> np.ndarray:
         """
-        可视化检测结果
+        可视化检测结果 - 显示3个中心点、箭头和角度
         
         Args:
             image: 原始图像
@@ -291,16 +387,14 @@ class YOLO11OBBDetector:
         """
         vis_img = image.copy()
         detections = detection_results['detections']
+        central_detection = detection_results.get('central_detection')
+        head_detection = detection_results.get('head_detection')
         
         # 定义颜色
         colors = {
             'central': (0, 255, 0),   # 绿色
             'head': (0, 0, 255),      # 红色
         }
-        
-        # 分别存储central和head的检测结果
-        central_detection = None
-        head_detection = None
         
         # 首先绘制所有检测框和标签
         for detection in detections:
@@ -317,83 +411,119 @@ class YOLO11OBBDetector:
             
             # 绘制中心点
             center_point = (int(center[0]), int(center[1]))
-            cv2.circle(vis_img, center_point, 5, color, -1)
+            cv2.circle(vis_img, center_point, 6, color, -1)
+            cv2.circle(vis_img, center_point, 6, (255, 255, 255), 2)  # 白色边框
             
             # 绘制标签
             label = f"{cls_name}: {conf:.2f}"
-            label_size = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)[0]
-            
-            # 标签背景
-            label_bg_pts = np.array([
-                [corners[0][0], corners[0][1] - label_size[1] - 10],
-                [corners[0][0] + label_size[0] + 10, corners[0][1] - label_size[1] - 10],
-                [corners[0][0] + label_size[0] + 10, corners[0][1]],
-                [corners[0][0], corners[0][1]]
-            ], dtype=np.int32)
-            
-            cv2.fillPoly(vis_img, [label_bg_pts], color)
             cv2.putText(vis_img, label, 
-                       (corners[0][0] + 5, corners[0][1] - 5),
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
-            
-            # 保存central和head的检测结果
-            if cls_name == 'central':
-                central_detection = detection
-            elif cls_name == 'head':
-                head_detection = detection
+                       (center_point[0] + 10, center_point[1] - 10),
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
         
-        # 绘制从central指向head的方向箭头
+        # 如果同时检测到central和head，绘制real_center点、箭头和角度
         if central_detection is not None and head_detection is not None:
-            # 使用已经计算好的中心点（与绘制的中心点保持一致）
             central_center = np.array(central_detection['center'])
             head_center = np.array(head_detection['center'])
+            real_center = np.array(central_detection['real_center'])
+            angle_rad = central_detection['angle']
+            angle_deg = math.degrees(angle_rad)
             
-            # 获取central的旋转角度
-            central_angle = central_detection['angle']
+            # 绘制real_center点
+            real_center_point = (int(real_center[0]), int(real_center[1]))
+            cv2.circle(vis_img, real_center_point, 6, (255, 255, 0), -1)  # 青色圆点
+            cv2.circle(vis_img, real_center_point, 6, (255, 255, 255), 2)  # 白色边框
             
-            # 计算从central到head的方向向量
-            dx = head_center[0] - central_center[0]
-            dy = head_center[1] - central_center[1]
+            # 绘制real_center标签
+            cv2.putText(vis_img, f"real_center", 
+                       (real_center_point[0] + 10, real_center_point[1] - 10),
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 0), 2)
             
-            # 计算距离
-            distance = math.sqrt(dx*dx + dy*dy)
+            # 计算正方向（指向head的长边方向）
+            points = np.array(central_detection['corners'])
+            edge1 = points[1] - points[0]
+            edge2 = points[2] - points[1]
             
-            if distance > 0:
-                # 计算旋转框的方向向量（沿着旋转角度）
-                # 角度定义：直着向上为0度，顺时针为正值
-                # 向上方向为 (0, -1)，所以需要相应调整
-                box_dir_x = math.sin(math.radians(central_angle))
-                box_dir_y = -math.cos(math.radians(central_angle))
+            # 选择较长的边作为主方向
+            if np.linalg.norm(edge1) > np.linalg.norm(edge2):
+                main_edge = edge1
+            else:
+                main_edge = edge2
+            
+            # 计算从central中心到head中心的方向向量
+            central_to_head = head_center - central_center
+            
+            # 调整方向指向head
+            if np.dot(main_edge, central_to_head) < 0:
+                main_edge = -main_edge
+            
+            # 绘制正方向箭头 - 起点在central中心点下方
+            arrow_length = 50
+            edge_length = np.linalg.norm(main_edge)
+            if edge_length > 0:
+                unit_direction = main_edge / edge_length
                 
-                # 计算从central到head的单位向量
-                head_dir_x = dx / distance
-                head_dir_y = dy / distance
+                # 箭头起点在central中心点下方20像素处
+                arrow_start = central_center + np.array([0, 20])
+                arrow_end = arrow_start + arrow_length * unit_direction
                 
-                # 计算旋转框方向与head方向的点积，判断应该指向哪个方向
-                dot_product = box_dir_x * head_dir_x + box_dir_y * head_dir_y
+                cv2.arrowedLine(vis_img, 
+                               (int(arrow_start[0]), int(arrow_start[1])),
+                               (int(arrow_end[0]), int(arrow_end[1])),
+                               (0, 255, 255), 3, tipLength=0.3)  # 黄色箭头
                 
-                # 如果点积为负，说明应该反向
-                if dot_product < 0:
-                    box_dir_x = -box_dir_x
-                    box_dir_y = -box_dir_y
+                # 绘制垂直参考线（在箭头起点处）- 向下方向
+                vertical_start = arrow_start + np.array([0, -30])
+                vertical_end = arrow_start + np.array([0, 30])
+                cv2.line(vis_img, 
+                        (int(vertical_start[0]), int(vertical_start[1])),
+                        (int(vertical_end[0]), int(vertical_end[1])),
+                        (128, 128, 128), 1)  # 灰色垂直线
                 
-                # 箭头长度
-                arrow_length = 50
+                # 绘制向下的小箭头表示参考方向
+                cv2.arrowedLine(vis_img,
+                               (int(arrow_start[0]), int(arrow_start[1])),
+                               (int(arrow_start[0]), int(arrow_start[1] + 20)),
+                               (128, 128, 128), 1, tipLength=0.5)  # 灰色向下箭头
                 
-                # 计算箭头的起点和终点（沿着旋转框方向）
-                arrow_start = (int(central_center[0]), int(central_center[1]))
-                arrow_end_x = central_center[0] + arrow_length * box_dir_x
-                arrow_end_y = central_center[1] + arrow_length * box_dir_y
-                arrow_end = (int(arrow_end_x), int(arrow_end_y))
+                # 绘制角度弧线（在箭头起点处）
+                arc_radius = 25
+                start_angle = 90  # 垂直向下
+                end_angle = 90 + angle_deg
                 
-                # 绘制箭头（平行于旋转框，指向head方向）
-                cv2.arrowedLine(vis_img, arrow_start, arrow_end, (255, 0, 0), 3, tipLength=0.3)
+                # 确保角度在正确范围内
+                if end_angle < start_angle:
+                    start_angle, end_angle = end_angle, start_angle
                 
-                # 在箭头旁边添加方向标签
-                direction_label = f"Direction: {central_angle:.1f}"
-                cv2.putText(vis_img, direction_label, 
-                           (arrow_start[0] + 10, arrow_start[1] - 10),
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
+                # 绘制角度弧线
+                cv2.ellipse(vis_img, 
+                           (int(arrow_start[0]), int(arrow_start[1])),
+                           (arc_radius, arc_radius),
+                           0, start_angle, end_angle,
+                           (255, 0, 255), 2)  # 紫色弧线
+                
+                # 在箭头附近显示角度值
+                angle_text_pos = arrow_start + np.array([30, -10])
+                angle_color = (0, 255, 0) if angle_deg > 0 else (0, 0, 255) if angle_deg < 0 else (255, 255, 255)
+                angle_sign = "+" if angle_deg > 0 else ""
+                cv2.putText(vis_img, f"{angle_sign}{angle_deg:.1f}°", 
+                           (int(angle_text_pos[0]), int(angle_text_pos[1])),
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.7, angle_color, 2)
+                
+                # 在箭头末端显示方向标识
+                if angle_deg > 0:
+                    direction_text = f'L'
+                    direction_color = (0, 255, 0)  # 绿色表示正数
+                elif angle_deg < 0:
+                    direction_text = f'R'
+                    direction_color = (0, 0, 255)  # 红色表示负数
+                else:
+                    direction_text = 'S'
+                    direction_color = (255, 255, 255)  # 白色表示零
+                
+                direction_pos = arrow_end + np.array([10, 5])
+                cv2.putText(vis_img, direction_text, 
+                           (int(direction_pos[0]), int(direction_pos[1])),
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.6, direction_color, 2)
         
         return vis_img
     
@@ -514,9 +644,9 @@ class YOLO11OBBDetector:
 def main():
     """主函数"""
     parser = argparse.ArgumentParser(description='YOLO11-OBB检测器')
-    parser.add_argument('--model', type=str, default='../detection_models/runs/obb_train/exp2/weights/best.pt', help='模型文件路径')
+    parser.add_argument('--model', type=str, default='../detection_models/runs/obb_train/exp4/weights/best.pt', help='模型文件路径')
     parser.add_argument('--image', type=str, help='单张图像路径')
-    parser.add_argument('--image_dir', type=str, help='图像目录路径(批量检测)')
+    parser.add_argument('--image_dir', default='../data/origin_img', type=str, help='图像目录路径(批量检测)')
     parser.add_argument('--output', type=str, default='./results', help='输出目录')
     parser.add_argument('--conf', type=float, default=0.5, help='置信度阈值 (默认0.001，与训练验证一致)')
     parser.add_argument('--iou', type=float, default=0.25, help='IoU阈值')

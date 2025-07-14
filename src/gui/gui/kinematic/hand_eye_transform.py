@@ -63,12 +63,16 @@ class HandEyeTransform:
             [0, 0, 0, 1]
         ])
 
-    def get_theta_list(self, pos, rotation_angle):
+    def get_theta_list(self, pos, real_pos, rotation_angle):
         px, py, pz = pos
         pz *= 0.001
         px = (px - self.cx) * pz / self.fx
         py = (py - self.cy) * pz / self.fy     
         v_cam = np.array([-sin(rotation_angle), cos(rotation_angle), 0])
+        real_px, real_py, real_pz = real_pos
+        real_pz *= 0.001
+        real_px = (real_px - self.cx) * real_pz / self.fx
+        real_py = (real_py - self.cy) * real_pz / self.fy
 
         theta_list_now = GlobalVars.get_current_joint_angles()
         print("thetalist_now:",theta_list_now)

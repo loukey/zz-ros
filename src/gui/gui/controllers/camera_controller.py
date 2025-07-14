@@ -6,7 +6,7 @@ from .base_controller import BaseController
 import numpy as np
 import cv2
 from gui.kinematic import HandEyeTransform
-from math import pi
+import math
 
 
 class CameraController(BaseController):
@@ -234,20 +234,23 @@ class CameraController(BaseController):
         head_center = (int(head_center[0]), int(head_center[1]))
         central_center = detections['central_center']
         central_center = (int(central_center[0]), int(central_center[1]))
+        real_center = detections['real_center']
+        real_center = (int(real_center[0]), int(real_center[1]))
         angle = detections['angle']
         depth = detections['depth']
-        
+        real_depth = detections['real_depth']
+
         # 绘制中心点
         cv2.circle(image, head_center, 5, (0, 0, 255), -1)  # 红色 head
         cv2.circle(image, central_center, 5, (0, 255, 0), -1)  # 绿色 central
-        
+        cv2.circle(image, real_center, 5, (0, 0, 255), -1)  # 红色 real
         # 绘制方向箭头
         self._draw_direction_arrow(image, central_center, angle)
         
         # 绘制文本信息
         cv2.putText(image, f"angle: {angle:.2f}", (head_center[0], head_center[1] - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
         cv2.putText(image, f"depth: {depth:.2f}", (central_center[0], central_center[1] - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-        
+        cv2.putText(image, f"real_depth: {real_depth:.2f}", (real_center[0], real_center[1] - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
         return image
     
     def _draw_direction_arrow(self, image, center, angle):
@@ -258,9 +261,7 @@ class CameraController(BaseController):
             image: 图像
             center: 中心点坐标 (x, y)
             angle: 角度 (弧度) - 直着向上为0，顺时针为正
-        """
-        import math
-        
+        """        
         # 箭头参数
         arrow_length = 50  # 箭头长度
         arrow_color = (255, 0, 0)  # 蓝色
@@ -346,7 +347,9 @@ class CameraController(BaseController):
                     central_center = detections['central_center']
                     depth = detections['depth']
                     angle = detections['angle']
-                    theta_list = self.hand_eye_transform.get_theta_list([central_center[0], central_center[1], depth], angle)
+                    real_center = detections['real_center']
+                    real_depth = detections['real_depth']
+                    theta_list = self.hand_eye_transform.get_theta_list([central_center[0], central_center[1], depth], [real_center[0], real_center[1], real_depth], angle)
                     self.display(f"中心点: {central_center}, 深度: {depth}, 角度: {angle}, 角度列表: {theta_list}", "控制")
                     self.send_angles_requested.emit({
                         'target_angles': theta_list,
