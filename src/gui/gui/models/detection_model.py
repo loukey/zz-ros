@@ -75,9 +75,11 @@ class DetectionModel(QObject):
             if not rclpy.ok():
                 rclpy.init()
             
+            # 生成唯一的节点ID
+            self.node_counter += 1
             
-            # 创建ROS节点
-            self.ros_node = DetectionSubscriberNode(self)
+            # 创建ROS节点，传递唯一的node_id
+            self.ros_node = DetectionSubscriberNode(self, node_id=self.node_counter)
             
             # 创建执行器
             from rclpy.executors import SingleThreadedExecutor
