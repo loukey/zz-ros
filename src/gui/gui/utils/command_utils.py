@@ -5,7 +5,7 @@ from math import pi
 import struct
 
 from numpy import float64
-JOINT_OFFSETS = [78623, 369707, 83986, 391414, 508006, 455123]
+JOINT_OFFSETS = [78623, 369707, 83986, 391414, 508006, 456372]
 RADIAN_TO_POS_SCALE_FACTOR = (2**19) / (2 * pi)  # 弧度转位置值的系数
 POS_TO_RADIAN_SCALE_FACTOR = (2 * pi) / (2**19)  # 位置值转弧度的系数
 
