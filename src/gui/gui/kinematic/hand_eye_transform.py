@@ -5,16 +5,16 @@ from gui.config import GlobalVars
 class HandEyeTransform:
     def __init__(self):
         self.hand_eye_transform_rm = np.array([
-            [ 0.9995775,  0.0248756,  0.0150345, -0.0077375],
-            [-0.0232061,  0.9944594, -0.1025282, -0.0648463],
-            [-0.0175016,  0.1021360,  0.9946165, -0.2198407],
+            [ 0.99970091,  0.02284533,  0.0087285, -0.01045728],
+            [-0.02233611,  0.99826096, -0.05455413, -0.0615077],
+            [-0.00995963,  0.05434286,  0.99847266, -0.22380528],
             [ 0,          0,          0,          1]
         ])
         self.kinematic_solver = Kinematic6DOF()
-        self.fx = 721.717082498008
-        self.fy = 720.0607366770212
-        self.cx = 641.0458509844366
-        self.cy = 318.7078463463553
+        self.fx = 678.88344562
+        self.fy = 681.85313997
+        self.cx = 645.31442426
+        self.cy = 380.55650809
 
     def set_hand_eye_transform(self, hand_eye_transform_rm):
         self.hand_eye_transform_rm = hand_eye_transform_rm
@@ -64,15 +64,17 @@ class HandEyeTransform:
         ])
 
     def get_theta_list(self, pos, real_pos, rotation_angle):
-        px, py, pz = pos
-        pz *= 0.001
-        px = (px - self.cx) * pz / self.fx
-        py = (py - self.cy) * pz / self.fy     
-        v_cam = np.array([-sin(rotation_angle), cos(rotation_angle), 0])
-        real_px, real_py, real_pz = real_pos
-        real_pz *= 0.001
-        real_px = (real_px - self.cx) * real_pz / self.fx
-        real_py = (real_py - self.cy) * real_pz / self.fy
+        px1, py1, pz1 = pos
+        px2, py2, pz2 = real_pos
+        pz1 *= 0.001
+        pz2 *= 0.001
+        px1 = (px1 - self.cx) * pz1 / self.fx
+        py1 = (py1 - self.cy) * pz1 / self.fy
+        px2 = (px2 - self.cx) * pz2 / self.fx  
+        py2 = (py2 - self.cy) * pz2 / self.fy  
+        p1_cam = np.array([px1, py1, pz1, 1])
+        p2_cam = np.array([px2, py2, pz2, 1])
+
 
         theta_list_now = GlobalVars.get_current_joint_angles()
         print("thetalist_now:",theta_list_now)
@@ -81,19 +83,20 @@ class HandEyeTransform:
         print("T_cam2base:",T_cam2base)
         R_cam2base = T_cam2base[:3,:3]
 
-        p_cam = np.array([px, py, pz, 1])
-        p_base = T_cam2base @ p_cam
-        print("p_base",p_base)
-        v_base = R_cam2base @ v_cam
+        p1_base = T_cam2base @ p1_cam
+        print("p1_base",p1_base)
+        p2_base = T_cam2base @ p2_cam
+        print("p2_base",p2_base)
+        v_base = p2_base - p1_base
         
         theta = np.arctan2(v_base[1], v_base[0])
         print("theta:",theta)
         T_target2base = self.get_Z_rotation_matrix(theta)
-        T_target2base[:, 3] = p_base
+        T_target2base[:, 3] = p2_base
         print("T_target2base:",T_target2base)
         
         T_offset2target = np.eye(4)
-        T_offset2target[:3,3] = np.array([0.01, 0, 0.05])
+        T_offset2target[:3,3] = np.array([0, 0, 0.05])
         T_target2base = T_target2base @ T_offset2target
         T_target2base = T_target2base @ self.get_Y_rotation_matrix(-135*pi/180) @ self.get_Z_rotation_matrix(pi/2)
         theta_list = self.kinematic_solver.inverse_kinematic(T_target2base[:3, :3], T_target2base[:3, 3])
