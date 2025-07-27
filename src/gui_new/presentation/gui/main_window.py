@@ -20,8 +20,12 @@ class MainWindow(QMainWindow):
         self.view_model = MainViewModel()
         
         # 设置窗口标题和大小（与原版保持一致）
-        self.setWindowTitle("镇中科技机械臂控制工具v0.5")
-        self.resize(1400, 1000)
+        self.setWindowTitle("镇中科技机械臂控制工具v0.6")
+        self.resize(1800, 1000)
+        
+        # 初始化设置对话框
+        self._init_serial_config()
+        self._init_contour_settings()
         
         # 初始化界面
         self.init_ui()
@@ -38,8 +42,10 @@ class MainWindow(QMainWindow):
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         
-        # 创建主要的水平分割布局
+        # 创建主要的水平分割布局，设置为贴边
         main_layout = QHBoxLayout(central_widget)
+        main_layout.setContentsMargins(0, 0, 0, 0)  # 移除外边距
+        main_layout.setSpacing(0)  # 移除间距
         
         # 创建水平分割器
         splitter = QSplitter(Qt.Horizontal)
@@ -65,9 +71,12 @@ class MainWindow(QMainWindow):
         """创建左侧面板"""
         left_widget = QWidget()
         left_layout = QVBoxLayout(left_widget)
+        left_layout.setContentsMargins(0, 0, 0, 0)  # 移除边距
+        left_layout.setSpacing(0)  # 移除间距
         
         # 创建左侧标签页
         self.left_tab_widget = QTabWidget()
+        self.left_tab_widget.setContentsMargins(0, 0, 0, 0)  # TabWidget本身无边距
         left_layout.addWidget(self.left_tab_widget)
         
         # 主页标签
@@ -82,25 +91,21 @@ class MainWindow(QMainWindow):
         # 摄像头标签
         self._create_camera_tab()
         
-        # 参数标签
-        self._create_parameter_tab()
-        
         parent.addWidget(left_widget)
     
     def _create_right_panel(self, parent):
         """创建右侧面板"""
         right_widget = QWidget()
         right_layout = QVBoxLayout(right_widget)
+        right_layout.setContentsMargins(0, 0, 0, 0)  # 移除边距
+        right_layout.setSpacing(0)  # 移除间距
         
-        # 创建右侧标签页
-        self.right_tab_widget = QTabWidget()
-        right_layout.addWidget(self.right_tab_widget)
-        
-        # 数据显示标签
-        self._create_data_display_tab()
-        
-        # 逆运动学标签
-        self._create_inverse_kinematic_tab()
+        # 直接创建数据显示区域，无需TabWidget嵌套
+        self.data_display_frame = DataDisplayFrame(
+            parent=right_widget,
+            view_model=self.view_model.display_vm
+        )
+        right_layout.addWidget(self.data_display_frame)
         
         parent.addWidget(right_widget)
     
@@ -108,11 +113,14 @@ class MainWindow(QMainWindow):
         """创建主页标签"""
         main_tab = QWidget()
         layout = QVBoxLayout(main_tab)
+        layout.setContentsMargins(6, 6, 6, 6)  # 保留少量内边距
+        layout.setSpacing(2)  # 减少组件间距
         
         # 串口选择区域
         self.port_frame = PortSelectionFrame(
             parent=main_tab,
-            view_model=self.view_model.serial_vm
+            view_model=self.view_model.serial_vm,
+            get_config=self.serial_config.get_config
         )
         layout.addWidget(self.port_frame)
         
@@ -130,18 +138,10 @@ class MainWindow(QMainWindow):
         )
         layout.addWidget(self.angle_control_frame)
         
-        # 末端位置显示区域
-        self.end_position_frame = EndPositionFrame(
-            parent=main_tab,
-            view_model=self.view_model.kinematic_vm
-        )
-        layout.addWidget(self.end_position_frame)
-        
         # 末端执行器区域
         self.effector_frame = EffectorFrame(
             parent=main_tab,
-            view_model=self.view_model.effector_vm,
-            get_encoding_type=self.control_frame.get_encoding_type
+            view_model=self.view_model.effector_vm
         )
         layout.addWidget(self.effector_frame)
         
@@ -154,6 +154,8 @@ class MainWindow(QMainWindow):
         """创建运动规划标签"""
         motion_tab = QWidget()
         layout = QVBoxLayout(motion_tab)
+        layout.setContentsMargins(6, 6, 6, 6)  # 保留少量内边距
+        layout.setSpacing(2)  # 减少组件间距
         
         # 运动规划框架
         self.motion_planning_frame = MotionPlanningFrame(
@@ -168,6 +170,8 @@ class MainWindow(QMainWindow):
         """创建动力学标签"""
         dynamics_tab = QWidget()
         layout = QVBoxLayout(dynamics_tab)
+        layout.setContentsMargins(6, 6, 6, 6)  # 保留少量内边距
+        layout.setSpacing(2)  # 减少组件间距
         
         # 动力学控制框架
         self.dynamics_frame = DynamicsFrame(
@@ -185,6 +189,8 @@ class MainWindow(QMainWindow):
         """创建摄像头标签"""
         camera_tab = QWidget()
         layout = QVBoxLayout(camera_tab)
+        layout.setContentsMargins(6, 6, 6, 6)  # 保留少量内边距
+        layout.setSpacing(2)  # 减少组件间距
         
         # 摄像头控制框架
         self.camera_frame = CameraFrame(
@@ -198,53 +204,7 @@ class MainWindow(QMainWindow):
         
         self.left_tab_widget.addTab(camera_tab, "摄像头")
     
-    def _create_parameter_tab(self):
-        """创建参数标签"""
-        parameter_tab = QWidget()
-        layout = QVBoxLayout(parameter_tab)
-        
-        # 参数设置框架
-        self.parameter_frame = ParameterFrame(
-            parent=parameter_tab,
-            view_model=self.view_model.parameter_vm
-        )
-        layout.addWidget(self.parameter_frame)
-        
-        # 添加伸缩空间
-        layout.addStretch()
-        
-        self.left_tab_widget.addTab(parameter_tab, "参数")
-    
-    def _create_data_display_tab(self):
-        """创建数据显示标签"""
-        display_tab = QWidget()
-        layout = QVBoxLayout(display_tab)
-        
-        # 数据显示区域
-        self.data_display_frame = DataDisplayFrame(
-            parent=display_tab,
-            view_model=self.view_model.display_vm
-        )
-        layout.addWidget(self.data_display_frame)
-        
-        self.right_tab_widget.addTab(display_tab, "数据显示")
-    
-    def _create_inverse_kinematic_tab(self):
-        """创建逆运动学标签"""
-        kinematic_tab = QWidget()
-        layout = QVBoxLayout(kinematic_tab)
-        
-        # 逆运动学计算区域
-        self.inverse_kinematic_frame = InverseKinematicFrame(
-            parent=kinematic_tab,
-            view_model=self.view_model.kinematic_vm
-        )
-        layout.addWidget(self.inverse_kinematic_frame)
-        
-        # 添加伸缩空间
-        layout.addStretch()
-        
-        self.right_tab_widget.addTab(kinematic_tab, "逆运动学")
+
     
     def _create_status_bar(self):
         """创建状态栏"""
@@ -280,15 +240,35 @@ class MainWindow(QMainWindow):
         contour_config_action.triggered.connect(self._show_contour_config)
         settings_menu.addAction(contour_config_action)
     
+    def _init_serial_config(self):
+        """初始化串口配置对话框"""
+        self.serial_config_dialog = QWidget()
+        self.serial_config_dialog.setWindowTitle("串口参数配置")
+        layout = QVBoxLayout()
+        self.serial_config = SerialConfigFrame()
+        layout.addWidget(self.serial_config)
+        self.serial_config_dialog.setLayout(layout)
+        self.serial_config_dialog.resize(400, 300)
+        self.serial_config_dialog.hide()
+
+    def _init_contour_settings(self):
+        """初始化轮廓设置对话框"""
+        self.contour_settings_dialog = QWidget()
+        self.contour_settings_dialog.setWindowTitle("轮廓模式参数配置")
+        layout = QVBoxLayout()
+        self.contour_settings = ContourSettings(self.contour_settings_dialog)
+        layout.addWidget(self.contour_settings)
+        self.contour_settings_dialog.setLayout(layout)
+        self.contour_settings_dialog.resize(600, 400)
+        self.contour_settings_dialog.hide()
+    
     def _show_serial_config(self):
         """显示串口配置对话框"""
-        # TODO: 实现串口配置对话框
-        QMessageBox.information(self, "提示", "串口配置功能待实现")
+        self.serial_config_dialog.show()
     
     def _show_contour_config(self):
         """显示轮廓配置对话框"""
-        # TODO: 实现轮廓配置对话框
-        QMessageBox.information(self, "提示", "轮廓配置功能待实现")
+        self.contour_settings_dialog.show()
     
     def init_signals(self):
         """初始化信号连接"""
@@ -305,6 +285,10 @@ class MainWindow(QMainWindow):
         else:
             self.connection_status_label.setText("未连接")
             self.connection_status_label.setStyleSheet("color: red")
+        
+        # 更新串口配置状态
+        if hasattr(self, 'serial_config'):
+            self.serial_config.update_connection_status(connected)
     
     def _update_progress(self, value, visible):
         """更新进度条"""

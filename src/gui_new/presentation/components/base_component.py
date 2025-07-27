@@ -352,6 +352,8 @@ class ButtonRow(QWidget):
         self.buttons = []
         
         layout = QHBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)  # 移除边距
+        layout.setSpacing(4)  # 减少按钮间距
         
         for config in button_configs:
             text = config[0]
@@ -394,6 +396,8 @@ class GroupFrame(QGroupBox):
         super().__init__(title, parent)
         self.setFont(default_font)
         self.layout = QVBoxLayout()
+        self.layout.setContentsMargins(6, 6, 6, 6)  # 减少内部边距
+        self.layout.setSpacing(2)  # 减少组件间距
         self.setLayout(self.layout)
     
     def add_widget(self, widget):
@@ -424,6 +428,8 @@ class ConfigRow(QWidget):
     def __init__(self, label_text, parent=None):
         super().__init__(parent)
         self.layout = QHBoxLayout()
+        self.layout.setContentsMargins(0, 0, 0, 0)  # 移除边距
+        self.layout.setSpacing(4)  # 减少组件间距
         
         if label_text:
             label = QLabel(label_text)

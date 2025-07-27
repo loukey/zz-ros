@@ -116,9 +116,7 @@ class SerialViewModel(BaseViewModel):
             if not ports:
                 # 如果没有找到真实端口，提供一些模拟数据用于测试
                 ports = [
-                    ("COM1", "Serial Port 1"),
-                    ("COM3", "USB Serial Port"),
-                    ("COM4", "Bluetooth Serial Port")
+                    ("None", "No Port"),
                 ]
             
             self.available_ports = ports
@@ -129,9 +127,7 @@ class SerialViewModel(BaseViewModel):
         except ImportError:
             # 如果没有安装pyserial，使用模拟数据
             ports = [
-                ("COM1", "Serial Port 1"),
-                ("COM3", "USB Serial Port"),
-                ("COM4", "Bluetooth Serial Port")
+                ("None", "No Port"),
             ]
             self.available_ports = ports
             self.port_list_updated.emit(ports)
