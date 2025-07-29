@@ -29,18 +29,7 @@ class ControlButtonsFrame(BaseComponent):
         layout = QVBoxLayout(group_box)
         
         # 创建参数配置区域
-        # 编码格式选择 - 使用LabeledComboBox基础组件
-        self.encoding_combo = LabeledComboBox(
-            "编码格式:",
-            items=['hex', 'string']
-        )
-        
-        # 添加说明文本
-        encoding_row = ConfigRow(None)
-        encoding_row.add_widget(self.encoding_combo)
-        encoding_row.add_widget(QLabel("(hex: 十六进制格式, string: 字符串格式)"))
-        encoding_row.add_stretch()
-        layout.addWidget(encoding_row)
+        # 注释：编码格式固定为hex模式，无需用户选择
         
         # 运行模式选择 - 使用LabeledComboBox基础组件
         self.run_modes = [
@@ -85,7 +74,6 @@ class ControlButtonsFrame(BaseComponent):
             button.setFont(default_font)
             button.clicked.connect(lambda checked, cmd=command: self.send_command_requested.emit({
                 'control': cmd, 
-                'encoding': self.get_encoding_type(), 
                 'mode': self.get_run_mode()
             }))
             button.setEnabled(False)
@@ -104,9 +92,7 @@ class ControlButtonsFrame(BaseComponent):
         for button in self.buttons:
             button.setEnabled(connected)
     
-    def get_encoding_type(self):
-        """获取当前选择的编码格式"""
-        return self.encoding_combo.current_text()
+
     
     def get_run_mode(self):
         """获取当前选择的运行模式"""
@@ -123,10 +109,8 @@ class AngleControlFrame(BaseComponent):
     
     def __init__(self, parent=None, view_model=None,
                  get_contour=None,
-                 get_encoding_type=None,
                  get_run_mode=None):
         self.get_contour = get_contour
-        self.get_encoding_type = get_encoding_type
         self.get_run_mode = get_run_mode
         self.angle_vars = []
         super().__init__(parent, view_model)
@@ -198,7 +182,6 @@ class AngleControlFrame(BaseComponent):
             'curve_type': self.get_curve_type(), 
             'frequency': self.get_frequency(),
             'contour_params': self.get_contour() if self.get_contour else None,
-            'encoding_type': self.get_encoding_type() if self.get_encoding_type else 'hex',
             'run_mode': self.get_run_mode() if self.get_run_mode else 0x01
         }))
         self.send_button.setEnabled(False)

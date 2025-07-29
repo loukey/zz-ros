@@ -5,8 +5,6 @@ from PyQt5.QtWidgets import (QWidget, QLabel, QTextEdit, QPushButton,
                            QVBoxLayout, QHBoxLayout, QSplitter, QGroupBox)
 from PyQt5.QtCore import Qt, QDateTime
 from .base_component import BaseComponent, default_font, text_font
-
-
 class DataDisplayFrame(BaseComponent):
     """数据显示区域"""
     
@@ -62,7 +60,10 @@ class DataDisplayFrame(BaseComponent):
     def connect_signals(self):
         """连接视图模型信号"""
         if self.view_model:
-            self.view_model.message_received.connect(self.append_message)
+            # 连接消息显示信号
+            self.view_model.message_display.connect(self.append_message)
+            # 连接清除消息信号
+            self.view_model.clear_requested.connect(self.clear_all)
     
     def append_message(self, message, message_type="接收"):
         """添加消息到显示区"""
@@ -116,4 +117,6 @@ class DataDisplayFrame(BaseComponent):
     def clear_all(self):
         """清除所有区域"""
         self.send_text.clear()
-        self.receive_text.clear() 
+        self.receive_text.clear()
+    
+ 

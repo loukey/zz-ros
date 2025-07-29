@@ -12,8 +12,7 @@ class EffectorFrame(BaseComponent):
     """执行器设置组件"""
     send_effector_command_requested = pyqtSignal(dict)
     
-    def __init__(self, parent=None, view_model=None, get_encoding_type=None):
-        self.get_encoding_type = get_encoding_type
+    def __init__(self, parent=None, view_model=None):
         super().__init__(parent, view_model)
 
     def setup_ui(self):
@@ -76,7 +75,6 @@ class EffectorFrame(BaseComponent):
         self.send_button = QPushButton("发送")
         self.send_button.setFont(default_font)
         self.send_button.clicked.connect(lambda: self.send_effector_command_requested.emit({
-            'encoding_type': self.get_encoding_type() if self.get_encoding_type else 'hex',
             'effector_params': self.get_effector_params()
         }))
         self.send_button.setEnabled(False)  # 初始状态为禁用

@@ -6,18 +6,19 @@ from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QTabWidget, QMes
                            QHBoxLayout, QStatusBar, QProgressBar, QToolBar, QApplication,
                            QMenu, QAction, QPushButton, QLabel, QSplitter)
 from PyQt5.QtCore import Qt
-from ..components import *
-from ..view_models.main_view_model import MainViewModel
+from presentation.components import *
+from presentation.view_models.main_view_model import MainViewModel
+# 配置管理已简化，不再需要外部配置文件
 
 
 class MainWindow(QMainWindow):
     """主窗口类"""
     
-    def __init__(self, parent=None):
+    def __init__(self, view_model, parent=None):
         super(MainWindow, self).__init__(parent)
         
-        # 初始化视图模型
-        self.view_model = MainViewModel()
+        # 通过依赖注入接收视图模型（必需参数）
+        self.view_model = view_model
         
         # 设置窗口标题和大小（与原版保持一致）
         self.setWindowTitle("镇中科技机械臂控制工具v0.6")
@@ -29,7 +30,6 @@ class MainWindow(QMainWindow):
         
         # 初始化界面
         self.init_ui()
-        self.init_signals()
     
         # 添加窗口关闭事件处理
         app = QApplication.instance()
@@ -61,8 +61,6 @@ class MainWindow(QMainWindow):
         splitter.setStretchFactor(0, 2)  # 左侧40%
         splitter.setStretchFactor(1, 3)  # 右侧60%
         
-        # 创建状态栏
-        self._create_status_bar()
         
         # 创建菜单栏
         self._create_menu_bar()
@@ -101,9 +99,10 @@ class MainWindow(QMainWindow):
         right_layout.setSpacing(0)  # 移除间距
         
         # 直接创建数据显示区域，无需TabWidget嵌套
+        # 使用display_vm来统一处理所有消息显示
         self.data_display_frame = DataDisplayFrame(
             parent=right_widget,
-            view_model=self.view_model.display_vm
+            view_model=self.view_model.display_vm  # 使用DisplayViewModel统一管理消息
         )
         right_layout.addWidget(self.data_display_frame)
         
@@ -117,31 +116,34 @@ class MainWindow(QMainWindow):
         layout.setSpacing(2)  # 减少组件间距
         
         # 串口选择区域
+        # TODO: 实现SerialViewModel后替换None
         self.port_frame = PortSelectionFrame(
             parent=main_tab,
-            view_model=self.view_model.serial_vm,
-            get_config=self.serial_config.get_config
+            view_model=self.view_model.serial_vm
         )
         layout.addWidget(self.port_frame)
         
-        # 控制按钮区域
+        # 控制按钮区域  
+        # TODO: 实现ControlViewModel后替换None
         self.control_frame = ControlButtonsFrame(
             parent=main_tab,
-            view_model=self.view_model.control_vm
+            view_model=self.view_model.control_vm  # 当前为None，等待实现
         )
         layout.addWidget(self.control_frame)
         
         # 角度控制区域
+        # TODO: 实现MotionViewModel后替换None
         self.angle_control_frame = AngleControlFrame(
             parent=main_tab,
-            view_model=self.view_model.motion_vm
+            view_model=self.view_model.motion_vm  # 当前为None，等待实现
         )
         layout.addWidget(self.angle_control_frame)
         
         # 末端执行器区域
+        # TODO: 实现EffectorViewModel后替换None
         self.effector_frame = EffectorFrame(
             parent=main_tab,
-            view_model=self.view_model.effector_vm
+            view_model=self.view_model.effector_vm  # 当前为None，等待实现
         )
         layout.addWidget(self.effector_frame)
         
@@ -158,9 +160,10 @@ class MainWindow(QMainWindow):
         layout.setSpacing(2)  # 减少组件间距
         
         # 运动规划框架
+        # TODO: 实现TrajectoryViewModel后替换None
         self.motion_planning_frame = MotionPlanningFrame(
             parent=motion_tab,
-            view_model=self.view_model.trajectory_vm
+            view_model=self.view_model.trajectory_vm  # 当前为None，等待实现
         )
         layout.addWidget(self.motion_planning_frame)
         
@@ -174,9 +177,10 @@ class MainWindow(QMainWindow):
         layout.setSpacing(2)  # 减少组件间距
         
         # 动力学控制框架
+        # TODO: 实现DynamicsViewModel后替换None
         self.dynamics_frame = DynamicsFrame(
             parent=dynamics_tab,
-            view_model=self.view_model.dynamics_vm
+            view_model=self.view_model.dynamics_vm  # 当前为None，等待实现
         )
         layout.addWidget(self.dynamics_frame)
         
@@ -193,9 +197,10 @@ class MainWindow(QMainWindow):
         layout.setSpacing(2)  # 减少组件间距
         
         # 摄像头控制框架
+        # TODO: 实现CameraViewModel后替换None
         self.camera_frame = CameraFrame(
             parent=camera_tab,
-            view_model=self.view_model.camera_vm
+            view_model=self.view_model.camera_vm  # 当前为None，等待实现
         )
         layout.addWidget(self.camera_frame)
         
@@ -203,25 +208,6 @@ class MainWindow(QMainWindow):
         layout.addStretch()
         
         self.left_tab_widget.addTab(camera_tab, "摄像头")
-    
-
-    
-    def _create_status_bar(self):
-        """创建状态栏"""
-        self.status_bar = QStatusBar()
-        self.setStatusBar(self.status_bar)
-        
-        # 连接状态标签
-        self.connection_status_label = QLabel("未连接")
-        self.status_bar.addPermanentWidget(self.connection_status_label)
-        
-        # 进度条
-        self.progress_bar = QProgressBar()
-        self.progress_bar.setVisible(False)
-        self.status_bar.addPermanentWidget(self.progress_bar)
-        
-        # 默认状态消息
-        self.status_bar.showMessage("就绪")
     
     def _create_menu_bar(self):
         """创建菜单栏"""
@@ -245,6 +231,7 @@ class MainWindow(QMainWindow):
         self.serial_config_dialog = QWidget()
         self.serial_config_dialog.setWindowTitle("串口参数配置")
         layout = QVBoxLayout()
+        # 使用默认配置创建串口配置框架
         self.serial_config = SerialConfigFrame()
         layout.addWidget(self.serial_config)
         self.serial_config_dialog.setLayout(layout)
@@ -270,13 +257,6 @@ class MainWindow(QMainWindow):
         """显示轮廓配置对话框"""
         self.contour_settings_dialog.show()
     
-    def init_signals(self):
-        """初始化信号连接"""
-        # 连接主视图模型的信号
-        self.view_model.status_message_changed.connect(self.status_bar.showMessage)
-        self.view_model.connection_status_changed.connect(self._update_connection_status)
-        self.view_model.progress_changed.connect(self._update_progress)
-    
     def _update_connection_status(self, connected):
         """更新连接状态"""
         if connected:
@@ -289,11 +269,6 @@ class MainWindow(QMainWindow):
         # 更新串口配置状态
         if hasattr(self, 'serial_config'):
             self.serial_config.update_connection_status(connected)
-    
-    def _update_progress(self, value, visible):
-        """更新进度条"""
-        self.progress_bar.setValue(value)
-        self.progress_bar.setVisible(visible)
     
     def closeEvent(self, event):
         """窗口关闭事件"""
