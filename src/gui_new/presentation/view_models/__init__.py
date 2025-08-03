@@ -1,11 +1,12 @@
-"""
-View Models - 视图模型层
-从零开始逐步实现
-"""
+"""View Models - 视图模型层"""
 from .base_view_model import BaseViewModel
 from .main_view_model import MainViewModel
+from .serial_view_model import SerialViewModel
+from .display_view_model import DisplayViewModel
 
 __all__ = [
     "BaseViewModel",
-    "MainViewModel"
+    "MainViewModel",
+    "SerialViewModel", 
+    "DisplayViewModel",
 ] 

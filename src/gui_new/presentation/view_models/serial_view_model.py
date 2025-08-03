@@ -4,26 +4,22 @@
 """
 from PyQt5.QtCore import pyqtSignal
 from typing import List, Dict, Any, Optional
-from presentation.view_models.base_view_model import BaseViewModel
-from application.services.serial_service import SerialService
+from .base_view_model import BaseViewModel
+from application import SerialApplicationService
 
 
 class SerialViewModel(BaseViewModel):
     """串口视图模型 - 纯信号转发层"""
+    port_list_updated = pyqtSignal(list)
+    connection_status_changed = pyqtSignal(bool)
     
-    # UI状态信号定义
-    port_list_updated = pyqtSignal(list)  # 端口列表更新
-    connection_status_changed = pyqtSignal(bool)  # 连接状态变化
-    data_received = pyqtSignal(str)  # 数据接收
-    
-    def __init__(self, serial_service: SerialService, parent=None):
-        """初始化视图模型 - 纯信号转发"""
+    def __init__(self, serial_service: SerialApplicationService, parent=None):
+        """初始化视图模型"""
         super().__init__(parent)
-        
-        # 通过依赖注入接收应用服务
+
         self.serial_service = serial_service
         
-        # 连接Service信号到ViewModel信号 - 纯转发
+
         self._connect_service_signals()
     
     # ===== UI命令方法 - 纯转发 =====
@@ -66,19 +62,12 @@ class SerialViewModel(BaseViewModel):
     
     def _connect_service_signals(self) -> None:
         """连接Service信号到ViewModel信号 - 纯转发"""
-        # 数据接收信号 - 直接转发
-        self.serial_service.data_received.connect(self.data_received.emit)
-        
-        # 连接状态变化信号 - 直接转发
         self.serial_service.connection_status_changed.connect(self.connection_status_changed.emit)
-        
-        # 端口列表更新信号 - 直接转发
         self.serial_service.port_list_updated.connect(self.port_list_updated.emit)
     
     def _disconnect_service_signals(self) -> None:
         """断开Service信号连接"""
         try:
-            self.serial_service.data_received.disconnect(self.data_received.emit)
             self.serial_service.connection_status_changed.disconnect(self.connection_status_changed.emit)
             self.serial_service.port_list_updated.disconnect(self.port_list_updated.emit)
         except TypeError:
@@ -89,3 +78,4 @@ class SerialViewModel(BaseViewModel):
         """清理视图模型 - 断开信号连接"""
         self._disconnect_service_signals()
         super().cleanup() 
+        

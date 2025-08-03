@@ -9,7 +9,6 @@ class BaseViewModel(QObject):
     
     # 通用信号
     status_message_changed = pyqtSignal(str)
-    error_occurred = pyqtSignal(str)
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -19,10 +18,7 @@ class BaseViewModel(QObject):
         """发出状态消息"""
         self.status_message_changed.emit(message)
     
-    def emit_error(self, error_message: str):
-        """发出错误消息"""
-        self.error_occurred.emit(error_message)
-    
     def cleanup(self):
         """清理资源 - 子类可以重写"""
         pass 
+    

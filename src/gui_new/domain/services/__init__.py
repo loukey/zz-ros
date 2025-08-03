@@ -1,8 +1,6 @@
-"""
-Domain Services - 领域服务
+from .kinematic_domain_service import KinematicDomainService
+from .dynamic_domain_service import DynamicDomainService
+from .message_domain_service import MessageDomainService
+from .trajectoy_domain_service import SCurve
 
-不属于特定实体的业务逻辑，如：
-- 运动学计算
-- 轨迹规划算法
-- 复杂的业务规则
-""" 
+__all__ = ['KinematicDomainService', 'DynamicDomainService', 'MessageDomainService', 'SCurve']

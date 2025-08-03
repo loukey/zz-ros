@@ -1,0 +1,94 @@
+# config/message_config.yaml
+formatters:
+  hex:
+    handler: "hex_formatter"
+    params:
+      width: 2
+      
+  position:
+    handler: "list_formatter"
+    params:
+      item_bytes: 4
+      transform: "radian2position"
+      byte_order: "big_endian"
+      
+  speed:
+    handler: "list_formatter" 
+    params:
+      item_bytes: 3
+      transform: "speed2position"
+      byte_order: "big_endian"
+      
+  torque:
+    handler: "list_formatter"
+    params:
+      item_bytes: 2
+      transform: "torque_transfer"
+      byte_order: "big_endian"
+      
+  float_struct:
+    handler: "struct_formatter"
+    params:
+      format_string: ">f"
+
+protocol:
+  header: "AA55"
+  footer: "0D0A"
+  crc_enabled: true
+    
+message_formats:
+  message_out:
+    fields:        
+      control:
+        type: "int"
+        length: 1
+        default: 0x06
+        formatter: "hex"
+        
+      mode:
+        type: "int"
+        length: 1
+        default: 0x08
+        formatter: "hex"
+    
+      joint_angles:
+        type: "List[float]"
+        length: 6
+        default: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        formatter: "position"  
+
+      contour_speed:
+        type: "List[float]"
+        length: 6
+        default: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        formatter: "speed"
+        
+      contour_acceleration:
+        type: "List[float]"
+        length: 6
+        default: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        formatter: "speed"
+        
+      contour_deceleration:
+        type: "List[float]"
+        length: 6
+        default: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        formatter: "speed"
+        
+      torque:
+        type: "List[float]"
+        length: 6
+        default: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        formatter: "torque"
+        
+      effector_mode:
+        type: "int"
+        length: 1
+        default: 0x00
+        formatter: "hex"
+        
+      effector_data:
+        type: "float"
+        length: 1
+        default: 0.0
+        formatter: "float_struct"

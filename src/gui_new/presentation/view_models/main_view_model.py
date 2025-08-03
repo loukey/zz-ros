@@ -35,19 +35,11 @@ class MainViewModel(BaseViewModel):
         self.trajectory_vm = None
         self.camera_vm = None
         self.dynamics_vm = None
-        
-        # TODO: 逐步添加具体功能实现
     
     def _connect_service_signals(self) -> None:
         """连接各个服务的信号到DisplayViewModel"""
-        # 连接串口服务的消息显示信号
-        if hasattr(self.serial_vm, 'serial_service'):
-            self.serial_vm.serial_service.message_display.connect(self.display_vm.append_message)
-        
-        # TODO: 未来添加其他服务的信号连接
-        # self.control_service.message_display.connect(self.display_vm.append_message)
-        # self.motion_service.message_display.connect(self.display_vm.append_message)
-    
+        self.serial_vm.serial_service.message_display.connect(self.display_vm.append_message)
+
     def cleanup(self):
         """清理资源"""
         # 断开服务信号连接
@@ -55,7 +47,7 @@ class MainViewModel(BaseViewModel):
         
         # 清理子ViewModels（如果已实现）
         for vm_attr in ['serial_vm', 'control_vm', 'motion_vm', 'effector_vm',
-                       'trajectory_vm', 'camera_vm', 'dynamics_vm', 'display_vm', 'serial_config_vm']:
+                       'trajectory_vm', 'camera_vm', 'dynamics_vm', 'display_vm']:
             vm = getattr(self, vm_attr, None)
             if vm and hasattr(vm, 'cleanup'):
                 vm.cleanup()
@@ -67,11 +59,6 @@ class MainViewModel(BaseViewModel):
         try:
             if hasattr(self.serial_vm, 'serial_service'):
                 self.serial_vm.serial_service.message_display.disconnect(self.display_vm.append_message)
-            
-            # 断开SerialConfigViewModel的信号连接
-            self.serial_config_vm.send_serial_config_sig.disconnect(self.serial_vm.connect_serial)
-            
-            # TODO: 断开其他服务的信号连接
         except (TypeError, AttributeError):
-            # 如果信号未连接或属性不存在，忽略即可
             pass 
+        

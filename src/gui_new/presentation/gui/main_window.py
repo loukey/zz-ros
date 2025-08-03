@@ -7,8 +7,6 @@ from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QTabWidget, QMes
                            QMenu, QAction, QPushButton, QLabel, QSplitter)
 from PyQt5.QtCore import Qt
 from presentation.components import *
-from presentation.view_models.main_view_model import MainViewModel
-# 配置管理已简化，不再需要外部配置文件
 
 
 class MainWindow(QMainWindow):
@@ -116,34 +114,31 @@ class MainWindow(QMainWindow):
         layout.setSpacing(2)  # 减少组件间距
         
         # 串口选择区域
-        # TODO: 实现SerialViewModel后替换None
         self.port_frame = PortSelectionFrame(
             parent=main_tab,
-            view_model=self.view_model.serial_vm
+            view_model=self.view_model.serial_vm,
+            get_serial_config=self.serial_config.get_config
         )
         layout.addWidget(self.port_frame)
         
         # 控制按钮区域  
-        # TODO: 实现ControlViewModel后替换None
         self.control_frame = ControlButtonsFrame(
             parent=main_tab,
-            view_model=self.view_model.control_vm  # 当前为None，等待实现
+            view_model=self.view_model.control_vm
         )
         layout.addWidget(self.control_frame)
         
         # 角度控制区域
-        # TODO: 实现MotionViewModel后替换None
         self.angle_control_frame = AngleControlFrame(
             parent=main_tab,
-            view_model=self.view_model.motion_vm  # 当前为None，等待实现
+            view_model=self.view_model.motion_vm
         )
         layout.addWidget(self.angle_control_frame)
         
         # 末端执行器区域
-        # TODO: 实现EffectorViewModel后替换None
         self.effector_frame = EffectorFrame(
             parent=main_tab,
-            view_model=self.view_model.effector_vm  # 当前为None，等待实现
+            view_model=self.view_model.effector_vm
         )
         layout.addWidget(self.effector_frame)
         
@@ -160,10 +155,9 @@ class MainWindow(QMainWindow):
         layout.setSpacing(2)  # 减少组件间距
         
         # 运动规划框架
-        # TODO: 实现TrajectoryViewModel后替换None
         self.motion_planning_frame = MotionPlanningFrame(
             parent=motion_tab,
-            view_model=self.view_model.trajectory_vm  # 当前为None，等待实现
+            view_model=self.view_model.trajectory_vm
         )
         layout.addWidget(self.motion_planning_frame)
         
@@ -177,10 +171,9 @@ class MainWindow(QMainWindow):
         layout.setSpacing(2)  # 减少组件间距
         
         # 动力学控制框架
-        # TODO: 实现DynamicsViewModel后替换None
         self.dynamics_frame = DynamicsFrame(
             parent=dynamics_tab,
-            view_model=self.view_model.dynamics_vm  # 当前为None，等待实现
+            view_model=self.view_model.dynamics_vm
         )
         layout.addWidget(self.dynamics_frame)
         
@@ -197,10 +190,9 @@ class MainWindow(QMainWindow):
         layout.setSpacing(2)  # 减少组件间距
         
         # 摄像头控制框架
-        # TODO: 实现CameraViewModel后替换None
         self.camera_frame = CameraFrame(
             parent=camera_tab,
-            view_model=self.view_model.camera_vm  # 当前为None，等待实现
+            view_model=self.view_model.camera_vm
         )
         layout.addWidget(self.camera_frame)
         
@@ -256,19 +248,6 @@ class MainWindow(QMainWindow):
     def _show_contour_config(self):
         """显示轮廓配置对话框"""
         self.contour_settings_dialog.show()
-    
-    def _update_connection_status(self, connected):
-        """更新连接状态"""
-        if connected:
-            self.connection_status_label.setText("已连接")
-            self.connection_status_label.setStyleSheet("color: green")
-        else:
-            self.connection_status_label.setText("未连接")
-            self.connection_status_label.setStyleSheet("color: red")
-        
-        # 更新串口配置状态
-        if hasattr(self, 'serial_config'):
-            self.serial_config.update_connection_status(connected)
     
     def closeEvent(self, event):
         """窗口关闭事件"""

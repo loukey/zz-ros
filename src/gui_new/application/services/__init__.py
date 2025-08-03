@@ -1,6 +1,7 @@
-"""
-Application Services - 应用服务
+"""Application Services - 应用服务"""
 
-应用服务协调多个领域服务来完成完整的业务用例，
-处理事务边界，负责用例的编排和执行。
-""" 
+from .serial_application_service import SerialApplicationService
+
+__all__ = [
+    "SerialApplicationService",
+]     

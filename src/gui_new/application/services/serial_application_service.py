@@ -4,11 +4,8 @@
 """
 from typing import List, Dict, Any, Optional
 from PyQt5.QtCore import QThread, QObject, pyqtSignal
-from infrastructure.communication.port_scanner import PortScanner
-from infrastructure.communication.serial_adapter import SerialAdapter
-from infrastructure.communication.serial_reader import SerialReader
-from infrastructure.communication.serial_writer import SerialWriter
-# 通过信号机制与Presentation层通信
+from infrastructure import PortScanner, SerialAdapter, SerialReader, SerialWriter
+
 
 
 class SerialReaderThread(QThread):
@@ -37,14 +34,14 @@ class SerialWriterThread(QThread):
             self.serial_writer.send_data()
 
 
-class SerialService(QObject):
+class SerialApplicationService(QObject):
     """串口应用服务 - 管理所有串口相关的业务逻辑"""
     
-    # Application层信号 - 供Presentation层使用
-    data_received = pyqtSignal(str)  # 数据接收信号
-    connection_status_changed = pyqtSignal(bool)  # 连接状态变化
-    port_list_updated = pyqtSignal(list)  # 端口列表更新
-    message_display = pyqtSignal(str, str)  # 消息显示 (消息, 类型)
+
+    data_received = pyqtSignal(str)
+    connection_status_changed = pyqtSignal(bool)
+    port_list_updated = pyqtSignal(list)
+    message_display = pyqtSignal(str, str)
     
     def __init__(self):
         """初始化串口服务"""
@@ -128,6 +125,7 @@ class SerialService(QObject):
         返回:
             bool: 连接是否成功
         """
+        self._display_message(f"连接串口: {port}, 配置: {config}", "系统")
         try:
             # 如果已连接，先断开
             if self.is_connected():
