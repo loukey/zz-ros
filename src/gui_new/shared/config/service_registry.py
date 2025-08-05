@@ -3,8 +3,10 @@
 注册所有应用服务到DI容器 - 简化版
 """
 from .di_container import DIContainer, get_container, resolve
-from application import SerialApplicationService
-from presentation import SerialViewModel, MainViewModel, DisplayViewModel
+from application import SerialApplicationService, CommandHubService, MessageResponseService, MotionApplicationService, MessageDisplay
+from presentation import SerialViewModel, MainViewModel, DisplayViewModel, ControlViewModel
+from domain import MessageEncoder, MessageDecoder, MessageDomainService
+from domain.services import SerialDomainService, MotionDomainService
 
 
 def register_infrastructure_services(container: DIContainer) -> None:
@@ -14,11 +16,21 @@ def register_infrastructure_services(container: DIContainer) -> None:
     # 如果需要，可以在这里添加PortScanner, SerialAdapter等
     pass
 
+def register_domain_services(container: DIContainer) -> None:
+    """注册Domain层服务"""
+    container.register_singleton(MessageEncoder)
+    container.register_singleton(MessageDecoder)
+    container.register_singleton(MessageDomainService)
+    container.register_singleton(SerialDomainService)
+    container.register_singleton(MotionDomainService)
 
 def register_application_services(container: DIContainer) -> None:
     """注册Application层服务"""
+    container.register_singleton(MessageDisplay)
     container.register_singleton(SerialApplicationService)
-
+    container.register_singleton(CommandHubService)
+    container.register_singleton(MessageResponseService)
+    container.register_singleton(MotionApplicationService)
 
 def register_presentation_services(container: DIContainer) -> None:
     """注册Presentation层服务"""
@@ -26,7 +38,7 @@ def register_presentation_services(container: DIContainer) -> None:
     container.register_singleton(DisplayViewModel)
     container.register_singleton(SerialViewModel)
     container.register_singleton(MainViewModel)
-
+    container.register_singleton(ControlViewModel)
 
 
 def configure_services() -> DIContainer:
@@ -35,6 +47,7 @@ def configure_services() -> DIContainer:
     
     # 按层次注册服务
     register_infrastructure_services(container)
+    register_domain_services(container)
     register_application_services(container)
     register_presentation_services(container)
     

@@ -86,13 +86,12 @@ class ControlButtonsFrame(BaseComponent):
         """连接视图模型信号"""
         if self.view_model:
             self.view_model.connection_status_changed.connect(self.update_connection_status)
+            self.send_command_requested.connect(self.view_model.send_command)
     
     def update_connection_status(self, connected):
         """更新连接状态"""
         for button in self.buttons:
             button.setEnabled(connected)
-    
-
     
     def get_run_mode(self):
         """获取当前选择的运行模式"""

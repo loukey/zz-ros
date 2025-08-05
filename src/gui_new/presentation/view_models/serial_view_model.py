@@ -5,7 +5,7 @@
 from PyQt5.QtCore import pyqtSignal
 from typing import List, Dict, Any, Optional
 from .base_view_model import BaseViewModel
-from application import SerialApplicationService
+from application import SerialApplicationService, CommandHubService
 
 
 class SerialViewModel(BaseViewModel):
@@ -13,13 +13,12 @@ class SerialViewModel(BaseViewModel):
     port_list_updated = pyqtSignal(list)
     connection_status_changed = pyqtSignal(bool)
     
-    def __init__(self, serial_service: SerialApplicationService, parent=None):
+    def __init__(self, serial_service: SerialApplicationService, command_hub_service: CommandHubService, parent=None):
         """初始化视图模型"""
         super().__init__(parent)
 
         self.serial_service = serial_service
-        
-
+        self.command_hub_service = command_hub_service
         self._connect_service_signals()
     
     # ===== UI命令方法 - 纯转发 =====
@@ -35,10 +34,6 @@ class SerialViewModel(BaseViewModel):
     def disconnect_serial(self) -> None:
         """断开连接命令 - 直接转发到Service"""
         self.serial_service.disconnect_serial()
-    
-    def send_data(self, data: str) -> None:
-        """发送数据命令 - 直接转发到Service"""
-        self.serial_service.send_data(data)
     
     # ===== UI状态查询 - 委托给Service =====
     

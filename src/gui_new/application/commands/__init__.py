@@ -1,6 +1,4 @@
-"""
-Commands - 命令模式
+from .message_display import MessageDisplay
 
-封装所有修改系统状态的操作，
-实现命令模式以支持撤销、重做等功能。
-""" 
+
+__all__ = ['MessageDisplay']

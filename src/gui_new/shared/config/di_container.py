@@ -65,25 +65,36 @@ class DIContainer:
     
     def _create_with_constructor(self, implementation_type: Type) -> Any:
         """使用构造函数创建实例"""
-        try:
-            # 使用get_type_hints来正确解析字符串类型注解
-            type_hints = get_type_hints(implementation_type.__init__)
-        except Exception:
-            # 如果解析失败，回退到inspect方式
-            type_hints = {}
-            sig = inspect.signature(implementation_type.__init__)
-            for param_name, param in sig.parameters.items():
-                if param_name != 'self' and param.annotation != inspect.Parameter.empty:
-                    type_hints[param_name] = param.annotation
-        
+        # 使用inspect.signature获取构造函数参数，避免类级别属性干扰
+        sig = inspect.signature(implementation_type.__init__)
         kwargs = {}
         
-        for param_name, param_type in type_hints.items():
+        for param_name, param in sig.parameters.items():
             if param_name == 'self':
                 continue
             
             # 跳过非类型参数（如parent=None）
             if param_name == 'parent':
+                continue
+            
+            # 检查参数是否有类型注解且不为空
+            if param.annotation == inspect.Parameter.empty:
+                continue
+            
+            param_type = param.annotation
+            
+            # 解析字符串类型注解
+            if isinstance(param_type, str):
+                try:
+                    # 尝试解析字符串类型注解
+                    type_hints = get_type_hints(implementation_type.__init__)
+                    param_type = type_hints.get(param_name, param_type)
+                except Exception:
+                    # 如果解析失败，跳过这个参数
+                    continue
+            
+            # 确保param_type是一个类型而不是其他对象（如pyqtSignal）
+            if not isinstance(param_type, type):
                 continue
                 
             # 递归解析依赖

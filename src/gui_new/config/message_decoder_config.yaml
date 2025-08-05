@@ -1,0 +1,147 @@
+# message_decoder_config.yaml - 消息解码配置
+parsers:
+  hex_parser:
+    handler: "hex_parser"
+    params:
+      width: 2
+      
+  int_parser:
+    handler: "int_parser"
+    params:
+      bytes: 1
+      signed: false
+      byte_order: "big"
+      
+  int4_parser:
+    handler: "int_parser"
+    params:
+      bytes: 4
+      signed: true
+      byte_order: "big"
+      
+  int2_parser:
+    handler: "int_parser"
+    params:
+      bytes: 2
+      signed: true
+      byte_order: "big"
+      
+  position_parser:
+    handler: "list_parser"
+    params:
+      item_bytes: 4
+      item_count: 6
+      signed: true
+      byte_order: "big"
+      transform: "position2radian"
+      
+  speed_parser:
+    handler: "list_parser"
+    params:
+      item_bytes: 4
+      item_count: 6
+      signed: true
+      byte_order: "big"
+      
+  torque_parser:
+    handler: "list_parser"
+    params:
+      item_bytes: 2
+      item_count: 6
+      signed: true
+      byte_order: "big"
+      
+  status_parser:
+    handler: "list_parser"
+    params:
+      item_bytes: 2
+      item_count: 6
+      signed: false
+      byte_order: "big"
+      format: "hex"
+      
+  effector_parser:
+    handler: "effector_parser"
+    params:
+      bytes: 4
+
+protocol:
+  header: "AA55"
+  footer: "0D0A"  
+  crc_enabled: true
+  crc_bytes: 2
+
+message_formats:
+  message_in:
+    fields:
+      header:
+        type: "str"
+        parser: "hex_parser"
+        bytes: 2
+        description: "协议头"
+        
+      init_status:
+        type: "int"
+        parser: "int_parser"
+        bytes: 1
+        description: "初始化状态"
+        
+      control:
+        type: "int"
+        parser: "int_parser"
+        bytes: 1
+        description: "当前命令"
+        
+      mode:
+        type: "int"
+        parser: "int_parser"
+        bytes: 1
+        description: "运行模式"
+        
+      positions:
+        type: "List[int]"
+        parser: "position_parser"
+        bytes: 24  # 6 * 4
+        description: "位置数据1-6"
+        
+      status:
+        type: "List[str]"
+        parser: "status_parser"
+        bytes: 12  # 6 * 2
+        description: "状态字1-6"
+        
+      speeds:
+        type: "List[int]"
+        parser: "speed_parser"
+        bytes: 24  # 6 * 4
+        description: "实际速度1-6"
+        
+      torques:
+        type: "List[int]"
+        parser: "torque_parser"
+        bytes: 12  # 6 * 2
+        description: "力矩1-6"
+        
+      double_encoder_interpolations:
+        type: "List[int]"
+        parser: "speed_parser"  # 复用speed_parser
+        bytes: 24  # 6 * 4
+        description: "双编码器插值"
+        
+      errors:
+        type: "List[str]"
+        parser: "status_parser"  # 复用status_parser
+        bytes: 12  # 6 * 2
+        description: "错误码1-6"
+        
+      effector_data:
+        type: "float"
+        parser: "effector_parser"
+        bytes: 4
+        description: "夹爪数据"
+        
+      crc:
+        type: "str"
+        parser: "hex_parser"
+        bytes: 2
+        description: "CRC16校验码"

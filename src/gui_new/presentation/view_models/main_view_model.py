@@ -5,6 +5,7 @@ from PyQt5.QtCore import pyqtSignal
 from .base_view_model import BaseViewModel
 from .serial_view_model import SerialViewModel
 from .display_view_model import DisplayViewModel
+from .control_view_model import ControlViewModel
 
 
 class MainViewModel(BaseViewModel):
@@ -15,7 +16,7 @@ class MainViewModel(BaseViewModel):
     status_message_changed = pyqtSignal(str)
     progress_changed = pyqtSignal(int, bool)
     
-    def __init__(self, serial_vm: SerialViewModel, display_vm: DisplayViewModel, parent=None):
+    def __init__(self, serial_vm: SerialViewModel, display_vm: DisplayViewModel, control_vm: ControlViewModel, parent=None):
         super().__init__(parent)
         
         # 基础状态
@@ -24,12 +25,12 @@ class MainViewModel(BaseViewModel):
         # 通过依赖注入接收子ViewModel
         self.serial_vm = serial_vm
         self.display_vm = display_vm
+        self.control_vm = control_vm
         
         # 连接服务信号到显示ViewModel
         self._connect_service_signals()
         
         # 预留的子ViewModel属性 - 等待逐步实现
-        self.control_vm = None  
         self.motion_vm = None
         self.effector_vm = None
         self.trajectory_vm = None
@@ -38,7 +39,8 @@ class MainViewModel(BaseViewModel):
     
     def _connect_service_signals(self) -> None:
         """连接各个服务的信号到DisplayViewModel"""
-        self.serial_vm.serial_service.message_display.connect(self.display_vm.append_message)
+        # 连接状态改变
+        self.serial_vm.connection_status_changed.connect(self.control_vm.connection_status_changed.emit)
 
     def cleanup(self):
         """清理资源"""

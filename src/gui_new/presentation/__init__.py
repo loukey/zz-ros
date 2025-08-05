@@ -4,6 +4,7 @@ from .view_models import (
     MainViewModel,
     SerialViewModel,
     DisplayViewModel,
+    ControlViewModel,
 )
 
 from .components import *
@@ -13,4 +14,5 @@ __all__ = [
     "MainViewModel", 
     "SerialViewModel",
     "DisplayViewModel",
+    "ControlViewModel",
 ] 

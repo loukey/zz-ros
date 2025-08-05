@@ -2,27 +2,26 @@ import yaml
 import struct
 from typing import Any, Dict, List
 from dataclasses import make_dataclass, field
-from domain import Robot
+from .robot_utils import RobotUtils
 from abc import ABC, abstractmethod
 
 class BaseFormatter(ABC):
     @abstractmethod
-    def format(self, value: Any, params: Dict[str, Any], robot=None) -> str:
+    def format(self, value: Any, params: Dict[str, Any], robot_utils=None) -> str:
         pass
 
 class HexFormatter(BaseFormatter):
-    def format(self, value: Any, params: Dict[str, Any], robot=None) -> str:
+    def format(self, value: Any, params: Dict[str, Any], robot_utils=None) -> str:
         width = params.get('width', 2)
         return f"{value:0{width}X}"
 
 class ListFormatter(BaseFormatter):
-    def format(self, value: Any, params: Dict[str, Any], robot=None) -> str:
+    def format(self, value: Any, params: Dict[str, Any], robot_utils=None) -> str:
         if not isinstance(value, list):
             raise ValueError("ListFormatter requires a list value")
         
-        # 如果需要转换，调用robot的相应方法
-        if 'transform' in params and robot:
-            transform_method = getattr(robot, params['transform'])
+        if 'transform' in params and robot_utils:
+            transform_method = getattr(robot_utils, params['transform'])
             transformed_values = transform_method(value)
         else:
             transformed_values = value
@@ -45,19 +44,19 @@ class ListFormatter(BaseFormatter):
         return result
 
 class StructFormatter(BaseFormatter):
-    def format(self, value: Any, params: Dict[str, Any], robot=None) -> str:
+    def format(self, value: Any, params: Dict[str, Any], robot_utils=None) -> str:
         format_string = params['format_string']
         packed = struct.pack(format_string, value)
         return ''.join(f"{b:02X}" for b in packed)
 
-class ConfigurableMessageUtils:
-    def __init__(self, config_path: str = "config/message_out_config.yaml"):
+class MessageEncoder:
+    def __init__(self, config_path = "config/message_encoder_config.yaml"):
         with open(config_path, 'r', encoding='utf-8') as f:
             self.config = yaml.safe_load(f)
         
-        self.robot = Robot()
+        self.robot_utils = RobotUtils()
         self.formatters = self._register_formatters()
-        self.MessageOut = self._create_message_out_class()
+        self.Message = self._create_message_class()
     
     def _register_formatters(self) -> Dict[str, BaseFormatter]:
         return {
@@ -66,7 +65,7 @@ class ConfigurableMessageUtils:
             'struct_formatter': StructFormatter(),
         }
     
-    def _create_message_out_class(self):
+    def _create_message_class(self):
         """动态创建MessageOut类"""
         fields_config = self.config['message_formats']['message_out']['fields']
         fields = []
@@ -96,11 +95,11 @@ class ConfigurableMessageUtils:
         else:
             raise ValueError(f"Unsupported type: {type_str}")
     
-    def create_message_out(self, **kwargs):
+    def create_message(self, **kwargs):
         """创建MessageOut实例"""
-        return self.MessageOut(**kwargs)
+        return self.Message(**kwargs)
     
-    def interpret_message(self, message_out) -> str:
+    def interpret_message(self, message) -> str:
         """根据配置动态解释消息"""
         protocol_config = self.config['protocol']
         fields_config = self.config['message_formats']['message_out']['fields']
@@ -110,12 +109,12 @@ class ConfigurableMessageUtils:
         
         # 2. 按配置顺序处理每个字段
         for field_name, field_config in fields_config.items():
-            field_value = getattr(message_out, field_name)
+            field_value = getattr(message, field_name)
             command += self._format_field(field_value, field_config)
         
         # 3. 计算CRC（如果启用）
         if protocol_config.get('crc_enabled', False):
-            crc = self.robot.calculate_crc16(bytes.fromhex(command))
+            crc = self.robot_utils.calculate_crc16(bytes.fromhex(command))
             command += f"{(crc >> 8) & 0xFF:02X}{crc & 0xFF:02X}"
         
         # 4. 添加协议尾
@@ -131,4 +130,4 @@ class ConfigurableMessageUtils:
         params = formatter_config.get('params', {})
         
         formatter = self.formatters[handler_name]
-        return formatter.format(value, params, self.robot)
+        return formatter.format(value, params, self.robot_utils)
