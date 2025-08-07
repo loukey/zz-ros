@@ -5,6 +5,7 @@ from .view_models import (
     SerialViewModel,
     DisplayViewModel,
     ControlViewModel,
+    StatusViewModel,
 )
 
 from .components import *
@@ -15,4 +16,5 @@ __all__ = [
     "SerialViewModel",
     "DisplayViewModel",
     "ControlViewModel",
+    "StatusViewModel",
 ] 

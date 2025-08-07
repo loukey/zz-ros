@@ -4,7 +4,7 @@
 """
 from .di_container import DIContainer, get_container, resolve
 from application import SerialApplicationService, CommandHubService, MessageResponseService, MotionApplicationService, MessageDisplay
-from presentation import SerialViewModel, MainViewModel, DisplayViewModel, ControlViewModel
+from presentation import SerialViewModel, MainViewModel, DisplayViewModel, ControlViewModel, StatusViewModel
 from domain import MessageEncoder, MessageDecoder, MessageDomainService
 from domain.services import SerialDomainService, MotionDomainService
 
@@ -37,6 +37,7 @@ def register_presentation_services(container: DIContainer) -> None:
     
     container.register_singleton(DisplayViewModel)
     container.register_singleton(SerialViewModel)
+    container.register_singleton(StatusViewModel)
     container.register_singleton(MainViewModel)
     container.register_singleton(ControlViewModel)
 

@@ -1,7 +1,7 @@
 from .base_service import BaseService
 from ..commands import MessageDisplay
 from .command_hub_service import CommandHubService
-from domain import MotionDomainService, SCurve
+from domain import SCurve
 
 
 class MotionApplicationService(BaseService):

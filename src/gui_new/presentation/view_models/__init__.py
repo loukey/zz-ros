@@ -4,11 +4,13 @@ from .main_view_model import MainViewModel
 from .serial_view_model import SerialViewModel
 from .display_view_model import DisplayViewModel
 from .control_view_model import ControlViewModel
+from .status_view_model import StatusViewModel
 
 __all__ = [
     "BaseViewModel",
     "MainViewModel",
     "SerialViewModel", 
     "DisplayViewModel",
-    'ControlViewModel'
+    "ControlViewModel",
+    "StatusViewModel"
 ] 

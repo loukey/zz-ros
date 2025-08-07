@@ -16,6 +16,7 @@ class DataDisplayFrame(BaseComponent):
         """设置UI"""
         # 创建分组框
         group_box = QGroupBox("数据显示")
+        group_box.setFont(default_font)  # 设置为10号字体
         main_layout = QVBoxLayout(self)
         main_layout.addWidget(group_box)
         
@@ -23,6 +24,7 @@ class DataDisplayFrame(BaseComponent):
         
         # 创建发送区
         send_group = QGroupBox("发送区")
+        send_group.setFont(default_font)  # 设置为10号字体
         send_layout = QVBoxLayout()
         self.send_text = QTextEdit()
         self.send_text.setReadOnly(True)
@@ -31,6 +33,7 @@ class DataDisplayFrame(BaseComponent):
         
         # 创建接收区
         receive_group = QGroupBox("接收区")
+        receive_group.setFont(default_font)  # 设置为10号字体
         receive_layout = QVBoxLayout()
         self.receive_text = QTextEdit()
         self.receive_text.setReadOnly(True)

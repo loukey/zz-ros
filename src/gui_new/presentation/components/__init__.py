@@ -9,6 +9,7 @@ from .motion_planning_components import MotionPlanningFrame, MotionPlanningTable
 from .camera_components import CameraFrame, CameraDisplayWidget
 from .dynamics_components import DynamicsFrame
 from .contour_components import ContourSettings
+from .status_component import StatusDisplayComponent, StatusSeparator
 
 __all__ = [
     "PortSelectionFrame",
@@ -24,4 +25,6 @@ __all__ = [
     "CameraDisplayWidget",
     "DynamicsFrame",
     "ContourSettings",
+    "StatusDisplayComponent",
+    "StatusSeparator",
 ] 

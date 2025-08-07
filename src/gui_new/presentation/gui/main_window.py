@@ -6,6 +6,7 @@ from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QTabWidget, QMes
                            QHBoxLayout, QStatusBar, QProgressBar, QToolBar, QApplication,
                            QMenu, QAction, QPushButton, QLabel, QSplitter)
 from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QFont
 from presentation.components import *
 
 
@@ -72,8 +73,25 @@ class MainWindow(QMainWindow):
         
         # 创建左侧标签页
         self.left_tab_widget = QTabWidget()
+        # 设置tab字体为10号，与其他界面元素保持一致
+        tab_font = QFont('SimHei', 10)
+        self.left_tab_widget.setFont(tab_font)
         self.left_tab_widget.setContentsMargins(0, 0, 0, 0)  # TabWidget本身无边距
         left_layout.addWidget(self.left_tab_widget)
+        
+        # 添加状态显示区域（固定在底部，不随tab切换）
+        from presentation.components.status_component import StatusDisplayComponent, StatusSeparator
+        
+        # 添加分隔线
+        separator = StatusSeparator()
+        left_layout.addWidget(separator)
+        
+        # 添加状态显示组件
+        self.status_component = StatusDisplayComponent(
+            parent=left_widget,
+            view_model=self.view_model.status_vm  # 需要在MainViewModel中添加
+        )
+        left_layout.addWidget(self.status_component)
         
         # 主页标签
         self._create_main_tab()
