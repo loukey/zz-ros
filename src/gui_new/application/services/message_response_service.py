@@ -18,8 +18,14 @@ class MessageResponseService(BaseService):
         self.serial_domain_service = serial_domain_service
         self.message_domain_service = message_domain_service
         self._connect_signals()
-
         self.message_buffer = ""
+        """
+        single: 只获取一次当前位置并返回
+        motion: 获取当前位置，并进行一次运动
+        multi_motion: 包含运动+夹爪
+        teach_motion: 示教模式运动
+        """
+        self.motion_status = "single"
 
     def _connect_signals(self):
         """连接串口domain层的数据接收信号"""
@@ -30,29 +36,13 @@ class MessageResponseService(BaseService):
         if "0D0A" in self.message_buffer:
             lines = self.message_buffer.split("0D0A")
             self.message_buffer = lines[-1]
-            command_line = lines[0] + "0D0A"
+            command_line = lines[0]
             if command_line.startswith("AA55"):
                 try:
-                    decoded_message = self.message_domain_service.decode_message(command_line)
-                    
+                    decoded_message = self.message_domain_service.decode_message(command_line + "0D0A")           
                     # 发送解码消息到StatusViewModel
                     self.decoded_message_received.emit(decoded_message)
-                    
-                    # 提取各个字段用于显示
-                    init_status = decoded_message.init_status
-                    control = decoded_message.control
-                    mode = decoded_message.mode
-                    positions = decoded_message.positions
-                    status = decoded_message.status
-                    speeds = decoded_message.speeds
-                    torques = decoded_message.torques
-                    double_encoder_interpolations = decoded_message.double_encoder_interpolations
-                    errors = decoded_message.errors
-                    effector_data = decoded_message.effector_data
-                    
-                    # 显示解码后的消息（简化版本）
-                    self._display_message(f"解码成功: CMD=0x{control:02X}, MODE=0x{mode:02X}, STA=0x{status:02X}, ERR=0x{errors:02X}", "接收")
-                    
+
                 except Exception as e:
                     self._display_message(f"解码消息失败: {str(e)}", "错误")
                     return

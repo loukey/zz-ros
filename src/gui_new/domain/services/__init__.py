@@ -1,7 +1,7 @@
 from .algorithm import KinematicDomainService, DynamicDomainService, SCurve
 from .message_domain_service import MessageDomainService
 from .serial_domain_service import SerialDomainService
-from .motion_domain_service import MotionDomainService
+from .motion import MotionRunner, MotionConstructor
 
 __all__ = [
     'KinematicDomainService', 
@@ -9,5 +9,6 @@ __all__ = [
     'MessageDomainService', 
     'SCurve',
     'SerialDomainService',
-    'MotionDomainService',
+    'MotionRunner',
+    'MotionConstructor',
     ]

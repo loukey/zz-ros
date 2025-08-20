@@ -1,6 +1,6 @@
 from ..commands import MessageDisplay
 from .base_service import BaseService
-from domain import MessageDomainService, MotionDomainService
+from domain import MessageDomainService, MotionRunner
 from domain.services import SerialDomainService
 
 
@@ -8,12 +8,12 @@ class CommandHubService(BaseService):
 
     def __init__(self, 
     message_domain_service: MessageDomainService, 
-    motion_domain_service: MotionDomainService,
+    motion_runner: MotionRunner,
     serial_domain_service: SerialDomainService, 
     message_display: MessageDisplay):
         super().__init__(message_display)
         self.message_domain_service = message_domain_service
-        self.motion_domain_service = motion_domain_service
+        self.motion_runner = motion_runner
         self.serial_domain_service = serial_domain_service
 
     def single_send_command(self, **kwargs):
@@ -37,7 +37,7 @@ class CommandHubService(BaseService):
             self.single_send_command(**config_dict)
         elif control in [0x05, 0x08]:
             self.single_send_command(**config_dict)
-            self.motion_domain_service.stop_motion()
+            self.motion_runner.stop_motion()
         elif control == 0x07:
             self.get_current_position()
         elif control == 0x06:

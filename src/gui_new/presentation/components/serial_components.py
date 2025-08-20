@@ -275,3 +275,4 @@ class SerialConfigFrame(BaseComponent):
             
         for option, button in self.flow_control_group.buttons.items():
             button.setEnabled(not is_connected) 
+            

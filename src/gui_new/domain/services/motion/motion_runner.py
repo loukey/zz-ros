@@ -1,5 +1,5 @@
-from .serial_domain_service import SerialDomainService
-from .message_domain_service import MessageDomainService
+from ..serial_domain_service import SerialDomainService
+from ..message_domain_service import MessageDomainService
 from PyQt5.QtCore import QTimer
 import time
 
@@ -10,7 +10,7 @@ class DelayCommand:
         self.is_delay = True
 
 
-class MotionDomainService:
+class MotionRunner:
     def __init__(
         self, 
         serial_domain_service: SerialDomainService, 
@@ -38,15 +38,7 @@ class MotionDomainService:
             effector_mode=effector_mode, 
             effector_data=effector_data)
         self.data_list.append(message)
-        self.data_list.append(DelayCommand(delay_ms=1000))
-
-    def add_teach_data(self, positions):
-        for position in positions:
-            message = self.message_domain_service.encode_message(
-                control=0x06, 
-                mode=0x08, 
-                positions=position)
-            self.data_list.append(message)
+        self.data_list.append(DelayCommand(delay_s=1))
 
     def start_motion(self):
         self.data_index = 0
