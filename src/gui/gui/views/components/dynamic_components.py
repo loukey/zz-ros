@@ -165,6 +165,12 @@ class DynamicsFrame(QGroupBox):
         self.run_record_button.setFont(default_font)
         self.run_record_button.clicked.connect(self._run_record)
         record_button_layout.addWidget(self.run_record_button)
+
+        # 反转记录按钮
+        self.reverse_record_button = QPushButton("反转记录")
+        self.reverse_record_button.setFont(default_font)
+        self.reverse_record_button.clicked.connect(self._reverse_record)
+        record_button_layout.addWidget(self.reverse_record_button)
         
         # 添加伸缩项
         record_button_layout.addStretch()
@@ -269,6 +275,35 @@ class DynamicsFrame(QGroupBox):
                 self.run_record_requested.emit(angles_list)
         else:
             QMessageBox.warning(self, '警告', '请先选择一个记录！')
+
+    def _reverse_record(self):
+        """反转选中的记录并另存为 原名-反转"""
+        current_item = self.record_list.currentItem()
+        if not current_item:
+            QMessageBox.warning(self, '警告', '请先选择一个记录！')
+            return
+        record_name = current_item.text()
+        if record_name not in self.record_data:
+            QMessageBox.warning(self, '警告', '所选记录不存在！')
+            return
+        try:
+            original_list = self.record_data[record_name]
+            # 反转角度序列
+            reversed_list = list(reversed(original_list))
+            # 生成新名称：原名-反转（如已存在则追加序号）
+            base_name = f"{record_name}-反转"
+            new_name = base_name
+            suffix = 2
+            while new_name in self.record_data:
+                new_name = f"{base_name}-{suffix}"
+                suffix += 1
+            # 保存并更新UI
+            self.record_data[new_name] = reversed_list
+            self.record_list.addItem(new_name)
+            self._save_records()
+            QMessageBox.information(self, '完成', f'已生成反转记录 “{new_name}”')
+        except Exception as e:
+            QMessageBox.critical(self, '错误', f'反转记录失败：{e}')
     
     def _on_record_timer_timeout(self):
         """记录定时器超时处理"""
