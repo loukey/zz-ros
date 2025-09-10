@@ -1,6 +1,6 @@
 from ..commands import MessageDisplay
 from .base_service import BaseService
-from domain import MessageDomainService, MotionRunner
+from domain import MessageDomainService, MotionRunner, MotionConstructor
 from domain.services import SerialDomainService
 
 
@@ -10,11 +10,13 @@ class CommandHubService(BaseService):
     message_domain_service: MessageDomainService, 
     motion_runner: MotionRunner,
     serial_domain_service: SerialDomainService, 
-    message_display: MessageDisplay):
+    message_display: MessageDisplay,
+    motion_constructor: MotionConstructor):
         super().__init__(message_display)
         self.message_domain_service = message_domain_service
         self.motion_runner = motion_runner
         self.serial_domain_service = serial_domain_service
+        self.motion_constructor = motion_constructor
 
     def single_send_command(self, **kwargs):
         """发送单个命令"""
@@ -32,7 +34,7 @@ class CommandHubService(BaseService):
     def command_distribution(self, config_dict: dict):
         control = config_dict.get('control')
         mode = config_dict.get('mode')
-        if control in [0x01, 0x02, 0x03, 0x04]:
+        if control in [0x00, 0x01, 0x02, 0x03, 0x04]:
             # 系统指令
             self.single_send_command(**config_dict)
         elif control in [0x05, 0x08]:
@@ -41,8 +43,11 @@ class CommandHubService(BaseService):
         elif control == 0x07:
             self.get_current_position()
         elif control == 0x06:
-            # 运动指令
-            pass
+            positions = config_dict.get('target_angles')
+            self.motion_constructor.clear_data()
+            self.motion_constructor.add_motion_data('motion', positions)
+            self.get_current_position()
+        
 
     def get_current_position(self):
         self.message_display.clear_messages()

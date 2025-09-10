@@ -5,7 +5,7 @@
 import sys
 import os
 from PyQt5.QtWidgets import QApplication, QMessageBox
-from shared.config.service_registry import configure_services, get_main_view_model
+from shared.config.service_registry import configure_services, get_main_view_model, get_listener_service
 from presentation.gui.main_window import MainWindow
 
 
@@ -20,9 +20,9 @@ def main():
     app = QApplication(sys.argv)
     
     # 设置应用信息
-    app.setApplicationName("Robot Control System")
-    app.setApplicationVersion("2.0.0 - Simplified")
-    app.setOrganizationName("RoboticsLab")
+    app.setApplicationName("镇中科技机械臂控制系统")
+    app.setApplicationVersion("0.6.0 - Simplified")
+    app.setOrganizationName("镇中科技")
     
     try:
         # 初始化依赖注入容器
@@ -33,7 +33,7 @@ def main():
         # 通过DI获取主视图模型
         main_view_model = get_main_view_model()
         print("✅ 主视图模型创建完成")
-        
+        get_listener_service()
         # 导入并创建主窗口
         main_window = MainWindow(view_model=main_view_model)
         main_window.show()

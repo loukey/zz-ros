@@ -2,6 +2,7 @@ from ..serial_domain_service import SerialDomainService
 from ..message_domain_service import MessageDomainService
 from PyQt5.QtCore import QTimer
 import time
+from PyQt5.QtCore import pyqtSignal, QObject
 
 
 class DelayCommand:
@@ -10,11 +11,14 @@ class DelayCommand:
         self.is_delay = True
 
 
-class MotionRunner:
+class MotionRunner(QObject):
+    motion_msg_signal = pyqtSignal(str, str)
+
     def __init__(
         self, 
         serial_domain_service: SerialDomainService, 
         message_domain_service: MessageDomainService):
+        super().__init__()
         self.serial_domain_service = serial_domain_service
         self.message_domain_service = message_domain_service
         self.data_list = []
@@ -25,18 +29,22 @@ class MotionRunner:
 
     def add_motion_data(self, positions):
         for position in positions:
-            message = self.message_domain_service.encode_message(
-                control=0x06, 
-                mode=0x08, 
-                positions=position)
+            msg_dict = {
+                'control': 0x06,
+                'mode': 0x08,
+                'joint_angles': list(position)
+            }
+            message = self.message_domain_service.encode_message(**msg_dict)
             self.data_list.append(message)
 
     def add_gripper_data(self, effector_mode, effector_data):
-        message = self.message_domain_service.encode_message(
-            control=0x00, 
-            mode=0x08, 
-            effector_mode=effector_mode, 
-            effector_data=effector_data)
+        msg_dict = {
+            'control': 0x00,
+            'mode': 0x08,
+            'effector_mode': effector_mode,
+            'effector_data': effector_data
+        }
+        message = self.message_domain_service.encode_message(**msg_dict)
         self.data_list.append(message)
         self.data_list.append(DelayCommand(delay_s=1))
 
@@ -61,4 +69,5 @@ class MotionRunner:
             time.sleep(current_item.delay_s)
         else:
             self.serial_domain_service.send_data(current_item)
+            self.motion_msg_signal.emit(current_item, "发送")
         self.data_index += 1

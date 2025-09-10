@@ -1,12 +1,12 @@
 """
-动力学相关组件
+Dynamics tab components
 """
 from PyQt5.QtWidgets import (QWidget, QPushButton, QVBoxLayout, QHBoxLayout, 
                            QGroupBox, QFrame, QLabel, QLineEdit, QGridLayout, 
                            QListWidget, QListWidgetItem, QMessageBox)
 from PyQt5.QtCore import pyqtSignal, QTimer
 from PyQt5.QtGui import QDoubleValidator
-from .base_component import BaseComponent, default_font, InputGrid, ButtonRow, HorizontalLine
+from ..base_component import BaseComponent, default_font, InputGrid, ButtonRow, HorizontalLine
 import json
 import os
 
@@ -319,4 +319,6 @@ class DynamicsFrame(BaseComponent):
     
     def get_record_timer(self):
         """获取记录定时器"""
-        return self.record_timer 
+        return self.record_timer
+
+

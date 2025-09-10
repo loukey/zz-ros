@@ -1,12 +1,12 @@
 """
-控制相关UI组件
+Control and angle components for Main tab
 """
 from PyQt5.QtWidgets import (QWidget, QLabel, QLineEdit, QPushButton, QRadioButton, 
                            QVBoxLayout, QHBoxLayout, QGridLayout, QButtonGroup, QComboBox,
                            QGroupBox, QFrame)
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QDoubleValidator
-from .base_component import (BaseComponent, default_font, LabeledComboBox, 
+from ..base_component import (BaseComponent, default_font, LabeledComboBox, 
                            InputGrid, RadioButtonGroup, ConfigRow, HorizontalLine)
 from math import pi
 
@@ -84,9 +84,8 @@ class ControlButtonsFrame(BaseComponent):
     
     def connect_signals(self):
         """连接视图模型信号"""
-        if self.view_model:
-            self.view_model.connection_status_changed.connect(self.update_connection_status)
-            self.send_command_requested.connect(self.view_model.send_command)
+        self.view_model.connection_status_changed.connect(self.update_connection_status)
+        self.send_command_requested.connect(self.view_model.send_command)
     
     def update_connection_status(self, connected):
         """更新连接状态"""
@@ -177,11 +176,12 @@ class AngleControlFrame(BaseComponent):
         self.send_button = QPushButton("发送角度")
         self.send_button.setFont(default_font)
         self.send_button.clicked.connect(lambda: self.send_angles_requested.emit({
+            'control': 0x06,
+            'mode': self.get_run_mode() if self.get_run_mode else 0x08,
             'target_angles': self.get_angles(), 
             'curve_type': self.get_curve_type(), 
             'frequency': self.get_frequency(),
-            'contour_params': self.get_contour() if self.get_contour else None,
-            'run_mode': self.get_run_mode() if self.get_run_mode else 0x01
+            'contour_params': self.get_contour() if self.get_contour else None
         }))
         self.send_button.setEnabled(False)
         button_layout.addWidget(self.send_button)
@@ -200,8 +200,8 @@ class AngleControlFrame(BaseComponent):
     
     def connect_signals(self):
         """连接视图模型信号"""
-        if self.view_model:
-            self.view_model.connection_status_changed.connect(self.update_connection_status)
+        self.view_model.connection_status_changed.connect(self.update_connection_status)
+        self.send_angles_requested.connect(self.view_model.send_command)
     
     def get_angles(self):
         """获取当前角度值"""
@@ -249,4 +249,6 @@ class AngleControlFrame(BaseComponent):
         # 将所有角度值设置为0
         zero_angles = [0.0, -pi/2, 0.0, pi/2, 0.0, 0.0]
         zero_strings = [f"{angle:.4f}" for angle in zero_angles]
-        self.angle_grid.set_values(zero_strings) 
+        self.angle_grid.set_values(zero_strings)
+
+

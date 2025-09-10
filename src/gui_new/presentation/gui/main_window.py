@@ -80,7 +80,7 @@ class MainWindow(QMainWindow):
         left_layout.addWidget(self.left_tab_widget)
         
         # 添加状态显示区域（固定在底部，不随tab切换）
-        from presentation.components.status_component import StatusDisplayComponent, StatusSeparator
+        from presentation.components import StatusDisplayComponent, StatusSeparator
         
         # 添加分隔线
         separator = StatusSeparator()
@@ -149,7 +149,9 @@ class MainWindow(QMainWindow):
         # 角度控制区域
         self.angle_control_frame = AngleControlFrame(
             parent=main_tab,
-            view_model=self.view_model.motion_vm
+            view_model=self.view_model.control_vm,
+            get_contour = self.contour_settings.get_contour_params,
+            get_run_mode=self.control_frame.get_run_mode
         )
         layout.addWidget(self.angle_control_frame)
         

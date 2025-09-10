@@ -1,11 +1,11 @@
 """
-摄像头相关组件
+Camera tab components
 """
 from PyQt5.QtWidgets import (QWidget, QLabel, QPushButton, QVBoxLayout, QHBoxLayout, 
                            QGroupBox, QFrame, QSizePolicy)
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QPixmap, QImage
-from .base_component import BaseComponent, default_font
+from ..base_component import BaseComponent, default_font
 import cv2
 import numpy as np
 
@@ -377,4 +377,6 @@ class CameraDisplayWidget(BaseComponent):
     
     def clear_display(self):
         """清除显示"""
-        self.camera_frame.clear_display() 
+        self.camera_frame.clear_display()
+
+

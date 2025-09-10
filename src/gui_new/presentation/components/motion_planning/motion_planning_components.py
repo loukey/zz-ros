@@ -1,13 +1,13 @@
 """
-运动规划组件
+Motion planning tab components
 """
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton, 
                             QTableWidget, QTableWidgetItem, QDialog, QLabel, 
                             QDoubleSpinBox, QComboBox, QFormLayout, QDialogButtonBox,
                             QHeaderView, QMessageBox, QLineEdit, QCheckBox, QRadioButton, QButtonGroup)
 from PyQt5.QtCore import Qt, pyqtSignal
-from .base_component import BaseComponent
-import math  # 用于角度转弧度计算
+from ..base_component import BaseComponent
+import math
 import json
 import os
 
@@ -567,4 +567,6 @@ class MotionPointDialog(QDialog):
         for i, spin in enumerate(self.joint_spins):
             angle_value = spin.value()
             radian_value = math.radians(angle_value)
-            spin.setValue(round(radian_value, 4)) 
+            spin.setValue(round(radian_value, 4))
+
+

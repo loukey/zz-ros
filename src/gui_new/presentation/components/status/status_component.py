@@ -1,10 +1,10 @@
 """
-状态显示组件 - 显示解码后的消息字段
+Status display components for left bottom area
 """
 from PyQt5.QtWidgets import (QWidget, QLabel, QVBoxLayout, QHBoxLayout, 
                            QGroupBox, QGridLayout, QFrame)
 from PyQt5.QtCore import Qt
-from .base_component import BaseComponent, default_font, text_font
+from ..base_component import BaseComponent, default_font, text_font
 
 
 class StatusDisplayComponent(BaseComponent):
@@ -185,3 +185,5 @@ class StatusSeparator(QFrame):
         self.setFrameShape(QFrame.HLine)
         self.setFrameShadow(QFrame.Sunken)
         self.setMaximumHeight(2)
+
+

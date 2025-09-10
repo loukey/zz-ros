@@ -3,10 +3,9 @@
 注册所有应用服务到DI容器 - 简化版
 """
 from .di_container import DIContainer, get_container, resolve
-from application import SerialApplicationService, CommandHubService, MessageResponseService, MotionApplicationService, MessageDisplay
-from presentation import SerialViewModel, MainViewModel, DisplayViewModel, ControlViewModel, StatusViewModel
-from domain import MessageEncoder, MessageDecoder, MessageDomainService
-from domain.services import SerialDomainService, MotionRunner, MotionConstructor
+from application import *
+from presentation import *
+from domain import *
 
 
 def register_infrastructure_services(container: DIContainer) -> None:
@@ -31,7 +30,7 @@ def register_application_services(container: DIContainer) -> None:
     container.register_singleton(SerialApplicationService)
     container.register_singleton(CommandHubService)
     container.register_singleton(MessageResponseService)
-    container.register_singleton(MotionApplicationService)
+    container.register_singleton(MotionListener)
 
 def register_presentation_services(container: DIContainer) -> None:
     """注册Presentation层服务"""
@@ -39,9 +38,8 @@ def register_presentation_services(container: DIContainer) -> None:
     container.register_singleton(DisplayViewModel)
     container.register_singleton(SerialViewModel)
     container.register_singleton(StatusViewModel)
-    container.register_singleton(MainViewModel)
     container.register_singleton(ControlViewModel)
-
+    container.register_singleton(MainViewModel)
 
 def configure_services() -> DIContainer:
     """配置所有服务"""
@@ -74,3 +72,7 @@ def get_serial_view_model() -> SerialViewModel:
 def get_display_view_model() -> DisplayViewModel:
     """便捷方法：获取显示视图模型"""
     return resolve(DisplayViewModel)
+
+def get_listener_service() -> MotionListener:
+    """便捷方法：获取监听服务"""
+    return resolve(MotionListener)

@@ -1,11 +1,11 @@
 """
-轮廓设置相关组件
+Contour settings components (dialog content)
 """
 from PyQt5.QtWidgets import (QWidget, QLabel, QPushButton, QLineEdit, 
                            QVBoxLayout, QHBoxLayout, QGridLayout, QMessageBox, QGroupBox)
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QDoubleValidator
-from .base_component import BaseComponent, default_font, GroupFrame
+from ..base_component import BaseComponent, default_font, GroupFrame
 
 
 class ContourSettings(BaseComponent):
@@ -94,4 +94,6 @@ class ContourSettings(BaseComponent):
             decel_values = [float(edit.text()) for edit in self.decel_edits]
             return speed_values, accel_values, decel_values
         except ValueError:
-            return None 
+            return None
+
+

@@ -1,11 +1,11 @@
 """
-执行器设置相关组件
+Effector frame for Main tab
 """
 from PyQt5.QtWidgets import (QWidget, QLabel, QPushButton, QLineEdit, 
                            QVBoxLayout, QHBoxLayout, QGridLayout, QMessageBox, QGroupBox)
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QDoubleValidator
-from .base_component import BaseComponent, default_font, LabeledComboBox
+from ..base_component import BaseComponent, default_font, LabeledComboBox
 
 
 class EffectorFrame(BaseComponent):
@@ -101,4 +101,6 @@ class EffectorFrame(BaseComponent):
             
     def update_connection_status(self, is_connected):
         """更新连接状态"""
-        self.send_button.setEnabled(is_connected) 
+        self.send_button.setEnabled(is_connected)
+
+

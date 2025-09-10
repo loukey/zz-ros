@@ -1,11 +1,13 @@
 """
-显示相关组件
+Data display component for right panel
 """
 from PyQt5.QtWidgets import (QWidget, QLabel, QTextEdit, QPushButton, 
                            QVBoxLayout, QHBoxLayout, QSplitter, QGroupBox)
 from PyQt5.QtCore import Qt, QDateTime
 from PyQt5.QtGui import QTextCursor
-from .base_component import BaseComponent, default_font, text_font
+from ..base_component import BaseComponent, default_font, text_font
+
+
 class DataDisplayFrame(BaseComponent):
     """数据显示区域"""
     
@@ -104,5 +106,5 @@ class DataDisplayFrame(BaseComponent):
         """清除所有区域"""
         self.send_text.clear()
         self.receive_text.clear()
-    
- 
+
+

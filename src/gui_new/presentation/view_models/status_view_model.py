@@ -3,6 +3,7 @@
 """
 from PyQt5.QtCore import pyqtSignal
 from .base_view_model import BaseViewModel
+from application import MessageResponseService
 
 
 class StatusViewModel(BaseViewModel):
@@ -11,10 +12,11 @@ class StatusViewModel(BaseViewModel):
     # 状态更新信号
     status_updated = pyqtSignal(dict)
     
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, message_response_service: MessageResponseService = None):
         """初始化状态视图模型"""
         super().__init__(parent)
-        
+        self.message_response_service = message_response_service
+        self.message_response_service.decoded_message_received.connect(self.update_robot_status)
         # 当前状态数据
         self.current_status = {
             'init_status': None,
