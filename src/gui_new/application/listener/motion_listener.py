@@ -5,7 +5,6 @@ from ..commands import MessageDisplay
 class MotionListener():
 
     def __init__(self, motion_runner: MotionRunner, message_display: MessageDisplay):
-        print(1111)
         self.motion_runner = motion_runner
         self.message_display = message_display
         self._connect_signals()

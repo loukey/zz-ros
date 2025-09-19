@@ -17,7 +17,13 @@ class MainViewModel(BaseViewModel):
     status_message_changed = pyqtSignal(str)
     progress_changed = pyqtSignal(int, bool)
     
-    def __init__(self, serial_vm: SerialViewModel, display_vm: DisplayViewModel, control_vm: ControlViewModel, status_vm: StatusViewModel, parent=None):
+    def __init__(
+        self, 
+        serial_vm: SerialViewModel, 
+        display_vm: DisplayViewModel, 
+        control_vm: ControlViewModel, 
+        status_vm: StatusViewModel, 
+        parent=None):
         super().__init__(parent)
         self.serial_vm = serial_vm
         self.display_vm = display_vm

@@ -46,10 +46,10 @@ class MessageResponseService(BaseService):
             command_line = lines[0]
             if command_line.startswith("AA55"):
                 try:
-                    decoded_message = self.message_domain_service.decode_message(command_line + "0D0A")           
+                    decoded_message = self.message_domain_service.decode_message(command_line + "0D0A")          
                     # 发送解码消息到StatusViewModel
                     self.decoded_message_received.emit(decoded_message)
-                    if decoded_message.get("control") == 0x07 and decoded_message.get("mode") == 0x08:
+                    if decoded_message.control == 0x07 and decoded_message.mode == 0x08:
                         self.handle_motion_message(decoded_message)
 
                 except Exception as e:

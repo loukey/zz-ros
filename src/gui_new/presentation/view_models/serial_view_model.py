@@ -11,7 +11,6 @@ from application import SerialApplicationService, CommandHubService
 class SerialViewModel(BaseViewModel):
     """串口视图模型 - 纯信号转发层"""
     port_list_updated = pyqtSignal(list)
-    connection_status_changed = pyqtSignal(bool)
     
     def __init__(self, serial_service: SerialApplicationService, command_hub_service: CommandHubService, parent=None):
         """初始化视图模型"""
