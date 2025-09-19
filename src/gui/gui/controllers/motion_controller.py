@@ -6,7 +6,7 @@ from math import pi
 import numpy as np
 from scipy.signal import savgol_filter
 from scipy.interpolate import CubicSpline
-from gui.kinematic import rucking_smooth
+from gui.kinematic import RuckigSmooth
 
 
 class MotionController(BaseController):    
@@ -31,6 +31,7 @@ class MotionController(BaseController):
         self.motion_model.motion_send_signal.connect(self.single_motion_send)
         self.serial_model.data_received.connect(self.handle_data_received)
         self.serial_model.error_occurred.connect(self.handle_error_occurred)
+        self.rucking_smooth = RuckigSmooth()
 
         # 示教模式标志位
         self.dynamic_teach_flag = False
@@ -314,9 +315,14 @@ class MotionController(BaseController):
         _, positions = self.motion_model.curve_planning(start_angles, target_angles, dt=self.dt)
         positions = positions.tolist()
         # 原本的滤波
-        # positions_list = self.spline_then_savgol(positions_list).tolist()
-        # todo: 新的rucking smooth
-        positions_list = rucking_smooth(positions_list, dt=self.dt).tolist()
+        positions_list = self.spline_then_savgol(positions_list).tolist()
+        '''
+        todo: 新的rucking smooth测试
+        # 基于初始点和终点，使用示教模式第一点和最后一个点，进行rucking smooth
+        positions_list = self.rucking_smooth.rucking_smooth(position_list[0], position_list[-1])
+        # 基于初始点和运行距离，使用示教模式第一点
+        positions_list = self.rucking_smooth.rucking_smooth_z_axis(position_list[0], 0.1, axis=-1)
+        '''
         positions.extend(positions_list)
         self.motion_model.add_teach_data(positions)
         self.motion_model.start_teach()
