@@ -6,6 +6,7 @@ from math import pi
 import numpy as np
 from scipy.signal import savgol_filter
 from scipy.interpolate import CubicSpline
+from gui.kinematic import rucking_smooth
 
 
 class MotionController(BaseController):    
@@ -312,7 +313,10 @@ class MotionController(BaseController):
         target_angles = positions_list[0]
         _, positions = self.motion_model.curve_planning(start_angles, target_angles, dt=self.dt)
         positions = positions.tolist()
-        positions_list = self.spline_then_savgol(positions_list).tolist()
+        # 原本的滤波
+        # positions_list = self.spline_then_savgol(positions_list).tolist()
+        # todo: 新的rucking smooth
+        positions_list = rucking_smooth(positions_list, dt=self.dt).tolist()
         positions.extend(positions_list)
         self.motion_model.add_teach_data(positions)
         self.motion_model.start_teach()
