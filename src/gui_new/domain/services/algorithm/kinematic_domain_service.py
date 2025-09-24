@@ -24,6 +24,8 @@ class KinematicDomainService:
         return self.gripper2base
 
     def inverse_kinematic(self, rm, pos, initial_theta=None):
+        if not initial_theta:
+            initial_theta = self.kinematic_dh[:, 3]
         valid_solutions = []
         # rotation matrix
         nx, ny, nz = rm[:, 0]
@@ -112,11 +114,7 @@ class KinematicDomainService:
         
                     # theta4
                     if abs(s5) < 1e-6:
-                        # 在腕部奇异性时，使用更稳定的计算方式
-                        if initial_theta is not None:
-                            theta4_candidate = [initial_theta[3]]
-                        else:
-                            theta4_candidate = [self.kinematic_dh[3, 3]]
+                        theta4_candidate = [initial_theta[3]]
                     else:
                         T01 = self.kinematic_utils.dh2rm(self.kinematic_dh[0, 0], self.kinematic_dh[0, 1], self.kinematic_dh[0, 2], theta1)
                         T12 = self.kinematic_utils.dh2rm(self.kinematic_dh[1, 0], self.kinematic_dh[1, 1], self.kinematic_dh[1, 2], theta2)
@@ -133,7 +131,7 @@ class KinematicDomainService:
         if not valid_solutions:
             raise ValueError("No valid solutions found")
             
-        final_solution = min(valid_solutions, key=lambda sol: np.linalg.norm(np.array(sol) - np.array(self.kinematic_dh[:, 3])))
+        final_solution = min(valid_solutions, key=lambda sol: np.linalg.norm(np.array(sol) - np.array(initial_theta)))
         return final_solution
 
     def verify_solution(self, theta_list, target_pos):

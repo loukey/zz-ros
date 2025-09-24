@@ -50,7 +50,7 @@ class MessageResponseService(BaseService):
                     # 发送解码消息到StatusViewModel
                     self.decoded_message_received.emit(decoded_message)
                     if decoded_message.control == 0x07 and decoded_message.mode == 0x08:
-                        self.handle_motion_message(decoded_message)
+                        self.handle_motion_message(decoded_message.positions)
 
                 except Exception as e:
                     self._display_message(f"解码消息失败: {str(e)}", "错误")
@@ -58,13 +58,11 @@ class MessageResponseService(BaseService):
             else:
                 self._display_message(command_line, "接收")
 
-    def handle_motion_message(self, decoded_message: dict):
-        positions = decoded_message.get("positions")
-        positions_rad = self.robot_utils.position2radian(positions)
+    def handle_motion_message(self, positions):
         if self.motion_status == "single":
-            self.get_current_position_signal.emit(positions_rad)
+            self.get_current_position_signal.emit(positions)
         elif self.motion_status == "motion":
-            self.motion_constructor.construct_motion_data(positions_rad)
+            self.motion_constructor.construct_motion_data(positions)
             self.motion_runner.start_motion()
             self.motion_status = "single"
     

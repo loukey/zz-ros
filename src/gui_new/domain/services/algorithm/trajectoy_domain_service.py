@@ -247,3 +247,4 @@ class SCurve():
                                                             start_angles, 
                                                             target_angles)
             return times, accelerations, velocities, positions
+            
