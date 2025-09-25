@@ -45,7 +45,6 @@ class RuckigSmooth:
         quat_list = np.repeat(q0[None, :], len(t), axis=0)
 
         return pos_list, quat_list
-        pass
 
     def _q_slerp(self, q0, q1, t):
         """四元数最短弧 SLERP，t in [0,1]"""
@@ -154,7 +153,7 @@ class RuckigSmooth:
     q_waypoints: np.ndarray,
     limits: Mapping[str,Sequence[float]],
     dt: float = 0.01,
-) -> Tuple[List[np.ndarray], List[np.ndarray], List[np.ndarray], List[float]]:
+):
         """
         使用 Ruckig 的“中间路标连续通过”能力进行时间重定时（中间点不停，终点停）。
 
@@ -203,18 +202,18 @@ class RuckigSmooth:
         inp.max_acceleration=list(limits["a_max"])
         inp.max_jerk = list(limits["j_max"])
 
-        q_list: List[np.ndarray] = []
-        qd_list: List[np.ndarray] = []
-        qdd_list: List[np.ndarray] = []
-        t_list: List[float] = []
+        q_list = []
+        qd_list = []
+        qdd_list = []
+        t_list = []
 
         t = 0.0
         while True:
             res = otg.update(inp, out)
 
-            q_list.append(np.array(out.new_position))
-            qd_list.append(np.array(out.new_velocity))
-            qdd_list.append(np.array(out.new_acceleration))
+            q_list.append(np.array(out.new_position).tolist())
+            qd_list.append(np.array(out.new_velocity).tolist())
+            qdd_list.append(np.array(out.new_acceleration).tolist())
             t_list.append(t)
             t += dt
 
