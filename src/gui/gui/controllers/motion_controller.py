@@ -316,13 +316,13 @@ class MotionController(BaseController):
         positions = positions.tolist()
         # 原本的滤波
         positions_list = self.spline_then_savgol(positions_list).tolist()
-        '''
-        todo: 新的rucking smooth测试
+        
+        # todo: 新的rucking smooth测试
         # 基于初始点和终点，使用示教模式第一点和最后一个点，进行rucking smooth
-        positions_list = self.rucking_smooth.rucking_smooth(position_list[0], position_list[-1])
-        # 基于初始点和运行距离，使用示教模式第一点
-        positions_list = self.rucking_smooth.rucking_smooth_z_axis(position_list[0], 0.1, axis=-1)
-        '''
+        positions_list = self.rucking_smooth.rucking_smooth(positions_list[0], positions_list[-1])
+        # # 基于初始点和运行距离，使用示教模式第一点
+        # positions_list = self.rucking_smooth.rucking_smooth_z_axis(position_list[0], 0.1, axis=-1)
+        
         positions.extend(positions_list)
         self.motion_model.add_teach_data(positions)
         self.motion_model.start_teach()
