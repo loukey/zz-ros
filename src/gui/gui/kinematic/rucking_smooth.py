@@ -1,9 +1,11 @@
+from __future__ import annotations
 from math import pi
-from ruckig import Ruckig, InputParameter, OutputParameter, Result
 import numpy as np
 from .kinematic_6dof import *
 from typing import Mapping, Sequence, List, Tuple 
-
+import toppra as ta
+import toppra.constraint as constraint
+import toppra.algorithm as algo
 
 class RuckigSmooth:
     def __init__(self, v_max=[pi/4] * 6, a_max=[pi/8] * 6, j_max=[pi/16] * 6, dt=0.01):
@@ -13,14 +15,15 @@ class RuckigSmooth:
         self.dt = float(dt)
         self.kinematic_solver = Kinematic6DOF()
 
-    def _limits_dict(self):
-        return{"v_max":self.v_max,"a_max":self.a_max,"j_max":self.j_max}
+
+    def clamp(self, x, low, high):
+        return max(low, min(x, high))
 
     def rucking_smooth(self, start_position, end_position):
         start_quat, start_pos = self.kinematic_solver.get_end_position(start_position)
         end_quat, end_pos = self.kinematic_solver.get_end_position(end_position)
-        quat_list, pos_list = self.sampling(start_quat, start_pos, end_quat, end_pos)
-        positions = self.smooth(quat_list, pos_list)
+        quat_list, pos_list, L = self.sampling(start_quat, start_pos, end_quat, end_pos)
+        positions = self.smooth(quat_list, pos_list, L)
         return positions
 
     def rucking_smooth_z_axis(self, start_position, distance, axis=-1):
@@ -79,7 +82,7 @@ class RuckigSmooth:
 
         # 兼容两种四元数顺序：若最后一项绝对值最大，视为 [x,y,z,w]，转成 [w,x,y,z]
         q0=start_quat
-        q1=end_quat
+        q1=q0
         q0 = np.asarray(q0, dtype=float).reshape(4)
         q1 = np.asarray(q1, dtype=float).reshape(4)
         if np.argmax(np.abs(q0)) == 3:  # 可能是 [x,y,z,w]
@@ -102,9 +105,9 @@ class RuckigSmooth:
         quat_list = np.vstack([self._q_slerp(q0, q1, ti) for ti in t])
 
      
-        return quat_list, pos_list
+        return quat_list, pos_list, L
 
-    def smooth(self, quat_list, pos_list):
+    def smooth(self, quat_list, pos_list, L):
         positions = []
         for quat, pos in zip(quat_list, pos_list):
             position = self.inverse_kinematic(quat, pos)
@@ -113,8 +116,8 @@ class RuckigSmooth:
         # todo: 基于这个positions列表，规划rucking smooth
 
         q_wp = self.ensure_2d_array(positions)
-
-        positions, qd, qdd, t_list = self.retime_with_ruckig_waypoints(q_wp, limits=self._limits_dict(), dt=self.dt)
+        grid_n = self.clamp(6*L,300,3000)    
+        t_list, positions, qd, qdd= self.toppra_time_parameterize(q_wp, self.v_max, self.a_max, self.dt, grid_n)
         return positions
 
     def inverse_kinematic(self, quat, pos):
@@ -149,79 +152,51 @@ class RuckigSmooth:
             raise ValueError("Q_waypoints 至少需要两个点（起点与终点）且维度为 (N, dof)。")
         return q
 
-    def retime_with_ruckig_waypoints(self,
-    q_waypoints: np.ndarray,
-    limits: Mapping[str,Sequence[float]],
+    def toppra_time_parameterize(self,
+    waypoints: np.ndarray,
+    v_max: np.ndarray | float,
+    a_max: np.ndarray | float,
     dt: float = 0.01,
+    grid_n: int = 400,
 ):
-        """
-        使用 Ruckig 的“中间路标连续通过”能力进行时间重定时（中间点不停，终点停）。
+        waypoints = np.asarray(waypoints, dtype=float)
+        if waypoints.ndim != 2 or waypoints.shape[1] != 6 or waypoints.shape[0] < 2:
+            raise ValueError("waypoints 必须是 (N,6) 且 N>=2")
 
-        Parameters
-        ----------
-        q_waypoints : np.ndarray
-            路标序列，形状 (N, dof)，单位：弧度。
-        limits : JointLimits
-            关节约束（v/a/jerk 上限）。
-        dt : float
-            采样周期（秒），例如 0.002 → 500 Hz。
+        dof = waypoints.shape[1]
 
-        Returns
-        -------
-        q_list, qd_list, qdd_list, t_list
-            依次为：位置、速度、加速度、时间戳（均为等间隔 dt）。
-        """
-        try:
-            from ruckig import Ruckig, InputParameter, OutputParameter, Result  # pip install ruckig
-        except Exception as exc:
-            raise RuntimeError("需要安装 python-ruckig（pip install ruckig）。") from exc
+        # 1) 几何路径：用样条在路径参数 s∈[0,1] 上插值
+        breaks = np.linspace(0.0, 1.0, waypoints.shape[0])
+        path = ta.SplineInterpolator(breaks, waypoints)  # 官方示例同款 API
 
-        q_wp = self.wrap_to_pi(self.ensure_2d_array(q_waypoints))
-        dof = int(q_wp.shape[1])
-        num_wp = max(0, q_wp.shape[0] - 2)
-        otg = Ruckig(dof, dt, num_wp)
-        
-        inp = InputParameter(dof)
-        out = OutputParameter(dof)
+        # 2) 速度/加速度约束（上下界格式）
+        v_max = np.full(dof, float(v_max)) if np.isscalar(v_max) else np.asarray(v_max, dtype=float)
+        a_max = np.full(dof, float(a_max)) if np.isscalar(a_max) else np.asarray(a_max, dtype=float)
+        if v_max.shape != (dof,) or a_max.shape != (dof,):
+            raise ValueError("v_max/a_max 需为标量或 shape=(6,)")
 
-        # 当前状态（通常从静止开始；若不是静止请填真实值）
-        inp.current_position = q_wp[0].tolist()
-        inp.current_velocity = [0.0] * dof
-        inp.current_acceleration = [0.0] * dof
+        v_bounds = np.column_stack((-np.abs(v_max), np.abs(v_max)))  # (2,6) -> [v_min; v_max]
+        a_bounds = np.column_stack((-np.abs(a_max), np.abs(a_max)))  # (2,6) -> [a_min; a_max]
 
-        # 中间路标（不停顿通过）+ 终点（停住）
-        if q_wp.shape[0] > 2 and hasattr(inp, "intermediate_positions"):
-            # 低版本 Ruckig 可能没有该属性；外部会捕获 AttributeError 并降级。
-            inp.intermediate_positions = [q.tolist() for q in q_wp[1:-1]]
+        pc_vel = constraint.JointVelocityConstraint(v_bounds)
+        pc_acc = constraint.JointAccelerationConstraint(a_bounds)
 
-        inp.target_position = q_wp[-1].tolist()
-        inp.target_velocity = [0.0] * dof
-        inp.target_acceleration = [0.0] * dof
+        # 3) TOPPRA 主算法 + 常用参数化器（常用且满足边界/约束）
+        gridpoints = np.linspace(0, path.duration, int(grid_n))
+        instance = algo.TOPPRA([pc_vel, pc_acc], path, gridpoints=gridpoints, parametrizer="ParametrizeConstAccel")
+ 
+        # 4) 求解时间参数化，得到可按时间采样的 jnt_traj
+        jnt_traj = instance.compute_trajectory(sd_start=0.0, sd_end=0.0)
+        if jnt_traj is None:
+            raise RuntimeError("TOPPRA 求解失败：给定约束下不可行，或路径异常。")
 
-        inp.max_velocity=list(limits["v_max"])
-        inp.max_acceleration=list(limits["a_max"])
-        inp.max_jerk = list(limits["j_max"])
+        # 5) 按 dt 采样
+        T = float(jnt_traj.duration)
+        M = max(2, int(np.ceil(T / dt)) + 1)
+        t = np.linspace(0.0, T, M)
 
-        q_list = []
-        qd_list = []
-        qdd_list = []
-        t_list = []
+        q   = jnt_traj.eval(t)
+        qd  = jnt_traj.eval(t)
+        qdd = jnt_traj.eval(t)
+        return t.tolist(), q.tolist(), qd.tolist(), qdd.tolist()
 
-        t = 0.0
-        while True:
-            res = otg.update(inp, out)
-
-            q_list.append(np.array(out.new_position).tolist())
-            qd_list.append(np.array(out.new_velocity).tolist())
-            qdd_list.append(np.array(out.new_acceleration).tolist())
-            t_list.append(t)
-            t += dt
-
-            if res == Result.Working:
-                out.pass_to_input(inp)
-            elif res == Result.Finished:
-                break
-            else:
-                raise RuntimeError(f"Ruckig 失败：{res}")
-
-        return q_list, qd_list, qdd_list, t_list
