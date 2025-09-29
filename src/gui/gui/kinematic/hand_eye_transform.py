@@ -5,9 +5,9 @@ from gui.config import GlobalVars
 class HandEyeTransform:
     def __init__(self):
         self.hand_eye_transform_rm = np.array([
-            [ 0.99970091,  0.02284533,  0.0087285, -0.01045728],
-            [-0.02233611,  0.99826096, -0.05455413, -0.0615077],
-            [-0.00995963,  0.05434286,  0.99847266, -0.22380528],
+            [ 0.99994527,  0.01043147,  -0.00079424, -0.0069770],
+            [-0.01040318,   0.99950205,  0.02978964, -0.0510317],
+            [0.001104600,  -0.0297797,  0.99555875, -0.1496010],
             [ 0,          0,          0,          1]
         ])
         self.kinematic_solver = Kinematic6DOF()
@@ -84,13 +84,17 @@ class HandEyeTransform:
         v_base = p2_base - p1_base
         
         theta = np.arctan2(v_base[1], v_base[0])
+        theta = theta 
+        print("theta:",theta)
         T_target2base = self.get_Z_rotation_matrix(theta)
-        T_target2base[:, 3] = p2_base
+        T_target2base[:, 3] = p2_base 
+        print("T_target2base:",T_target2base)
         
         T_offset2target = np.eye(4)
-        T_offset2target[:3,3] = np.array([0, 0, 0.05])
+        T_offset2target[:3,3] = np.array([0.2, 0, 0.1])
         T_target2base = T_target2base @ T_offset2target
-        T_target2base = T_target2base @ self.get_Y_rotation_matrix(-135*pi/180) @ self.get_Z_rotation_matrix(pi/2)
+        T_target2base = T_target2base @ self.get_Y_rotation_matrix(-90*pi/180) @ self.get_X_rotation_matrix(-pi/2)
+        print("T_target2base2:",T_target2base)
         theta_list = self.kinematic_solver.inverse_kinematic(T_target2base[:3, :3], T_target2base[:3, 3])
 
         return theta_list

@@ -4,7 +4,7 @@ from math import pi
 
 class Dynamic:
     def __init__(self):
-        self.link_masses = [4.64,10.755,3.925,1.24,1.24,2.549]
+        self.link_masses = [4.64,10.755,3.925,1.24,1.24,1.546]
         self.DH_matrix = np.array([
             [0.0, 0.0, 0.0, 0.0],
             [0.0, -pi/2, 0.0, -pi/2],
@@ -19,7 +19,7 @@ class Dynamic:
             np.array([0.1818, 0, 0]),
             np.array([0, 0, 0]),
             np.array([0, 0, 0]),
-            np.array([0, 0, 0.0745])
+            np.array([0, 0, 0.05])
         ]
         '''
         i | 连杆长度 a_{i-1} | 连杆转角 α_{i-1}   | 连杆偏距 d_i  | 关节角 θ_i
