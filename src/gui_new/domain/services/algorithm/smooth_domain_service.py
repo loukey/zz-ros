@@ -122,8 +122,8 @@ class SmoothDomainService:
     def toppra_smooth(
         self,
         angles_list: List[List[float]],
-        v_max: List[float] = None,
-        a_max: List[float] = None,
+        v_max: List[float] = [pi/4] * 6,
+        a_max: List[float] = [pi/8] * 6,
         dt: float = 0.01
     ) -> List[List[float]]:
         """
@@ -140,10 +140,6 @@ class SmoothDomainService:
         Returns:
             平滑后的轨迹列表
         """
-        if v_max is None:
-            v_max = [pi/4] * 6
-        if a_max is None:
-            a_max = [pi/8] * 6
         
         arr = np.asarray(angles_list, dtype=float)
         N = len(arr)

@@ -8,12 +8,16 @@ from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QTabWidget, QMes
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont
 from presentation.components import *
+import rclpy
 
 
 class MainWindow(QMainWindow):
     """主窗口类"""
     
     def __init__(self, view_model, parent=None):
+        # 初始化ROS2（全局一次）
+        self._init_rclpy()
+        
         super(MainWindow, self).__init__(parent)
         
         # 通过依赖注入接收视图模型（必需参数）
@@ -34,6 +38,15 @@ class MainWindow(QMainWindow):
         app = QApplication.instance()
         if app:
             app.aboutToQuit.connect(self.cleanup)
+    
+    def _init_rclpy(self):
+        """初始化ROS2（全局一次）"""
+        try:
+            if not rclpy.ok():
+                rclpy.init()
+                print("✅ ROS2已初始化")
+        except Exception as e:
+            print(f"⚠️ ROS2初始化失败: {e}")
     
     def init_ui(self):
         """初始化用户界面"""
@@ -115,10 +128,11 @@ class MainWindow(QMainWindow):
         right_layout.setSpacing(0)  # 移除间距
         
         # 直接创建数据显示区域，无需TabWidget嵌套
-        # 使用display_vm来统一处理所有消息显示
+        # 使用display_vm来统一处理所有消息显示，control_vm用于发送停止命令
         self.data_display_frame = DataDisplayFrame(
             parent=right_widget,
-            view_model=self.view_model.display_vm  # 使用DisplayViewModel统一管理消息
+            view_model=self.view_model.display_vm,  # 使用DisplayViewModel统一管理消息
+            control_vm=self.view_model.control_vm   # 使用ControlViewModel发送停止命令
         )
         right_layout.addWidget(self.data_display_frame)
         
@@ -177,7 +191,7 @@ class MainWindow(QMainWindow):
         # 运动规划框架
         self.motion_planning_frame = MotionPlanningFrame(
             parent=motion_tab,
-            view_model=self.view_model.trajectory_vm
+            view_model=self.view_model.motion_planning_vm
         )
         layout.addWidget(self.motion_planning_frame)
         
@@ -204,22 +218,13 @@ class MainWindow(QMainWindow):
     
     def _create_camera_tab(self):
         """创建摄像头标签"""
-        camera_tab = QWidget()
-        layout = QVBoxLayout(camera_tab)
-        layout.setContentsMargins(6, 6, 6, 6)  # 保留少量内边距
-        layout.setSpacing(2)  # 减少组件间距
-        
-        # 摄像头控制框架
-        self.camera_frame = CameraFrame(
-            parent=camera_tab,
+        # 使用CameraDisplayWidget
+        self.camera_widget = CameraDisplayWidget(
+            parent=None,
             view_model=self.view_model.camera_vm
         )
-        layout.addWidget(self.camera_frame)
         
-        # 添加伸缩空间
-        layout.addStretch()
-        
-        self.left_tab_widget.addTab(camera_tab, "摄像头")
+        self.left_tab_widget.addTab(self.camera_widget, "摄像头")
     
     def _create_menu_bar(self):
         """创建菜单栏"""
@@ -284,5 +289,14 @@ class MainWindow(QMainWindow):
     
     def cleanup(self):
         """清理资源"""
-        if hasattr(self, 'view_model') and self.view_model:
-            self.view_model.cleanup() 
+        try:
+            # 1. 清理所有ViewModel和Domain Services
+            if hasattr(self, 'view_model') and self.view_model:
+                self.view_model.cleanup()
+            
+            # 2. 关闭ROS2（统一清理）
+            if rclpy.ok():
+                rclpy.shutdown()
+                print("✅ ROS2已关闭")
+        except Exception as e:
+            print(f"⚠️ 清理资源失败: {e}") 

@@ -11,8 +11,10 @@ from infrastructure import *
 
 def register_infrastructure_services(container: DIContainer) -> None:
     """注册Infrastructure层服务"""
-    # 新增：记录数据持久化仓库
+    # 记录数据持久化仓库
     container.register_singleton(RecordRepository)
+    # 运动规划方案持久化仓库
+    container.register_singleton(MotionPlanRepository)
 
 def register_domain_services(container: DIContainer) -> None:
     """注册Domain层服务"""
@@ -21,15 +23,22 @@ def register_domain_services(container: DIContainer) -> None:
     container.register_singleton(MessageDecoder)
     container.register_singleton(MessageDomainService)
     container.register_singleton(MotionRunner)
-    # 新增：轨迹平滑服务
+    # 轨迹平滑服务
     container.register_singleton(SmoothDomainService)
-    container.register_singleton(MotionConstructor)  # 会自动注入 SmoothDomainService
-    # 新增：机械臂状态服务
+    # 运动学和轨迹规划服务
+    container.register_singleton(KinematicDomainService)
+    container.register_singleton(LinearMotionDomainService)  # 依赖 KinematicDomainService
+    container.register_singleton(MotionConstructor)  # 会自动注入 SmoothDomainService 和 LinearMotionDomainService
+    # 机械臂状态服务
     container.register_singleton(RobotStateDomainService)
-    # 新增：动力学服务
+    # 动力学服务
     container.register_singleton(DynamicDomainService)
-    # 新增：示教记录服务
+    # 示教记录服务
     container.register_singleton(TeachRecordDomainService)
+    # 运动规划服务
+    container.register_singleton(MotionPlanningDomainService)
+    # 视觉服务
+    container.register_singleton(CameraDomainService)
     
 def register_application_services(container: DIContainer) -> None:
     """注册Application层服务"""
@@ -38,6 +47,10 @@ def register_application_services(container: DIContainer) -> None:
     container.register_singleton(CommandHubService)
     container.register_singleton(MessageResponseService)
     container.register_singleton(MotionListener)
+    # 运动规划应用服务
+    container.register_singleton(MotionPlanningApplicationService)
+    # 摄像头应用服务
+    container.register_singleton(CameraApplicationService)
 
 def register_presentation_services(container: DIContainer) -> None:
     """注册Presentation层服务"""
@@ -50,6 +63,8 @@ def register_presentation_services(container: DIContainer) -> None:
     container.register_singleton(TrajectoryViewModel)
     container.register_singleton(DynamicsViewModel)  
     container.register_singleton(CameraViewModel)
+    # 运动规划ViewModel
+    container.register_singleton(MotionPlanningViewModel)
     container.register_singleton(MainViewModel)
 
 def configure_services() -> DIContainer:

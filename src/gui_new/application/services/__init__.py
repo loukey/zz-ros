@@ -3,9 +3,13 @@
 from .serial_application_service import SerialApplicationService
 from .command_hub_service import CommandHubService
 from .message_response_service import MessageResponseService
+from .motion_planning_application_service import MotionPlanningApplicationService
+from .camera_application_service import CameraApplicationService
 
 __all__ = [
     'SerialApplicationService',
     'CommandHubService',
     'MessageResponseService',
+    'MotionPlanningApplicationService',
+    'CameraApplicationService',
 ]     

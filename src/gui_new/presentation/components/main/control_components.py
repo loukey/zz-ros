@@ -110,7 +110,6 @@ class AngleControlFrame(BaseComponent):
                  get_run_mode=None):
         self.get_contour = get_contour
         self.get_run_mode = get_run_mode
-        self.angle_vars = []
         super().__init__(parent, view_model)
     
     def setup_ui(self):
@@ -131,44 +130,9 @@ class AngleControlFrame(BaseComponent):
             validator=QDoubleValidator()
         )
         layout.addWidget(self.angle_grid)
-        self.angle_vars = self.angle_grid.inputs  # 保存输入框引用以保持兼容性
         
-        # 创建控制行
-        control_row = ConfigRow(None)
-        
-        # 曲线类型选择 - 使用RadioButtonGroup基础组件
-        self.curve_type_group = RadioButtonGroup(
-            None,
-            options=["梯形", "S形"],
-            default_option="S形"
-        )
-        control_row.add_widget(self.curve_type_group)
-        
-        # 时长输入
-        time_layout = QHBoxLayout()
-        time_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        time_layout.addWidget(QLabel("时长:"))
-        self.duration_var = QLineEdit("4.0")
-        self.duration_var.setFont(default_font)
-        self.duration_var.setMaximumWidth(60)
-        time_layout.addWidget(self.duration_var)
-        time_layout.addWidget(QLabel("s"))
-        control_row.add_widget(QWidget())
-        control_row.layout.addLayout(time_layout)
-        
-        # 发送频率输入
-        freq_layout = QHBoxLayout()
-        freq_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        freq_layout.addWidget(QLabel("发送频率:"))
-        self.frequency_var = QLineEdit("0.01")
-        self.frequency_var.setFont(default_font)
-        self.frequency_var.setMaximumWidth(60)
-        freq_layout.addWidget(self.frequency_var)
-        freq_layout.addWidget(QLabel("s"))
-        control_row.layout.addLayout(freq_layout)
-        
-        control_row.add_stretch()
-        layout.addWidget(control_row)
+        # 注意：曲线类型和频率参数已经在 CommandHubService 中默认设置为 s_curve 和 0.01
+        # 因此这里不再提供 UI 配置选项
         
         # 按钮区域
         button_layout = QHBoxLayout()
@@ -178,9 +142,7 @@ class AngleControlFrame(BaseComponent):
         self.send_button.clicked.connect(lambda: self.send_angles_requested.emit({
             'control': 0x06,
             'mode': self.get_run_mode() if self.get_run_mode else 0x08,
-            'target_angles': self.get_angles(), 
-            'curve_type': self.get_curve_type(), 
-            'frequency': self.get_frequency(),
+            'target_angles': self.get_angles(),
             'contour_params': self.get_contour() if self.get_contour else None
         }))
         self.send_button.setEnabled(False)
@@ -206,23 +168,6 @@ class AngleControlFrame(BaseComponent):
     def get_angles(self):
         """获取当前角度值"""
         return self.angle_grid.get_float_values()
-    
-    def get_curve_type(self):
-        """获取曲线类型和时间参数"""
-        try:
-            duration = float(self.duration_var.text())
-            frequency = float(self.frequency_var.text())
-            curve_type = "trapezoidal" if self.curve_type_group.get_selected() == "梯形" else "s_curve"
-            return curve_type, duration, frequency
-        except ValueError:
-            return "trapezoidal", 4.0, 0.1
-    
-    def get_frequency(self):
-        """获取当前的发送频率"""
-        try:
-            return float(self.frequency_var.text())
-        except ValueError:
-            return 0.01
 
     def set_angles(self, angles):
         """设置角度值"""

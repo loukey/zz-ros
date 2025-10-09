@@ -11,6 +11,7 @@ from .effector_view_model import EffectorViewModel
 from .trajectory_view_model import TrajectoryViewModel
 from .dynamics_view_model import DynamicsViewModel
 from .camera_view_model import CameraViewModel
+from .motion_planning_view_model import MotionPlanningViewModel
 
 
 class MainViewModel(BaseViewModel):
@@ -31,6 +32,7 @@ class MainViewModel(BaseViewModel):
         trajectory_vm: TrajectoryViewModel,
         dynamics_vm: DynamicsViewModel,
         camera_vm: CameraViewModel,
+        motion_planning_vm: MotionPlanningViewModel,
         parent=None
     ):
         super().__init__(parent)
@@ -42,6 +44,7 @@ class MainViewModel(BaseViewModel):
         self.trajectory_vm = trajectory_vm
         self.dynamics_vm = dynamics_vm
         self.camera_vm = camera_vm
+        self.motion_planning_vm = motion_planning_vm
         
         # 连接连接状态信号
         self._connect_status_update_signals()
@@ -66,7 +69,8 @@ class MainViewModel(BaseViewModel):
         """清理资源"""
         # 清理所有子ViewModels
         for vm_attr in ['serial_vm', 'display_vm', 'control_vm', 'status_vm',
-                       'effector_vm', 'trajectory_vm', 'dynamics_vm', 'camera_vm']:
+                       'effector_vm', 'trajectory_vm', 'dynamics_vm', 'camera_vm',
+                       'motion_planning_vm']:
             vm = getattr(self, vm_attr, None)
             if vm and hasattr(vm, 'cleanup'):
                 try:

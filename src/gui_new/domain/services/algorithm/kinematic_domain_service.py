@@ -2,6 +2,7 @@ from domain import DHParam, KinematicUtils
 from functools import reduce
 from math import atan2, acos, sin, cos, pi, sqrt
 import numpy as np
+from scipy.spatial.transform import Rotation as R
 
 
 class KinematicDomainService:
@@ -21,7 +22,8 @@ class KinematicDomainService:
             for dh in self.kinematic_dh:
                 rm_list.append(self.kinematic_utils.dh2rm(*dh))
             self.gripper2base = reduce(lambda x, y: x @ y, rm_list, np.eye(4))
-        return self.gripper2base
+        quat = R.from_matrix(self.gripper2base[:3, :3]).as_quat()
+        return quat, self.gripper2base[:3, 3]
 
     def inverse_kinematic(self, rm, pos, initial_theta=None):
         if not initial_theta:

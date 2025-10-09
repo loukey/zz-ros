@@ -1,5 +1,6 @@
 from .motion_runner import MotionRunner
-from ..algorithm import SCurve, SmoothDomainService
+from ..algorithm import SCurve, SmoothDomainService, LinearMotionDomainService
+from typing import List, Dict
 
 
 class MotionConstructor:
@@ -8,61 +9,62 @@ class MotionConstructor:
     
     职责：
     1. 管理运动任务队列
-    2. 调用算法服务进行轨迹规划
+    2. 调用算法服务进行轨迹规划（S曲线/直线）
     3. 管理运动执行状态（是否需要自动构建）
+    4. 维护位置状态，一次性规划所有任务
     """
     
     def __init__(
         self, 
         motion_runner: MotionRunner,
-        smooth_service: SmoothDomainService):
+        smooth_service: SmoothDomainService,
+        linear_motion_service: LinearMotionDomainService):
         """
         初始化运动构造器
         
         Args:
             motion_runner: 运动执行器
             smooth_service: 轨迹平滑服务（依赖注入）
+            linear_motion_service: 直线运动规划服务（依赖注入）
         """
         self.motion_runner = motion_runner
         self.smooth_service = smooth_service
+        self.linear_motion_service = linear_motion_service
         self.s_curve = SCurve()
-        self.data_list = []
         self._has_pending_motion = False
+        self._pending_tasks = []  # 待规划的任务列表
 
     def clear_data(self):
         """清空任务队列"""
-        self.data_list = []
         self._has_pending_motion = False
-
-    def add_motion_data(self, motion_type: str, data):
+        self._pending_tasks.clear()
+    
+    def prepare_motion(self, task: Dict):
         """
-        添加运动任务到队列
+        准备单个运动任务（等待位置数据后自动执行）
+        
+        内部统一调用 prepare_motion_sequence，将单个任务包装为列表
         
         Args:
-            motion_type: 运动类型
-                - "motion": 单个目标点，data = [θ1, ..., θ6]
-                - "gripper": 夹爪控制，data = {"effector_mode": ..., "effector_data": ...}
-                - "teach": 示教轨迹，data = [[θ1,...], [θ2,...], ...]
-            data: 运动数据
+            task: 任务字典（格式同 add_motion_data）
         """
-        self.data_list.append((motion_type, data))
+        self.prepare_motion_sequence([task])
     
-    def prepare_motion(self, motion_type: str, data):
+    def prepare_motion_sequence(self, tasks_list: List[Dict]):
         """
-        准备运动任务（等待位置数据后自动执行）
+        准备运动序列（等待位置数据后自动执行）
         
-        此方法用于异步运动流程：
-        1. 添加运动任务到队列
+        用于批量运动任务（如运行整个运动规划方案）：
+        1. 暂存所有任务
         2. 标记有待执行的运动
         3. 等待获取当前位置
-        4. 位置到达后自动构建并执行
+        4. 位置到达后一次性规划所有任务
         
         Args:
-            motion_type: 运动类型 ("motion", "teach", "gripper")
-            data: 运动数据
+            tasks_list: 任务字典列表
         """
         self.clear_data()
-        self.add_motion_data(motion_type, data)
+        self._pending_tasks = tasks_list
         self._has_pending_motion = True
     
     def has_pending_motion(self) -> bool:
@@ -74,44 +76,137 @@ class MotionConstructor:
         """
         return self._has_pending_motion
 
-    def construct_motion_data(self, start_position: list):
+    def construct_motion_data(self, start_position: List[float]):
         """
-        根据任务队列构建完整运动轨迹
-        
-        流程：
-        1. 清空 Runner 的消息列表
-        2. 遍历任务队列
-        3. 根据任务类型调用不同的算法服务
-        4. 将编码后的消息添加到 Runner
-        5. 清除待执行标志
+        根据任务队列构建运动轨迹（统一调用 construct_motion_sequence）
         
         Args:
             start_position: 起始位置（当前关节角度）
         """
-        if not self.data_list:
+        self.construct_motion_sequence(start_position)
+
+    def construct_motion_sequence(self, start_position: List[float]):
+        """
+        规划所有任务的轨迹
+        
+        核心逻辑：
+        1. 维护 current_position 状态
+        2. 每个运动任务的终点 = 下一个任务的起点
+        3. 夹爪任务不改变位置
+        4. 所有任务规划完成后，MotionRunner 按序发送
+        
+        Args:
+            start_position: 起始位置（只在最开始查询一次）
+        """
+        if not self._pending_tasks:
+            print("没有待规划的任务")
             return
         
-        self.motion_runner.clear_data()
-        last_position = start_position
+        task_count = len(self._pending_tasks)
+        print(f"开始规划运动序列，共 {task_count} 个任务")
+        print(f"起始位置: {start_position}")
         
-        for motion_type, data in self.data_list:
-            if motion_type == "motion":
-                _, _, _, positions = self.s_curve.planning(last_position, data)
-                self.motion_runner.add_motion_data(positions)
-                last_position = data
-                
-            elif motion_type == "gripper":
-                self.motion_runner.add_gripper_data(**data)
-                
-            elif motion_type == "teach":
-                self._construct_teach_motion(last_position, data)
-                last_position = data[-1]
+        self.motion_runner.clear_data()
+        current_position = start_position
+        
+        for i, task in enumerate(self._pending_tasks):
+            task_type = task['type']
+            print(f"正在规划任务 {i+1}/{task_count}: {task_type}")
+            
+            # 显示任务详情
+            if task_type == "motion":
+                print(f"  - 目标位置: {task['target_angles']}")
+                print(f"  - 曲线类型: {task.get('curve_type', 's_curve')}")
+            elif task_type == "teach":
+                print(f"  - 示教点数: {len(task['teach_data'])}")
+            elif task_type == "gripper":
+                print(f"  - 夹爪模式: 0x{task['effector_mode']:02X}")
+            
+            current_position = self._process_task(task, current_position)
         
         self._has_pending_motion = False
+        self._pending_tasks.clear()
+        
+        total_points = len(self.motion_runner.data_list)
+        print(f"运动序列规划完成！")
+        print(f"  - 总任务数: {task_count} 个")
+        print(f"  - 总轨迹点: {total_points} 个")
+        print(f"  - 预计时间: {total_points * 0.01:.2f} 秒")
+        print(f"开始执行...")
+        
+        # 启动运动执行
+        self.motion_runner.start_motion()
     
-    def _construct_teach_motion(self, start_position: list, angles_list: list):
+    def _process_task(self, task: Dict, current_position: List[float]) -> List[float]:
         """
-        构建示教轨迹运动（内部方法）
+        处理单个任务并返回新的当前位置
+        
+        Args:
+            task: 任务字典
+            current_position: 当前位置
+            
+        Returns:
+            新的当前位置
+        """
+        task_type = task["type"]
+        
+        if task_type == "motion":
+            # 普通运动点（S曲线或直线）
+            return self._construct_motion(task, current_position)
+            
+        elif task_type == "teach":
+            # 示教轨迹
+            return self._construct_teach(task, current_position)
+            
+        elif task_type == "gripper":
+            # 夹爪操作（不改变位置）
+            self._construct_gripper(task)
+            return current_position  # 位置不变
+        
+        else:
+            print(f"未知任务类型: {task_type}")
+            return current_position
+    
+    def _construct_motion(self, task: Dict, start_position: List[float]) -> List[float]:
+        """
+        构建普通运动任务（S曲线或直线）
+        
+        Args:
+            task: 任务字典，包含 target_angles, curve_type, frequency
+            start_position: 起始位置
+            
+        Returns:
+            终点位置
+        """
+        end_position = task["target_angles"]
+        curve_type = task.get("curve_type", "s_curve")
+        frequency = task.get("frequency", 0.01)
+        
+        if curve_type == "linear":
+            # 直线运动规划
+            trajectory = self.linear_motion_service.linear_motion(
+                start_position, 
+                end_position
+            )
+            # linear_motion 返回的已经是 numpy array，需要转为列表
+            positions = trajectory.tolist()
+        else:
+            # S曲线运动规划（默认）
+            # 使用关键字参数 dt 指定采样时间间隔，v_start 使用默认值 [0]*6
+            _, _, _, positions = self.s_curve.planning(
+                start_position, 
+                end_position,
+                dt=frequency
+            )
+        
+        # 添加到运动执行队列
+        self.motion_runner.add_motion_data(positions)
+        
+        return end_position
+    
+    def _construct_teach(self, task: Dict, start_position: List[float]) -> List[float]:
+        """
+        构建示教轨迹运动
         
         流程：
         1. S-curve 规划：从当前位置到示教第一个点
@@ -120,25 +215,55 @@ class MotionConstructor:
         4. 添加到 Runner
         
         Args:
+            task: 任务字典，包含 teach_data
             start_position: 起始位置
-            angles_list: 示教记录的角度列表
+            
+        Returns:
+            终点位置（示教数据的最后一个点）
         """
-        target_first_point = angles_list[0]
+        teach_data = task["teach_data"]
         
+        # 检查示教数据是否为空
+        if not teach_data or len(teach_data) == 0:
+            print(f"⚠️ 警告：示教数据为空，跳过该任务")
+            return start_position  # 位置不变
+        
+        target_first_point = teach_data[0]
+        
+        # 从当前位置规划到示教第一个点
         _, _, _, initial_positions = self.s_curve.planning(
             start_position, 
             target_first_point
         )
         
+        # 对示教数据进行平滑处理
         smoothed_positions = self.smooth_service.smooth_trajectory(
-            angles_list,
+            teach_data,
             method="spline_savgol",
             upsample=5,
             sg_window=211,
             sg_poly=3
         )
         
+        # 合并轨迹
         all_positions = initial_positions.tolist()
         all_positions.extend(smoothed_positions)
         
+        # 添加到运动执行队列
         self.motion_runner.add_motion_data(all_positions)
+        
+        return teach_data[-1]
+    
+    def _construct_gripper(self, task: Dict):
+        """
+        构建夹爪操作
+        
+        注意：夹爪操作会自动添加1秒延迟（在 MotionRunner.add_gripper_data 中）
+        
+        Args:
+            task: 任务字典，包含 effector_mode, effector_data
+        """
+        effector_mode = task["effector_mode"]
+        effector_data = task["effector_data"]
+        
+        self.motion_runner.add_gripper_data(effector_mode, effector_data)

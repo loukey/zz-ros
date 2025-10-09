@@ -10,6 +10,7 @@ from .view_models import (
     TrajectoryViewModel,
     DynamicsViewModel,
     CameraViewModel,
+    MotionPlanningViewModel,
 )
 
 from .components import *
@@ -25,4 +26,5 @@ __all__ = [
     "TrajectoryViewModel",
     "DynamicsViewModel",
     "CameraViewModel",
+    "MotionPlanningViewModel",
 ] 

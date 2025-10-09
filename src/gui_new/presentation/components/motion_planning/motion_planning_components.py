@@ -4,12 +4,11 @@ Motion planning tab components
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton, 
                             QTableWidget, QTableWidgetItem, QDialog, QLabel, 
                             QDoubleSpinBox, QComboBox, QFormLayout, QDialogButtonBox,
-                            QHeaderView, QMessageBox, QLineEdit, QCheckBox, QRadioButton, QButtonGroup)
+                            QHeaderView, QMessageBox, QLineEdit, QCheckBox, QRadioButton, 
+                            QButtonGroup, QInputDialog)
 from PyQt5.QtCore import Qt, pyqtSignal
 from ..base_component import BaseComponent
 import math
-import json
-import os
 
 
 class MotionPlanningFrame(BaseComponent):
@@ -19,95 +18,340 @@ class MotionPlanningFrame(BaseComponent):
     get_current_position_signal = pyqtSignal()  # 添加获取当前位置的信号
     
     def __init__(self, parent=None, view_model=None):
-        self.data_file_path = "./motion_planning_data.json"
         self.current_dialog = None  # 保存当前打开的对话框引用
         super().__init__(parent, view_model)
-        self.load_motion_data()
+    
+    def connect_signals(self):
+        """连接视图模型信号"""
+        if self.view_model:
+            # 连接方案管理信号
+            self.view_model.plan_list_changed.connect(self.refresh_plan_list)
+            self.view_model.current_plan_changed.connect(self.refresh_point_list)
+            self.view_model.point_list_changed.connect(self.refresh_point_list)
+            
+            # 连接"获取位置"信号流
+            # UI请求 → ViewModel
+            self.get_current_position_signal.connect(
+                self.view_model.request_current_position
+            )
+            # ViewModel响应 → UI显示
+            self.view_model.current_position_received.connect(
+                self.set_current_position
+            )
     
     def setup_ui(self):
         """设置UI"""
         layout = QVBoxLayout(self)
         
-        # 创建表格
+        # ========== 1. 方案选择区 ==========
+        plan_selector_layout = QHBoxLayout()
+        
+        plan_selector_layout.addWidget(QLabel("运动方案:"))
+        
+        self.plan_combo = QComboBox()
+        self.plan_combo.currentIndexChanged.connect(self.on_plan_switched)
+        plan_selector_layout.addWidget(self.plan_combo)
+        
+        self.new_plan_btn = QPushButton("新建方案")
+        self.new_plan_btn.clicked.connect(self.create_plan)
+        plan_selector_layout.addWidget(self.new_plan_btn)
+        
+        self.delete_plan_btn = QPushButton("删除方案")
+        self.delete_plan_btn.clicked.connect(self.delete_plan)
+        plan_selector_layout.addWidget(self.delete_plan_btn)
+        
+        self.rename_plan_btn = QPushButton("重命名")
+        self.rename_plan_btn.clicked.connect(self.rename_plan)
+        plan_selector_layout.addWidget(self.rename_plan_btn)
+        
+        plan_selector_layout.addStretch()
+        layout.addLayout(plan_selector_layout)
+        
+        # ========== 2. 节点表格 ==========
         self.motion_table = MotionPlanningTable(self)
-        self.motion_table.data_changed.connect(self.save_motion_data)  # 连接数据变更信号
         layout.addWidget(self.motion_table)
         
-        # 添加操作按钮布局
+        # ========== 3. 操作按钮区 ==========
         button_layout = QHBoxLayout()
         
         # 添加关节点按钮
-        self.add_point_btn = QPushButton("添加关节点")
+        self.add_point_btn = QPushButton("添加节点")
         self.add_point_btn.clicked.connect(self.add_motion_point)
         button_layout.addWidget(self.add_point_btn)
         
+        # 加载示教记录按钮
+        self.load_teach_btn = QPushButton("加载示教记录")
+        self.load_teach_btn.clicked.connect(self.load_teach_record)
+        button_layout.addWidget(self.load_teach_btn)
+        
         # 删除选中点按钮
-        self.delete_point_btn = QPushButton("删除选中点")
+        self.delete_point_btn = QPushButton("删除节点")
         self.delete_point_btn.clicked.connect(self.delete_motion_point)
         button_layout.addWidget(self.delete_point_btn)
         
-        # 运行按钮
-        self.run_btn = QPushButton("运行规划")
+        # 上移按钮
+        self.move_up_btn = QPushButton("上移↑")
+        self.move_up_btn.clicked.connect(self.move_point_up)
+        button_layout.addWidget(self.move_up_btn)
+        
+        # 下移按钮
+        self.move_down_btn = QPushButton("下移↓")
+        self.move_down_btn.clicked.connect(self.move_point_down)
+        button_layout.addWidget(self.move_down_btn)
+        
+        # 编辑按钮
+        self.edit_btn = QPushButton("编辑")
+        self.edit_btn.clicked.connect(self.edit_motion_point)
+        button_layout.addWidget(self.edit_btn)
+        
+        button_layout.addStretch()
+        
+        # 运行选中节点按钮
+        self.run_single_btn = QPushButton("运行选中节点")
+        self.run_single_btn.clicked.connect(self.run_single_point)
+        button_layout.addWidget(self.run_single_btn)
+        
+        # 运行整个方案按钮
+        self.run_btn = QPushButton("运行整个方案")
         self.run_btn.clicked.connect(self.run_motion_plan)
         button_layout.addWidget(self.run_btn)
         
         # 添加按钮布局
         layout.addLayout(button_layout)
+        
+        # ========== 初始化加载 ==========
+        self.refresh_plan_list()
+        self.refresh_point_list()
+    
+    # ========== 方案操作 ==========
+    
+    def create_plan(self):
+        """创建新方案"""
+        if not self.view_model:
+            return
+        
+        name, ok = QInputDialog.getText(self, "新建方案", "方案名称:")
+        if ok and name:
+            self.view_model.create_plan(name)
+    
+    def delete_plan(self):
+        """删除方案"""
+        if not self.view_model:
+            return
+        
+        current_index = self.plan_combo.currentIndex()
+        if current_index >= 0:
+            reply = QMessageBox.question(
+                self, 
+                "确认删除", 
+                "确定删除该方案？",
+                QMessageBox.Yes | QMessageBox.No
+            )
+            if reply == QMessageBox.Yes:
+                success = self.view_model.delete_plan(current_index)
+                if not success:
+                    QMessageBox.warning(self, "警告", "至少需要保留一个方案！")
+    
+    def rename_plan(self):
+        """重命名方案"""
+        if not self.view_model:
+            return
+        
+        current_index = self.plan_combo.currentIndex()
+        if current_index >= 0:
+            old_name = self.plan_combo.currentText()
+            new_name, ok = QInputDialog.getText(
+                self, 
+                "重命名方案", 
+                "新方案名称:", 
+                text=old_name
+            )
+            if ok and new_name and new_name != old_name:
+                self.view_model.rename_plan(current_index, new_name)
+    
+    def on_plan_switched(self, index: int):
+        """方案切换（下拉框变化）"""
+        if not self.view_model or index < 0:
+            return
+        # 只有用户手动切换时才调用
+        if self.plan_combo.signalsBlocked():
+            return
+        self.view_model.switch_plan(index)
+    
+    def refresh_plan_list(self):
+        """刷新方案列表"""
+        if not self.view_model:
+            return
+        
+        self.plan_combo.blockSignals(True)
+        self.plan_combo.clear()
+        names = self.view_model.get_plan_names()
+        self.plan_combo.addItems(names)
+        current_index = self.view_model.get_current_plan_index()
+        if current_index >= 0:
+            self.plan_combo.setCurrentIndex(current_index)
+        self.plan_combo.blockSignals(False)
+    
+    def refresh_current_plan(self, index: int):
+        """刷新当前方案选中状态"""
+        self.plan_combo.blockSignals(True)
+        if index >= 0:
+            self.plan_combo.setCurrentIndex(index)
+        self.plan_combo.blockSignals(False)
+    
+    # ========== 节点操作 ==========
     
     def add_motion_point(self):
         """添加运动点"""
         dialog = MotionPointDialog(self)
-        self.current_dialog = dialog  # 保存当前对话框的引用
+        self.current_dialog = dialog
         dialog.only_get_current_position_send_signal.connect(self.on_get_current_position)
         if dialog.exec_() == QDialog.Accepted:
-            self.motion_table.add_motion_point(dialog.get_motion_data())
-            self.save_motion_data()
-        self.current_dialog = None  # 对话框关闭后清除引用
+            point_data = dialog.get_motion_data()
+            if self.view_model:
+                self.view_model.add_point(point_data)
+        self.current_dialog = None
     
     def delete_motion_point(self):
         """删除选中的运动点"""
-        selected_rows = self.motion_table.selectionModel().selectedRows()
-        if not selected_rows:
-            QMessageBox.warning(self, "警告", "请先选择要删除的行")
+        if not self.view_model:
             return
         
-        for index in sorted(selected_rows, reverse=True):
-            self.motion_table.removeRow(index.row())
+        current_row = self.motion_table.currentRow()
+        if current_row < 0:
+            QMessageBox.warning(self, "警告", "请先选择要删除的节点")
+            return
         
-        self.save_motion_data()
+        self.view_model.delete_point(current_row)
+    
+    def move_point_up(self):
+        """上移节点"""
+        if not self.view_model:
+            return
+        
+        current_row = self.motion_table.currentRow()
+        if current_row <= 0:
+            return
+        
+        self.view_model.move_point_up(current_row)
+        # 保持选中状态（上移后选中上一行）
+        self.motion_table.setCurrentCell(current_row - 1, 0)
+    
+    def move_point_down(self):
+        """下移节点"""
+        if not self.view_model:
+            return
+        
+        current_row = self.motion_table.currentRow()
+        if current_row < 0 or current_row >= self.motion_table.rowCount() - 1:
+            return
+        
+        self.view_model.move_point_down(current_row)
+        # 保持选中状态（下移后选中下一行）
+        self.motion_table.setCurrentCell(current_row + 1, 0)
+    
+    def edit_motion_point(self):
+        """编辑选中的运动点"""
+        current_row = self.motion_table.currentRow()
+        if current_row >= 0:
+            self.edit_table_motion_point(current_row)
+    
+    def load_teach_record(self):
+        """加载示教记录"""
+        if not self.view_model:
+            return
+        
+        # 获取所有示教记录名称
+        record_names = self.view_model.get_teach_record_names()
+        if not record_names:
+            QMessageBox.information(self, "提示", "当前没有示教记录")
+            return
+        
+        # 创建选择对话框
+        from PyQt5.QtWidgets import QInputDialog
+        record_name, ok = QInputDialog.getItem(
+            self,
+            "选择示教记录",
+            "请选择要加载的示教记录:",
+            record_names,
+            0,
+            False
+        )
+        
+        if ok and record_name:
+            # 获取示教记录数据
+            teach_angles = self.view_model.get_teach_record(record_name)
+            if not teach_angles:
+                QMessageBox.warning(self, "警告", "获取示教记录失败")
+                return
+            
+            # 创建示教节点数据（模式为"示教-记录名"）
+            point_data = {
+                "mode": f"示教-{record_name}",
+                "joint1": 0.0,
+                "joint2": 0.0,
+                "joint3": 0.0,
+                "joint4": 0.0,
+                "joint5": 0.0,
+                "joint6": 0.0,
+                "frequency": 0.01,
+                "curve_type": "S曲线",
+                "gripper_command": "00: 不进行任何操作",
+                "gripper_param": 0.0,
+                "note": f"示教记录，共{len(teach_angles)}个点",
+                "teach_record_name": record_name,  # 保存原始记录名
+                "teach_data": teach_angles  # ⚠️ 修正：统一使用 teach_data 字段名
+            }
+            
+            # 添加到当前方案
+            self.view_model.add_point(point_data)
+            QMessageBox.information(self, "成功", f"已加载示教记录：{record_name}")
     
     def run_motion_plan(self):
-        """执行运动规划"""
-        motion_data = self.motion_table.get_all_motion_data()
-        if not motion_data:
-            QMessageBox.warning(self, "警告", "没有可执行的运动规划数据")
+        """执行整个运动方案"""
+        if not self.view_model:
             return
-        self.motion_start_signal.emit(motion_data)
+        
+        motion_data = self.view_model.get_all_points()
+        if not motion_data:
+            QMessageBox.warning(self, "警告", "当前方案没有运动节点")
+            return
+        
+        # 调用 ViewModel 的执行方法
+        self.view_model.execute_motion_plan()
     
-    def save_motion_data(self):
-        """保存运动规划数据到本地文件"""
-        try:
-            motion_data = self.motion_table.get_all_motion_data()
-            with open(self.data_file_path, 'w', encoding='utf-8') as f:
-                json.dump(motion_data, f, indent=2, ensure_ascii=False)
-        except Exception as e:
-            QMessageBox.warning(self, "保存失败", f"保存运动规划数据失败: {str(e)}")
+    def run_single_point(self):
+        """执行选中的单个节点"""
+        if not self.view_model:
+            return
+        
+        current_row = self.motion_table.currentRow()
+        if current_row < 0:
+            QMessageBox.warning(self, "警告", "请先选择要运行的节点")
+            return
+        
+        # 调用 ViewModel 的执行方法
+        self.view_model.execute_single_point(current_row)
     
-    def load_motion_data(self):
-        """从本地文件加载运动规划数据"""
-        try:
-            if os.path.exists(self.data_file_path):
-                with open(self.data_file_path, 'r', encoding='utf-8') as f:
-                    motion_data = json.load(f)
-                    
-                # 清空当前表格
-                self.motion_table.setRowCount(0)
-                
-                # 添加加载的数据
-                for point in motion_data:
-                    self.motion_table.add_motion_point(point)
-        except Exception as e:
-            QMessageBox.warning(self, "加载失败", f"加载运动规划数据失败: {str(e)}")
+    def refresh_point_list(self):
+        """刷新节点列表"""
+        if not self.view_model:
+            return
+        
+        # 保存当前选中行
+        current_row = self.motion_table.currentRow()
+        
+        # 清空表格
+        self.motion_table.setRowCount(0)
+        
+        # 加载节点
+        points = self.view_model.get_all_points()
+        for point in points:
+            self.motion_table.add_motion_point(point)
+        
+        # 恢复选中状态
+        if current_row >= 0 and current_row < self.motion_table.rowCount():
+            self.motion_table.setCurrentCell(current_row, 0)
 
     def on_get_current_position(self):
         """当对话框请求获取当前位置时触发"""
@@ -118,25 +362,41 @@ class MotionPlanningFrame(BaseComponent):
         if self.current_dialog is not None:
             self.current_dialog.display_current_position(positions)
     
-    def edit_table_motion_point(self, row, current_data):
+    def edit_table_motion_point(self, row):
         """编辑表格中的运动点"""
+        if not self.view_model:
+            return
+        
+        # 获取当前数据
+        points = self.view_model.get_all_points()
+        if row < 0 or row >= len(points):
+            return
+        
+        current_data = points[row]
+        
+        # 检查是否为示教节点（模式以"示教-"开头）
+        if current_data.get("mode", "").startswith("示教-"):
+            QMessageBox.warning(
+                self, 
+                "无法编辑", 
+                "示教记录节点不可编辑，只能删除。\n如需修改，请删除后重新加载。"
+            )
+            return
+        
         # 创建编辑对话框
         dialog = MotionPointDialog(self, current_data)
-        self.current_dialog = dialog  # 保存当前对话框的引用
+        self.current_dialog = dialog
         dialog.only_get_current_position_send_signal.connect(self.on_get_current_position)
         
         if dialog.exec_() == QDialog.Accepted:
             new_data = dialog.get_motion_data()
-            self.motion_table.update_motion_point(row, new_data)
-            self.save_motion_data()
-            
-        self.current_dialog = None  # 对话框关闭后清除引用
+            self.view_model.update_point(row, new_data)
+        
+        self.current_dialog = None
 
 
 class MotionPlanningTable(QTableWidget):
     """运动规划表格组件"""
-    
-    data_changed = pyqtSignal()  # 数据变更信号
     
     def __init__(self, parent=None):
         super(MotionPlanningTable, self).__init__(parent)
@@ -206,14 +466,8 @@ class MotionPlanningTable(QTableWidget):
         row_position = self.rowCount()
         self.insertRow(row_position)
         
-        # 模式 (第0列) - 支持旧数据格式的兼容性
-        mode = motion_data.get("mode")
-        if mode is None:
-            # 兼容旧数据格式
-            if motion_data.get("enable_gripper", False):
-                mode = "夹爪"
-            else:
-                mode = "运动"
+        # 模式 (第0列)
+        mode = motion_data.get("mode", "运动点")
         mode_item = QTableWidgetItem(mode)
         mode_item.setTextAlignment(Qt.AlignCenter)
         self.setItem(row_position, 0, mode_item)
@@ -249,49 +503,21 @@ class MotionPlanningTable(QTableWidget):
         self.setItem(row_position, 11, note_item)
     
     def edit_motion_point(self, row, column):
-        """编辑运动点"""
-        # 获取当前行的数据
-        current_data = {}
-        
-        # 模式 (第0列)
+        """编辑运动点（双击时触发）"""
+        # 检查是否为示教节点
         mode_item = self.item(row, 0)
-        current_data["mode"] = mode_item.text() if mode_item else "运动"
-        
-        # 关节角度 (第1-6列)
-        for col, key in enumerate(["joint1", "joint2", "joint3", "joint4", "joint5", "joint6"]):
-            item = self.item(row, col + 1)
-            current_data[key] = float(item.text()) if item else 0.0
-        
-        # 频率 (第7列)
-        freq_item = self.item(row, 7)
-        current_data["frequency"] = float(freq_item.text()) if freq_item else 0.01
-        
-        # 曲线类型 (第8列)
-        curve_item = self.item(row, 8)
-        current_data["curve_type"] = curve_item.text() if curve_item else "直线"
-        
-        # 夹爪命令 (第9列)
-        gripper_cmd_item = self.item(row, 9)
-        current_data["gripper_command"] = gripper_cmd_item.text() if gripper_cmd_item else "00: 不进行任何操作"
-        
-        # 夹爪参数 (第10列)
-        gripper_param_item = self.item(row, 10)
-        current_data["gripper_param"] = float(gripper_param_item.text()) if gripper_param_item else 0.0
-        
-        # 备注 (第11列)
-        note_item = self.item(row, 11)
-        current_data["note"] = note_item.text() if note_item else ""
+        if mode_item and mode_item.text().startswith("示教-"):
+            QMessageBox.warning(
+                self, 
+                "无法编辑", 
+                "示教记录节点不可编辑，只能删除。\n如需修改，请删除后重新加载。"
+            )
+            return
         
         # 获取父对象(MotionPlanningFrame)
         parent = self.parent()
         if hasattr(parent, 'edit_table_motion_point'):
-            # 调用父对象的编辑方法
-            parent.edit_table_motion_point(row, current_data)
-        else:
-            # 如果父对象没有edit_table_motion_point方法，则直接处理
-            dialog = MotionPointDialog(self, current_data)
-            if dialog.exec_() == QDialog.Accepted:
-                self.update_motion_point(row, dialog.get_motion_data())
+            parent.edit_table_motion_point(row)
     
     def get_all_motion_data(self):
         """获取所有运动数据"""
@@ -368,9 +594,6 @@ class MotionPlanningTable(QTableWidget):
         # 备注 (第11列)
         note_item = QTableWidgetItem(new_data.get("note", ""))
         self.setItem(row, 11, note_item)
-        
-        # 发出数据变更信号
-        self.data_changed.emit()
 
 
 class MotionPointDialog(QDialog):

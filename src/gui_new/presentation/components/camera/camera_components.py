@@ -310,18 +310,6 @@ class CameraFrame(BaseComponent):
 class CameraDisplayWidget(BaseComponent):
     """摄像头显示小部件"""
     
-    # 定义信号
-    connect_camera_requested = pyqtSignal()
-    disconnect_camera_requested = pyqtSignal()
-    color_display_requested = pyqtSignal()
-    depth_display_requested = pyqtSignal()
-    stop_display_requested = pyqtSignal()
-    start_detection_requested = pyqtSignal()
-    stop_detection_requested = pyqtSignal()
-    start_pose_publish_requested = pyqtSignal()
-    stop_pose_publish_requested = pyqtSignal()
-    move_to_part_requested = pyqtSignal()
-    
     def __init__(self, parent=None, view_model=None):
         super().__init__(parent, view_model)
     
@@ -334,22 +322,64 @@ class CameraDisplayWidget(BaseComponent):
         self.camera_frame = CameraFrame(self, self.view_model)
         layout.addWidget(self.camera_frame)
         
-        # 连接信号
-        self.camera_frame.connect_camera_requested.connect(self.connect_camera_requested.emit)
-        self.camera_frame.disconnect_camera_requested.connect(self.disconnect_camera_requested.emit)
-        self.camera_frame.color_display_requested.connect(self.color_display_requested.emit)
-        self.camera_frame.depth_display_requested.connect(self.depth_display_requested.emit)
-        self.camera_frame.stop_display_requested.connect(self.stop_display_requested.emit)
-        self.camera_frame.start_detection_requested.connect(self.start_detection_requested.emit)
-        self.camera_frame.stop_detection_requested.connect(self.stop_detection_requested.emit)
-        self.camera_frame.start_pose_publish_requested.connect(self.start_pose_publish_requested.emit)
-        self.camera_frame.stop_pose_publish_requested.connect(self.stop_pose_publish_requested.emit)
-        self.camera_frame.move_to_part_requested.connect(self.move_to_part_requested.emit)
-        
         # 添加伸缩项
         layout.addStretch()
         
         self.setLayout(layout)
+    
+    def connect_signals(self):
+        """连接ViewModel信号"""
+        if self.view_model:
+            # ========== 连接用户操作信号 ==========
+            # 摄像头连接/断开
+            self.camera_frame.connect_camera_requested.connect(
+                self.view_model.connect_camera
+            )
+            self.camera_frame.disconnect_camera_requested.connect(
+                self.view_model.disconnect_camera
+            )
+            
+            # 图像显示控制
+            self.camera_frame.color_display_requested.connect(
+                self.view_model.start_color_display
+            )
+            self.camera_frame.depth_display_requested.connect(
+                self.view_model.start_depth_display
+            )
+            self.camera_frame.stop_display_requested.connect(
+                self.view_model.stop_display
+            )
+            
+            # ========== 连接ViewModel反馈信号 ==========
+            # 图像显示
+            self.view_model.image_display_requested.connect(
+                self.camera_frame.display_image
+            )
+            
+            # 状态更新
+            self.view_model.status_updated.connect(
+                self.camera_frame.update_status
+            )
+            
+            # 图像信息更新
+            self.view_model.image_info_updated.connect(
+                self.camera_frame.update_image_info
+            )
+            
+            # 连接状态变化
+            self.view_model.connection_status_changed.connect(
+                self.camera_frame.update_connection_status
+            )
+            
+            # 按钮状态变化
+            self.view_model.button_states_changed.connect(
+                self.camera_frame.update_button_states
+            )
+            
+            # 清除显示
+            self.view_model.clear_display_requested.connect(
+                self.camera_frame.clear_display
+            )
     
     def display_image(self, image, image_type):
         """显示图像"""

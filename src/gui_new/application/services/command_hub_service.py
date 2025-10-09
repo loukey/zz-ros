@@ -65,9 +65,16 @@ class CommandHubService(BaseService):
                 self._display_message(f"发送力矩: {torque_values}", "动力学")
                 self.single_send_command(**config_dict)
             else:
-                positions = config_dict.get('target_angles')
-                self.motion_constructor.prepare_motion('motion', positions)
-                self._display_message(f"准备运动到目标位置: {positions}", "控制")
+                # 角度控制：默认使用 S 曲线和 0.01 频率
+                target_angles = config_dict.get('target_angles')
+                task = {
+                    "type": "motion",
+                    "target_angles": target_angles,
+                    "curve_type": "s_curve",
+                    "frequency": 0.01
+                }
+                self.motion_constructor.prepare_motion(task)
+                self._display_message(f"准备运动到目标位置: {target_angles}", "控制")
                 self.get_current_position()
             
         elif control == 0x08:
@@ -78,7 +85,8 @@ class CommandHubService(BaseService):
     def get_current_position(self):
         self.message_display.clear_messages()
         self._display_message("正在获取当前位置...", "控制")
-        self.single_send_command(control=0x07)
+        self.motion_constructor.construct_motion_data([0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+        # self.single_send_command(control=0x07)
     
     def run_teach_record(self, angles_list: list):
         """
@@ -92,7 +100,22 @@ class CommandHubService(BaseService):
         Args:
             angles_list: 示教记录的角度列表 [[θ1,...,θ6], ...]
         """
-        self.motion_constructor.prepare_motion("teach", angles_list)
+        task = {
+            "type": "teach",
+            "teach_data": angles_list
+        }
+        self.motion_constructor.prepare_motion(task)
         self._display_message(f"准备播放示教轨迹，共 {len(angles_list)} 个点", "示教")
+        self.get_current_position()
+    
+    def run_motion_sequence(self):
+        """
+        开始执行运动序列（用于运动规划方案）
+        
+        流程：
+        1. 查询当前位置
+        2. 收到位置反馈后，MotionConstructor 自动规划所有任务
+        """
+        self._display_message("开始执行运动规划方案...", "运动规划")
         self.get_current_position()
  

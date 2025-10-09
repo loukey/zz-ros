@@ -13,7 +13,7 @@ class StatusViewModel(BaseViewModel):
     
     职责：
     1. 订阅 RobotStateDomainService 的状态更新
-    2. 转换数据格式（兼容UI组件）
+    2. 转换数据格式（转换为 dict 供 UI 组件使用）
     3. 发射信号给UI组件
     
     注意：不再自己维护状态，所有状态来自 RobotStateDomainService
@@ -43,7 +43,7 @@ class StatusViewModel(BaseViewModel):
             snapshot: 状态快照（不可变）
         """
         try:
-            # 转换为dict格式（兼容现有UI组件）
+            # 转换为 dict 格式供 UI 组件使用
             status_data = {
                 'init_status': snapshot.init_status,
                 'control': snapshot.control,

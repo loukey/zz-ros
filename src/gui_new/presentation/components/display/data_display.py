@@ -3,7 +3,7 @@ Data display component for right panel
 """
 from PyQt5.QtWidgets import (QWidget, QLabel, QTextEdit, QPushButton, 
                            QVBoxLayout, QHBoxLayout, QSplitter, QGroupBox)
-from PyQt5.QtCore import Qt, QDateTime
+from PyQt5.QtCore import Qt, QDateTime, pyqtSignal
 from PyQt5.QtGui import QTextCursor
 from ..base_component import BaseComponent, default_font, text_font
 
@@ -11,7 +11,11 @@ from ..base_component import BaseComponent, default_font, text_font
 class DataDisplayFrame(BaseComponent):
     """数据显示区域"""
     
-    def __init__(self, parent=None, view_model=None):
+    # 定义停止命令信号
+    stop_command_requested = pyqtSignal(dict)
+    
+    def __init__(self, parent=None, view_model=None, control_vm=None):
+        self.control_vm = control_vm  # 控制视图模型（用于发送停止命令）
         super().__init__(parent, view_model)
     
     def setup_ui(self):
@@ -44,6 +48,18 @@ class DataDisplayFrame(BaseComponent):
         
         # 创建按钮区
         button_layout = QHBoxLayout()
+        
+        # 立即停止按钮（红色）
+        self.stop_btn = QPushButton("立即停止")
+        self.stop_btn.setFont(default_font)
+        self.stop_btn.setStyleSheet("QPushButton { background-color: #FF4444; color: white; font-weight: bold; }"
+                                     "QPushButton:hover { background-color: #FF6666; }"
+                                     "QPushButton:pressed { background-color: #CC0000; }"
+                                     "QPushButton:disabled { background-color: #CCCCCC; color: #666666; }")
+        self.stop_btn.clicked.connect(self.send_stop_command)
+        self.stop_btn.setEnabled(False)  # 默认禁用，连接串口后启用
+        button_layout.addWidget(self.stop_btn)
+        
         self.clear_send_btn = QPushButton("清除发送区")
         self.clear_send_btn.setFont(default_font)
         self.clear_send_btn.clicked.connect(self.clear_send)
@@ -70,6 +86,12 @@ class DataDisplayFrame(BaseComponent):
             self.view_model.message_display_signal.connect(self.append_message)
             # 连接清除消息信号
             self.view_model.clear_requested.connect(self.clear_all)
+        
+        if self.control_vm:
+            # 连接串口连接状态，控制停止按钮的启用/禁用
+            self.control_vm.connection_status_changed.connect(self.update_stop_button_status)
+            # 连接停止命令信号
+            self.stop_command_requested.connect(self.control_vm.send_command)
     
     def append_message(self, message, message_type="接收"):
         """添加消息到显示区（纯文本模式，提高性能）"""
@@ -106,5 +128,17 @@ class DataDisplayFrame(BaseComponent):
         """清除所有区域"""
         self.send_text.clear()
         self.receive_text.clear()
+    
+    def send_stop_command(self):
+        """发送立即停止命令"""
+        # 发送 0x05 (立刻停止) 命令，模式使用默认的周期同步位置模式 0x08
+        self.stop_command_requested.emit({
+            'control': 0x05,
+            'mode': 0x08
+        })
+    
+    def update_stop_button_status(self, connected):
+        """更新停止按钮的启用状态"""
+        self.stop_btn.setEnabled(connected)
 
 

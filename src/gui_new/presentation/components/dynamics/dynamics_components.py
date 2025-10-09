@@ -21,7 +21,6 @@ class DynamicsFrame(BaseComponent):
     def __init__(self, parent=None, view_model=None):
         self.teaching_mode_enabled = False
         self.buttons = []
-        self.torque_inputs = []
         super().__init__(parent, view_model)
     
     def setup_ui(self):
@@ -70,7 +69,6 @@ class DynamicsFrame(BaseComponent):
             input_widget.setMinimumWidth(80)
         
         torque_layout.addWidget(self.torque_grid)
-        self.torque_inputs = self.torque_grid.inputs  # 保存引用以保持兼容性
         
         # 力矩控制按钮区域 - 使用ButtonRow基础组件
         torque_button_configs = [
