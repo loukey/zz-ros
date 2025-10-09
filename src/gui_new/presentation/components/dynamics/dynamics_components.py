@@ -15,29 +15,14 @@ class DynamicsFrame(BaseComponent):
     """动力学控制框架"""
     
     # 定义信号
-    start_cyclic_torque_requested = pyqtSignal()
-    teaching_mode_toggle_requested = pyqtSignal(bool)  # True为开启，False为关闭
+    teaching_mode_toggle_requested = pyqtSignal(dict)  # 发送示教模式命令
     send_torque_requested = pyqtSignal(list)  # 发送力矩信号
-    # 添加记录相关信号
-    start_recording_requested = pyqtSignal()
-    stop_recording_requested = pyqtSignal()
-    delete_record_requested = pyqtSignal(str)  # 删除记录信号，传递记录名称
-    run_record_requested = pyqtSignal(list)  # 运行记录信号，传递角度数组
     
     def __init__(self, parent=None, view_model=None):
         self.teaching_mode_enabled = False
         self.buttons = []
         self.torque_inputs = []
-        self.recording_enabled = False
-        self.record_data = {}  # 存储记录数据
-        self.current_record_angles = []  # 当前记录的角度数组
-        self.record_timer = QTimer()
-        self.record_timer.setInterval(10)  # 10ms间隔
-        self.record_timer.timeout.connect(self._on_record_timer_timeout)
-        self.record_counter = 0  # 记录计数器
-        self.teach_record_file = "teach_record.json"  # 记录文件名
         super().__init__(parent, view_model)
-        self._load_records()  # 加载已存在的记录
     
     def setup_ui(self):
         """设置UI"""
@@ -50,14 +35,6 @@ class DynamicsFrame(BaseComponent):
         
         # 创建基本控制按钮区域
         basic_control_layout = QHBoxLayout()
-        
-        # 启动周期力矩模式按钮
-        self.cyclic_torque_button = QPushButton("启动周期力矩模式")
-        self.cyclic_torque_button.setFont(default_font)
-        self.cyclic_torque_button.clicked.connect(self.start_cyclic_torque_requested.emit)
-        self.cyclic_torque_button.setEnabled(False)
-        basic_control_layout.addWidget(self.cyclic_torque_button)
-        self.buttons.append(self.cyclic_torque_button)
         
         # 示教模式按钮
         self.teaching_mode_button = QPushButton("开启示教模式")
@@ -138,6 +115,12 @@ class DynamicsFrame(BaseComponent):
         self.run_record_button.clicked.connect(self._run_record)
         record_button_layout.addWidget(self.run_record_button)
         
+        # 反转记录按钮
+        self.reverse_record_button = QPushButton("反转记录")
+        self.reverse_record_button.setFont(default_font)
+        self.reverse_record_button.clicked.connect(self._reverse_record)
+        record_button_layout.addWidget(self.reverse_record_button)
+        
         # 添加伸缩项
         record_button_layout.addStretch()
         
@@ -154,7 +137,28 @@ class DynamicsFrame(BaseComponent):
     def connect_signals(self):
         """连接视图模型信号"""
         if self.view_model:
+            # 连接连接状态信号
             self.view_model.connection_status_changed.connect(self.update_connection_status)
+            
+            # 连接示教模式信号到 ViewModel
+            self.teaching_mode_toggle_requested.connect(
+                self.view_model.toggle_teaching_mode
+            )
+            
+            # 连接力矩发送信号到 ViewModel
+            self.send_torque_requested.connect(
+                self.view_model.send_torque
+            )
+            
+            # 订阅记录状态变化信号
+            self.view_model.recording_state_changed.connect(
+                self._on_recording_state_changed
+            )
+            
+            # 订阅记录列表更新信号
+            self.view_model.record_list_updated.connect(
+                self._on_record_list_updated
+            )
     
     def _toggle_teaching_mode(self):
         """切换示教模式状态"""
@@ -162,11 +166,21 @@ class DynamicsFrame(BaseComponent):
         
         if self.teaching_mode_enabled:
             self.teaching_mode_button.setText("关闭示教模式")
+            # 开启示教模式命令
+            command_dict = {
+                'control': 0x07,  # 开启示教
+                'mode': 0x0A      # 周期力矩模式
+            }
         else:
             self.teaching_mode_button.setText("开启示教模式")
+            # 关闭示教模式命令
+            command_dict = {
+                'control': 0x05,  # 关闭示教
+                'mode': 0x0A      # 周期力矩模式
+            }
         
-        # 发射信号
-        self.teaching_mode_toggle_requested.emit(self.teaching_mode_enabled)
+        # 发射信号，传递命令字典
+        self.teaching_mode_toggle_requested.emit(command_dict)
     
     def _send_torque(self):
         """发送力矩数据"""
@@ -184,115 +198,67 @@ class DynamicsFrame(BaseComponent):
         self.torque_grid.set_values(["0.0"] * 6)
     
     def _toggle_recording(self):
-        """切换记录状态"""
-        if not self.recording_enabled:
-            # 开始记录
-            self.recording_enabled = True
-            self.record_button.setText("关闭记录")
-            self.current_record_angles = []
-            self.record_counter = 0
-            self.record_timer.start()
-            self.start_recording_requested.emit()
-        else:
-            # 停止记录
-            self.recording_enabled = False
-            self.record_button.setText("开启记录")
-            self.record_timer.stop()
-            self.stop_recording_requested.emit()
-            self._save_current_record()
+        """切换记录状态（委托给 ViewModel）"""
+        if self.view_model:
+            self.view_model.toggle_recording()
     
     def _delete_record(self):
-        """删除选中的记录"""
+        """删除选中的记录（委托给 ViewModel）"""
         current_item = self.record_list.currentItem()
         if current_item:
             record_name = current_item.text()
             
             # 确认删除
-            reply = QMessageBox.question(self, '确认删除', 
-                                       f'确定要删除记录 "{record_name}" 吗？',
-                                       QMessageBox.Yes | QMessageBox.No, 
-                                       QMessageBox.No)
+            reply = QMessageBox.question(
+                self, '确认删除', 
+                f'确定要删除记录 "{record_name}" 吗？',
+                QMessageBox.Yes | QMessageBox.No, 
+                QMessageBox.No
+            )
             
-            if reply == QMessageBox.Yes:
-                # 从数据中删除
-                if record_name in self.record_data:
-                    del self.record_data[record_name]
-                
-                # 从列表中删除
-                self.record_list.takeItem(self.record_list.row(current_item))
-                
-                # 保存到文件
-                self._save_records()
-                
-                # 发射信号
-                self.delete_record_requested.emit(record_name)
+            if reply == QMessageBox.Yes and self.view_model:
+                self.view_model.delete_record(record_name)
     
     def _run_record(self):
-        """运行选中的记录"""
+        """运行选中的记录（委托给 ViewModel）"""
         current_item = self.record_list.currentItem()
         if current_item:
             record_name = current_item.text()
-            if record_name in self.record_data:
-                angles_list = self.record_data[record_name]
-                
-                # 直接传递角度数组列表
-                self.run_record_requested.emit(angles_list)
+            if self.view_model:
+                self.view_model.run_record(record_name)
         else:
             QMessageBox.warning(self, '警告', '请先选择一个记录！')
     
-    def _on_record_timer_timeout(self):
-        """记录定时器超时处理"""
-        # 这个方法将在dynamic_controller中被连接到获取角度的功能
-        pass
+    def _reverse_record(self):
+        """反转选中的记录（委托给 ViewModel）"""
+        current_item = self.record_list.currentItem()
+        if current_item:
+            record_name = current_item.text()
+            if self.view_model:
+                new_name = self.view_model.reverse_record(record_name)
+                if new_name:
+                    QMessageBox.information(self, '完成', f'已生成反转记录 "{new_name}"')
+                else:
+                    QMessageBox.warning(self, '失败', f'反转记录失败')
+        else:
+            QMessageBox.warning(self, '警告', '请先选择一个记录！')
     
-    def add_angle_to_current_record(self, angles):
-        """添加角度到当前记录"""
-        if self.recording_enabled:
-            self.current_record_angles.append(angles)
-            self.record_counter += 1
+    # ════════════════════════════════════════════════════════
+    # ViewModel 信号响应
+    # ════════════════════════════════════════════════════════
     
-    def _save_current_record(self):
-        """保存当前记录"""
-        if self.current_record_angles:
-            # 生成记录名称
-            record_name = f"record{len(self.record_data) + 1}"
-            
-            # 保存到数据字典
-            self.record_data[record_name] = self.current_record_angles
-            
-            # 添加到列表显示
-            self.record_list.addItem(record_name)
-            
-            # 保存到文件
-            self._save_records()
-            
-            print(f"记录 {record_name} 已保存，共 {len(self.current_record_angles)} 个数据点")
+    def _on_recording_state_changed(self, is_recording: bool):
+        """记录状态变化回调"""
+        if is_recording:
+            self.record_button.setText("关闭记录")
+        else:
+            self.record_button.setText("开启记录")
     
-    def _load_records(self):
-        """加载记录文件"""
-        try:
-            if os.path.exists(self.teach_record_file):
-                with open(self.teach_record_file, 'r', encoding='utf-8') as f:
-                    self.record_data = json.load(f)
-                
-                # 更新列表显示
-                self.record_list.clear()
-                for record_name in self.record_data.keys():
-                    self.record_list.addItem(record_name)
-                
-                print(f"已加载 {len(self.record_data)} 个记录")
-        except Exception as e:
-            print(f"加载记录文件失败: {e}")
-            self.record_data = {}
-    
-    def _save_records(self):
-        """保存记录到文件"""
-        try:
-            with open(self.teach_record_file, 'w', encoding='utf-8') as f:
-                json.dump(self.record_data, f, ensure_ascii=False, indent=2)
-            print("记录已保存到文件")
-        except Exception as e:
-            print(f"保存记录文件失败: {e}")
+    def _on_record_list_updated(self, record_names: list):
+        """记录列表更新回调"""
+        self.record_list.clear()
+        for name in record_names:
+            self.record_list.addItem(name)
     
     def get_torque_values(self):
         """获取当前力矩值"""
@@ -316,9 +282,5 @@ class DynamicsFrame(BaseComponent):
             self.teaching_mode_button.setText("关闭示教模式")
         else:
             self.teaching_mode_button.setText("开启示教模式")
-    
-    def get_record_timer(self):
-        """获取记录定时器"""
-        return self.record_timer
 
 

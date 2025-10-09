@@ -1,5 +1,5 @@
 """
-主视图模型 - 从零开始实现
+主视图模型 - 整合所有子视图模型
 """
 from PyQt5.QtCore import pyqtSignal
 from .base_view_model import BaseViewModel
@@ -7,12 +7,16 @@ from .serial_view_model import SerialViewModel
 from .display_view_model import DisplayViewModel
 from .control_view_model import ControlViewModel
 from .status_view_model import StatusViewModel
+from .effector_view_model import EffectorViewModel
+from .trajectory_view_model import TrajectoryViewModel
+from .dynamics_view_model import DynamicsViewModel
+from .camera_view_model import CameraViewModel
 
 
 class MainViewModel(BaseViewModel):
-    """主视图模型 - 从零开始实现"""
+    """主视图模型 - 整合所有子视图模型"""
     
-    # 基础信号定义 - 等待实现具体功能
+    # 基础信号定义
     connection_status_changed = pyqtSignal(bool)
     status_message_changed = pyqtSignal(str)
     progress_changed = pyqtSignal(int, bool)
@@ -22,46 +26,53 @@ class MainViewModel(BaseViewModel):
         serial_vm: SerialViewModel, 
         display_vm: DisplayViewModel, 
         control_vm: ControlViewModel, 
-        status_vm: StatusViewModel, 
-        parent=None):
+        status_vm: StatusViewModel,
+        effector_vm: EffectorViewModel,
+        trajectory_vm: TrajectoryViewModel,
+        dynamics_vm: DynamicsViewModel,
+        camera_vm: CameraViewModel,
+        parent=None
+    ):
         super().__init__(parent)
         self.serial_vm = serial_vm
         self.display_vm = display_vm
         self.control_vm = control_vm
         self.status_vm = status_vm
-        self.motion_vm = None
-        self.effector_vm = None
-        self.trajectory_vm = None
-        self.camera_vm = None
-        self.dynamics_vm = None
+        self.effector_vm = effector_vm
+        self.trajectory_vm = trajectory_vm
+        self.dynamics_vm = dynamics_vm
+        self.camera_vm = camera_vm
         
-        # 连接服务信号到显示ViewModel
+        # 连接连接状态信号
         self._connect_status_update_signals()
 
     def _connect_status_update_signals(self) -> None:
-        """连接各个服务的信号到DisplayViewModel"""
-        # 连接状态改变
-        self.serial_vm.connection_status_changed.connect(self.control_vm.connection_status_changed.emit)
+        """连接串口连接状态到各个ViewModel"""
+        # 将串口连接状态转发到所有需要的ViewModel
+        self.serial_vm.connection_status_changed.connect(
+            self.control_vm.connection_status_changed.emit
+        )
+        self.serial_vm.connection_status_changed.connect(
+            self.effector_vm.connection_status_changed.emit
+        )
+        self.serial_vm.connection_status_changed.connect(
+            self.trajectory_vm.connection_status_changed.emit
+        )
+        self.serial_vm.connection_status_changed.connect(
+            self.dynamics_vm.connection_status_changed.emit
+        )
 
     def cleanup(self):
         """清理资源"""
-        # 断开服务信号连接
-        self._disconnect_service_signals()
-        
-        # 清理子ViewModels（如果已实现）
-        for vm_attr in ['serial_vm', 'control_vm', 'motion_vm', 'effector_vm',
-                       'trajectory_vm', 'camera_vm', 'dynamics_vm', 'display_vm', 'status_vm']:
+        # 清理所有子ViewModels
+        for vm_attr in ['serial_vm', 'display_vm', 'control_vm', 'status_vm',
+                       'effector_vm', 'trajectory_vm', 'dynamics_vm', 'camera_vm']:
             vm = getattr(self, vm_attr, None)
             if vm and hasattr(vm, 'cleanup'):
-                vm.cleanup()
+                try:
+                    vm.cleanup()
+                except Exception as e:
+                    pass
         
-        super().cleanup()
-    
-    def _disconnect_service_signals(self) -> None:
-        """断开服务信号连接"""
-        try:
-            if hasattr(self.serial_vm, 'serial_service'):
-                self.serial_vm.serial_service.message_display.disconnect(self.display_vm.append_message)
-        except (TypeError, AttributeError):
-            pass 
+        super().cleanup() 
         

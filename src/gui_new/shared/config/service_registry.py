@@ -6,14 +6,13 @@ from .di_container import DIContainer, get_container, resolve
 from application import *
 from presentation import *
 from domain import *
+from infrastructure import *
 
 
 def register_infrastructure_services(container: DIContainer) -> None:
     """注册Infrastructure层服务"""
-    # Infrastructure层的服务通常是无状态的工具类，可以使用单例
-    # 由于它们没有复杂的依赖关系，暂时不需要在DI中注册
-    # 如果需要，可以在这里添加PortScanner, SerialAdapter等
-    pass
+    # 新增：记录数据持久化仓库
+    container.register_singleton(RecordRepository)
 
 def register_domain_services(container: DIContainer) -> None:
     """注册Domain层服务"""
@@ -22,7 +21,15 @@ def register_domain_services(container: DIContainer) -> None:
     container.register_singleton(MessageDecoder)
     container.register_singleton(MessageDomainService)
     container.register_singleton(MotionRunner)
-    container.register_singleton(MotionConstructor)
+    # 新增：轨迹平滑服务
+    container.register_singleton(SmoothDomainService)
+    container.register_singleton(MotionConstructor)  # 会自动注入 SmoothDomainService
+    # 新增：机械臂状态服务
+    container.register_singleton(RobotStateDomainService)
+    # 新增：动力学服务
+    container.register_singleton(DynamicDomainService)
+    # 新增：示教记录服务
+    container.register_singleton(TeachRecordDomainService)
     
 def register_application_services(container: DIContainer) -> None:
     """注册Application层服务"""
@@ -37,8 +44,12 @@ def register_presentation_services(container: DIContainer) -> None:
     
     container.register_singleton(DisplayViewModel)
     container.register_singleton(SerialViewModel)
-    container.register_singleton(StatusViewModel)
+    container.register_singleton(StatusViewModel)  
     container.register_singleton(ControlViewModel)
+    container.register_singleton(EffectorViewModel)
+    container.register_singleton(TrajectoryViewModel)
+    container.register_singleton(DynamicsViewModel)  
+    container.register_singleton(CameraViewModel)
     container.register_singleton(MainViewModel)
 
 def configure_services() -> DIContainer:

@@ -77,6 +77,10 @@ class DIContainer:
             if param_name == 'parent':
                 continue
             
+            # 跳过有默认值的参数（如 file_path: str = "xxx"）
+            if param.default != inspect.Parameter.empty:
+                continue
+            
             # 检查参数是否有类型注解且不为空
             if param.annotation == inspect.Parameter.empty:
                 continue
@@ -95,6 +99,10 @@ class DIContainer:
             
             # 确保param_type是一个类型而不是其他对象（如pyqtSignal）
             if not isinstance(param_type, type):
+                continue
+            
+            # 跳过基本类型（str, int, float, bool等）
+            if param_type in (str, int, float, bool, list, dict, tuple, set):
                 continue
                 
             # 递归解析依赖

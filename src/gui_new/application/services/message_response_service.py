@@ -1,13 +1,26 @@
-from domain import MessageDomainService, SerialDomainService, RobotUtils, MotionConstructor, MotionRunner
+"""
+消息响应服务 - Application层
+处理串口接收的数据，解码并更新状态服务
+"""
+from domain import MessageDomainService, SerialDomainService, RobotStateDomainService, MotionConstructor, MotionRunner
 from .base_service import BaseService
 from ..commands import MessageDisplay
 from PyQt5.QtCore import pyqtSignal
 
 
-
 class MessageResponseService(BaseService):
-    # 解码消息信号 - 发送到StatusViewModel
-    decoded_message_received = pyqtSignal(object)
+    """
+    消息响应服务
+    
+    职责：
+    1. 接收串口数据
+    2. 拼接缓冲，检测完整帧
+    3. 解码消息
+    4. 更新状态服务（统一入口）
+    5. 处理运动消息（根据 Constructor 状态决定是否自动执行）
+    """
+    
+    # 信号：获取当前位置（用于UI显示等非运动场景）
     get_current_position_signal = pyqtSignal(object)
     
     def __init__(
@@ -15,40 +28,50 @@ class MessageResponseService(BaseService):
         message_display: MessageDisplay,
         serial_domain_service: SerialDomainService,
         message_domain_service: MessageDomainService,
+        robot_state_service: RobotStateDomainService,
         motion_runner: MotionRunner,
         motion_constructor: MotionConstructor):
         super().__init__(message_display)
         self.serial_domain_service = serial_domain_service
         self.message_domain_service = message_domain_service
-        self.robot_utils = RobotUtils()
+        self.robot_state_service = robot_state_service
         self.motion_runner = motion_runner
         self.motion_constructor = motion_constructor
         self._connect_signals()
         self.message_buffer = ""
-        """
-        single: 只获取一次当前位置并返回
-        motion: 获取当前位置，并运动
-        """
-        self.motion_status = "single"
 
     def _connect_signals(self):
         """连接串口domain层的数据接收信号"""
         self.serial_domain_service.data_received.connect(self.handle_message)
 
-    def set_motion_status(self, motion_status: str):
-        self.motion_status = motion_status
-
     def handle_message(self, message_in: str):
+        """
+        处理接收到的消息
+        
+        流程：
+        1. 拼接缓冲
+        2. 检测完整帧（AA55...0D0A）
+        3. 解码消息
+        4. 更新状态服务
+        5. 处理运动消息
+        """
         self.message_buffer += message_in
         if "0D0A" in self.message_buffer:
             lines = self.message_buffer.split("0D0A")
             self.message_buffer = lines[-1]
             command_line = lines[0]
+            
             if command_line.startswith("AA55"):
                 try:
-                    decoded_message = self.message_domain_service.decode_message(command_line + "0D0A")          
-                    # 发送解码消息到StatusViewModel
-                    self.decoded_message_received.emit(decoded_message)
+                    # 解码消息
+                    decoded_message = self.message_domain_service.decode_message(
+                        command_line + "0D0A"
+                    )
+                    
+                    # 更新统一的状态服务（单一入口）
+                    self.robot_state_service.update_state(decoded_message)
+                    
+                    # 处理运动消息
                     if decoded_message.control == 0x07 and decoded_message.mode == 0x08:
                         self.handle_motion_message(decoded_message.positions)
 
@@ -58,11 +81,20 @@ class MessageResponseService(BaseService):
             else:
                 self._display_message(command_line, "接收")
 
-    def handle_motion_message(self, positions):
-        if self.motion_status == "single":
-            self.get_current_position_signal.emit(positions)
-        elif self.motion_status == "motion":
-            self.motion_constructor.construct_motion_data(positions)
+    def handle_motion_message(self, current_position):
+        """
+        处理运动消息（获取当前位置的回复）
+        
+        根据 MotionConstructor 的状态决定行为：
+        - 如果有待执行的运动：自动构建轨迹并启动运动
+        - 如果没有：只发射信号供UI显示
+        
+        Args:
+            current_position: 当前关节位置（编码器值）
+        """
+        if self.motion_constructor.has_pending_motion():
+            self.motion_constructor.construct_motion_data(current_position)
             self.motion_runner.start_motion()
-            self.motion_status = "single"
-    
+            self._display_message("轨迹构建完成，开始执行运动", "运动")
+        else:
+            self.get_current_position_signal.emit(current_position)

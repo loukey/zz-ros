@@ -1,4 +1,4 @@
-from ..utils import MessageEncoder, MessageDecoder
+from ...utils import MessageEncoder, MessageDecoder
 
 
 class MessageDomainService:

@@ -74,9 +74,7 @@ class EffectorFrame(BaseComponent):
         
         self.send_button = QPushButton("发送")
         self.send_button.setFont(default_font)
-        self.send_button.clicked.connect(lambda: self.send_effector_command_requested.emit({
-            'effector_params': self.get_effector_params()
-        }))
+        self.send_button.clicked.connect(self._on_send_clicked)
         self.send_button.setEnabled(False)  # 初始状态为禁用
         button_layout.addWidget(self.send_button)
         
@@ -88,7 +86,33 @@ class EffectorFrame(BaseComponent):
     def connect_signals(self):
         """连接视图模型信号"""
         if self.view_model:
+            # 连接连接状态信号
             self.view_model.connection_status_changed.connect(self.update_connection_status)
+            
+            # 连接发送命令信号到 ViewModel
+            self.send_effector_command_requested.connect(
+                self.view_model.send_effector_command
+            )
+    
+    def _on_send_clicked(self):
+        """处理发送按钮点击"""
+        params = self.get_effector_params()
+        if params is None:
+            QMessageBox.warning(self, "参数错误", "请输入有效的参数值")
+            return
+        
+        effector_mode, effector_data = params
+        
+        # 构建完整的命令字典
+        command_dict = {
+            'control': 0x00,  # 系统指令（夹爪控制）
+            'mode': 0x08,     # 默认模式
+            'effector_mode': effector_mode,
+            'effector_data': effector_data
+        }
+        
+        # 发射信号给 ViewModel
+        self.send_effector_command_requested.emit(command_dict)
     
     def get_effector_params(self):
         """获取执行器参数"""

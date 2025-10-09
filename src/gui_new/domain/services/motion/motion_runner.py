@@ -1,5 +1,4 @@
-from ..serial_domain_service import SerialDomainService
-from ..message_domain_service import MessageDomainService
+from ..communication import SerialDomainService, MessageDomainService
 from PyQt5.QtCore import QTimer
 import time
 from PyQt5.QtCore import pyqtSignal, QObject

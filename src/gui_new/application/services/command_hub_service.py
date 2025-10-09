@@ -5,6 +5,14 @@ from domain.services import SerialDomainService
 
 
 class CommandHubService(BaseService):
+    """
+    命令中心服务 - Application层
+    
+    职责：
+    1. 分发用户命令到不同的处理逻辑
+    2. 协调运动任务的准备和执行
+    3. 管理消息显示
+    """
 
     def __init__(self, 
     message_domain_service: MessageDomainService, 
@@ -34,23 +42,57 @@ class CommandHubService(BaseService):
     def command_distribution(self, config_dict: dict):
         control = config_dict.get('control')
         mode = config_dict.get('mode')
+        
         if control in [0x00, 0x01, 0x02, 0x03, 0x04]:
-            # 系统指令
             self.single_send_command(**config_dict)
-        elif control in [0x05, 0x08]:
+            
+        elif control == 0x05:
+            if mode == 0x0A:
+                self._display_message("关闭示教模式", "动力学")
             self.single_send_command(**config_dict)
             self.motion_runner.stop_motion()
+            
         elif control == 0x07:
-            self.get_current_position()
+            if mode == 0x0A:
+                self._display_message("开启示教模式", "动力学")
+                self.single_send_command(**config_dict)
+            else:
+                self.get_current_position()
+                
         elif control == 0x06:
-            positions = config_dict.get('target_angles')
-            self.motion_constructor.clear_data()
-            self.motion_constructor.add_motion_data('motion', positions)
-            self.get_current_position()
+            if mode == 0x0A:
+                torque_values = config_dict.get('torque')
+                self._display_message(f"发送力矩: {torque_values}", "动力学")
+                self.single_send_command(**config_dict)
+            else:
+                positions = config_dict.get('target_angles')
+                self.motion_constructor.prepare_motion('motion', positions)
+                self._display_message(f"准备运动到目标位置: {positions}", "控制")
+                self.get_current_position()
+            
+        elif control == 0x08:
+            self.single_send_command(**config_dict)
+            self.motion_runner.stop_motion()
         
 
     def get_current_position(self):
         self.message_display.clear_messages()
         self._display_message("正在获取当前位置...", "控制")
         self.single_send_command(control=0x07)
+    
+    def run_teach_record(self, angles_list: list):
+        """
+        运行示教记录（播放示教轨迹）
+        
+        流程：
+        1. 准备示教运动任务
+        2. 获取当前位置
+        3. 异步回调时自动构建平滑轨迹并执行
+        
+        Args:
+            angles_list: 示教记录的角度列表 [[θ1,...,θ6], ...]
+        """
+        self.motion_constructor.prepare_motion("teach", angles_list)
+        self._display_message(f"准备播放示教轨迹，共 {len(angles_list)} 个点", "示教")
+        self.get_current_position()
  
