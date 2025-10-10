@@ -135,6 +135,14 @@ class VirtualSerialPort:
                 
                 print(f"   命令类型: {control_names.get(control, f'未知(0x{control:02X})')}")
                 print(f"   运行模式: 0x{mode:02X}")
+                
+                # 特殊处理：control=0x01时返回ASCII测试消息
+                if control == 0x01:
+                    test_message = "success"
+                    test_hex = test_message.encode('ascii').hex().upper() + "0D0A"
+                    print(f"   🧪 测试模式：返回ASCII消息 '{test_message}'")
+                    self._send_response(test_hex)
+                    return
             
             # 机械臂处理命令
             state = self.robot.process_command(command_hex)

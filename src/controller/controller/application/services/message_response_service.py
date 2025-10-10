@@ -79,7 +79,14 @@ class MessageResponseService(BaseService):
                     self._display_message(f"解码消息失败: {str(e)}", "错误")
                     return
             else:
-                self._display_message(command_line, "接收")
+                try:
+                    ascii_text = bytes.fromhex(command_line).decode('ascii', errors='replace')
+                    # 过滤不可打印字符
+                    printable_text = ''.join(c if c.isprintable() or c in '\n\r\t' else f'\\x{ord(c):02x}' for c in ascii_text)
+                    if printable_text.strip():  # 如果有可打印内容
+                        self._display_message(f"ASCII: {printable_text}", "接收")
+                except Exception:
+                    pass  # 转换失败则忽略
 
     def handle_motion_message(self, current_position):
         """
