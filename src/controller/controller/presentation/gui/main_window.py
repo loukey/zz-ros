@@ -311,6 +311,21 @@ class MainWindow(QMainWindow):
             except Exception as ros_e:
                 # ROS关闭失败不应阻塞应用退出
                 pass
+            
+            # 3. 恢复终端状态（修复终端echo被禁用的问题）
+            try:
+                import sys
+                import termios
+                import tty
+                if sys.stdin.isatty():
+                    # 恢复终端为正常模式
+                    fd = sys.stdin.fileno()
+                    old_settings = termios.tcgetattr(fd)
+                    old_settings[3] |= termios.ECHO | termios.ICANON
+                    termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+            except Exception:
+                pass  # 忽略终端恢复失败
+                
         except Exception as e:
             pass
             # 确保应用能正常退出，不要抛出异常 
