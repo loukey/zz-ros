@@ -91,40 +91,37 @@ class RobotStateDomainService(QObject):
         Args:
             decoded_message: 解码后的消息对象
         """
-        try:
-            new_snapshot = RobotStateSnapshot.from_decoded_message(decoded_message)
+        new_snapshot = RobotStateSnapshot.from_decoded_message(decoded_message)
+        
+        old_snapshot = self._current_state
+        self._current_state = new_snapshot
+        self._last_update_time = new_snapshot.timestamp
+        
+        with self._lock:
+            self._position_history.append({
+                'timestamp': new_snapshot.timestamp,
+                'angles': list(new_snapshot.joint_angles),
+                'positions': list(new_snapshot.joint_positions)
+            })
             
-            old_snapshot = self._current_state
-            self._current_state = new_snapshot
-            self._last_update_time = new_snapshot.timestamp
-            
-            with self._lock:
-                self._position_history.append({
-                    'timestamp': new_snapshot.timestamp,
-                    'angles': list(new_snapshot.joint_angles),
-                    'positions': list(new_snapshot.joint_positions)
-                })
-                
-                if self._teaching_mode and len(self._position_history) >= 20:
-                    self._calculate_friction_compensation()
-            
-            self.state_updated.emit(new_snapshot)
-            
-            if old_snapshot and self._angles_changed_significantly(old_snapshot, new_snapshot):
-                self.angles_changed.emit(list(new_snapshot.joint_angles))
-            
-            if new_snapshot.mode == 0x0A:
-                if self._teaching_mode and new_snapshot.control in [0x06, 0x07]:
-                    from math import pi
-                    init_offset = [0.0, -pi/2, 0.0, pi/2, 0.0, 0.0]
-                    adjusted_angles = [
-                        a - offset 
-                        for a, offset in zip(new_snapshot.joint_angles, init_offset)
-                    ]
-                    self.torque_compensation_requested.emit(adjusted_angles)
-                    
-        except Exception as e:
-            pass
+            if self._teaching_mode and len(self._position_history) >= 20:
+                self._calculate_friction_compensation()
+        
+        self.state_updated.emit(new_snapshot)
+        
+        if old_snapshot and self._angles_changed_significantly(old_snapshot, new_snapshot):
+            self.angles_changed.emit(list(new_snapshot.joint_angles))
+        
+        if new_snapshot.mode == 0x0A:
+            if self._teaching_mode and new_snapshot.control in [0x06, 0x07]:
+                from math import pi
+                init_offset = [0.0, -pi/2, 0.0, pi/2, 0.0, 0.0]
+                adjusted_angles = [
+                    a - offset 
+                    for a, offset in zip(new_snapshot.joint_angles, init_offset)
+                ]
+                self.torque_compensation_requested.emit(adjusted_angles)
+
     
     # ════════════════════════════════════════════════════════
     # 查询方法：获取状态

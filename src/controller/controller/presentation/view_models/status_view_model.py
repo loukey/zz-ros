@@ -42,26 +42,22 @@ class StatusViewModel(BaseViewModel):
         Args:
             snapshot: 状态快照（不可变）
         """
-        try:
-            # 转换为 dict 格式供 UI 组件使用
-            status_data = {
-                'init_status': snapshot.init_status,
-                'control': snapshot.control,
-                'mode': snapshot.mode,
-                'positions': list(snapshot.joint_angles),  # 显示角度（弧度）
-                'status': list(snapshot.joint_status),
-                'speeds': list(snapshot.joint_speeds),
-                'torques': list(snapshot.joint_torques),
-                'double_encoder_interpolations': list(snapshot.double_encoder_interpolations),
-                'errors': list(snapshot.errors),
-                'effector_data': snapshot.effector_data
-            }
-            
-            # 发射信号给UI组件
-            self.status_updated.emit(status_data)
-            
-        except Exception as e:
-            pass
+        # 转换为 dict 格式供 UI 组件使用
+        status_data = {
+            'init_status': snapshot.init_status,
+            'control': snapshot.control,
+            'mode': snapshot.mode,
+            'positions': list(snapshot.joint_angles),  # 显示角度（弧度）
+            'status': list(snapshot.joint_status),
+            'speeds': list(snapshot.joint_speeds),
+            'torques': list(snapshot.joint_torques),
+            'double_encoder_interpolations': list(snapshot.double_encoder_interpolations),
+            'errors': list(snapshot.errors),
+            'effector_data': snapshot.effector_data
+        }
+        
+        # 发射信号给UI组件
+        self.status_updated.emit(status_data)
     
     def get_position_string(self):
         """

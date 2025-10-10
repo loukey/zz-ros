@@ -5,6 +5,7 @@
 from dataclasses import dataclass
 from typing import Tuple, Any, Optional
 import time
+from ..utils import RobotUtils
 
 
 @dataclass(frozen=True)
@@ -47,9 +48,7 @@ class RobotStateSnapshot:
             
         Returns:
             RobotStateSnapshot: 状态快照
-        """
-        from domain.utils import RobotUtils
-        
+        """        
         robot_utils = RobotUtils()
         
         # 转换位置为角度
