@@ -226,5 +226,5 @@ class CameraViewModel(BaseViewModel):
                 self.camera_service.disconnect()
             
         except Exception as e:
-            print(f"清理摄像头资源失败: {e}")
+            pass
 

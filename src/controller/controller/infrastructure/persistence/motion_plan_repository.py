@@ -28,7 +28,7 @@ class MotionPlanRepository:
             with open(self.file_path, 'w', encoding='utf-8') as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
         except Exception as e:
-            print(f"保存方案失败: {e}")
+            pass
     
     def load(self) -> tuple[List[Dict], int]:
         """从文件加载
@@ -55,6 +55,5 @@ class MotionPlanRepository:
             return plans, current_index
             
         except Exception as e:
-            print(f"加载方案失败: {e}")
             return [{"name": "默认方案", "points": []}], 0
 

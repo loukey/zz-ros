@@ -181,7 +181,6 @@ class MotionPlanningApplicationService(QObject):
         """
         point = self.get_single_point(index)
         if not point:
-            print(f"节点索引无效: {index}")
             return
         
         # 解析节点数据为任务列表
@@ -192,8 +191,6 @@ class MotionPlanningApplicationService(QObject):
         
         # 查询当前位置，触发执行
         self.command_hub.get_current_position()
-        
-        print(f"正在执行节点 {index + 1}: {point.get('mode', '')}")
     
     def execute_motion_plan(self):
         """
@@ -209,7 +206,6 @@ class MotionPlanningApplicationService(QObject):
         points = self.domain_service.get_all_points()
         
         if not points:
-            print("当前方案为空，无法执行")
             return
         
         # 解析所有节点为任务列表
@@ -217,8 +213,6 @@ class MotionPlanningApplicationService(QObject):
         for point in points:
             point_tasks = self._parse_point_to_tasks(point)
             tasks_list.extend(point_tasks)  # 展平
-        
-        print(f"正在执行运动规划方案，共 {len(points)} 个节点，{len(tasks_list)} 个任务")
         
         # 批量准备运动序列
         self.motion_constructor.prepare_motion_sequence(tasks_list)

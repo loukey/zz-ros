@@ -159,12 +159,10 @@ class MotionConstructor:
         
         if curve_type == "linear":
             # 直线运动规划
-            trajectory = self.linear_motion_service.linear_motion(
+            positions = self.linear_motion_service.linear_motion(
                 start_position, 
                 end_position
             )
-            # linear_motion 返回的已经是 numpy array，需要转为列表
-            positions = trajectory.tolist()
         else:
             # S曲线运动规划（默认）
             # 使用关键字参数 dt 指定采样时间间隔，v_start 使用默认值 [0]*6

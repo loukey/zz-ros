@@ -14,7 +14,7 @@ class DHParam:
             [0.425, pi, 0.0, 0.0],
             [0.401, pi, 0.0856, pi/2],
             [0.0, pi/2, 0.086, 0.0],
-            [0.0, -pi/2, 0.2785, 0.0]
+            [0.0, -pi/2, 0.231, 0.0]  
         ], dtype=float)
 
         self.dynamic_dh = np.array([

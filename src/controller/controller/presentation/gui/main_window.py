@@ -51,14 +51,12 @@ class MainWindow(QMainWindow):
         try:
             if not rclpy.ok():
                 rclpy.init()
-                print("✅ ROS2预初始化成功（MainWindow）")
         except RuntimeError:
             # ROS已经初始化过，这是正常情况
-            print("ℹ️ ROS2已经初始化")
+            pass
         except Exception as e:
             # 初始化失败不影响应用启动，Domain层会处理
-            print(f"ℹ️ ROS2预初始化跳过: {e}")
-            print("   （Domain层会在需要时自动初始化）")
+            pass
     
     def init_ui(self):
         """初始化用户界面"""
@@ -304,17 +302,15 @@ class MainWindow(QMainWindow):
             # 注意：Domain Services会先断开自己的ROS节点
             if hasattr(self, 'view_model') and self.view_model:
                 self.view_model.cleanup()
-                print("✅ ViewModel资源已清理")
             
             # 2. 最后关闭ROS2（如果还在运行）
             # 注意：只在所有Domain Services清理完成后才关闭
             try:
                 if rclpy.ok():
                     rclpy.shutdown()
-                    print("✅ ROS2已关闭")
             except Exception as ros_e:
                 # ROS关闭失败不应阻塞应用退出
-                print(f"ℹ️ ROS2关闭时出现警告: {ros_e}")
+                pass
         except Exception as e:
-            print(f"⚠️ 清理资源时出现错误: {e}")
+            pass
             # 确保应用能正常退出，不要抛出异常 

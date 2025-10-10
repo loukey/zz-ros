@@ -38,13 +38,11 @@ def main():
         
         # 设置应用程序退出时的清理
         def cleanup():
-            print("🧹 清理应用资源...")
             try:
                 main_view_model.cleanup()
                 container.clear()
-                print("✅ 资源清理完成")
             except Exception as e:
-                print(f"⚠️ 清理时出现错误: {str(e)}")
+                pass
         
         app.aboutToQuit.connect(cleanup)
         

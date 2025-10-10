@@ -91,7 +91,6 @@ class RecognitionDomainService(QObject):
             if not rclpy.ok():
                 try:
                     rclpy.init()
-                    print("✅ ROS2已初始化（识别服务）")
                 except RuntimeError as e:
                     # ROS已经初始化但状态异常
                     self.error_occurred.emit(f"ROS状态异常: {str(e)}")

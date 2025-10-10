@@ -189,7 +189,7 @@ class DynamicsFrame(BaseComponent):
             
         except ValueError:
             # 如果输入不是有效数字，可以在这里处理错误
-            print("力矩输入格式错误")
+            pass
     
     def _clear_torque_inputs(self):
         """清零所有力矩输入框"""

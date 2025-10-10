@@ -94,7 +94,6 @@ class ImageDrawingUtils:
             
         except Exception as e:
             # 如果绘制失败，返回原图
-            print(f"绘制检测结果失败: {e}")
             return image
         
         return result_image
@@ -133,5 +132,5 @@ class ImageDrawingUtils:
             )
             
         except Exception as e:
-            print(f"绘制方向箭头失败: {e}")
+            pass
 

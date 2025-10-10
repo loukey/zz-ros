@@ -36,13 +36,10 @@ class RecordRepository:
             if os.path.exists(self.file_path):
                 with open(self.file_path, 'r', encoding='utf-8') as f:
                     data = json.load(f)
-                print(f"✅ 已加载 {len(data)} 个记录")
                 return data
             else:
-                print(f"ℹ️ 记录文件不存在，创建新文件: {self.file_path}")
                 return {}
         except Exception as e:
-            print(f"❌ 加载记录文件失败: {e}")
             return {}
     
     def save_records(self, records: Dict[str, List[List[float]]]) -> bool:
@@ -58,10 +55,8 @@ class RecordRepository:
         try:
             with open(self.file_path, 'w', encoding='utf-8') as f:
                 json.dump(records, f, ensure_ascii=False, indent=2)
-            print(f"✅ 记录已保存到文件: {self.file_path}")
             return True
         except Exception as e:
-            print(f"❌ 保存记录文件失败: {e}")
             return False
     
     def delete_file(self) -> bool:
@@ -74,10 +69,8 @@ class RecordRepository:
         try:
             if os.path.exists(self.file_path):
                 os.remove(self.file_path)
-                print(f"✅ 已删除记录文件: {self.file_path}")
                 return True
             return False
         except Exception as e:
-            print(f"❌ 删除记录文件失败: {e}")
             return False
 

@@ -61,7 +61,7 @@ class RobotStateSnapshot:
         
         # 反向计算原始编码器位置值（用于保存完整状态）
         positions = robot_utils.radian2position(angles)
-        print(positions)
+        
         return cls(
             init_status=decoded_msg.init_status,
             control=decoded_msg.control,

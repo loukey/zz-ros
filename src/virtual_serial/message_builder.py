@@ -146,15 +146,16 @@ class MessageBuilder:
     @staticmethod
     def _calculate_crc16(data: bytes) -> int:
         """
-        计算CRC16校验码（与RobotUtils中的算法一致）
+        计算CRC16校验码（CRC16-CCITT，与RobotUtils完全一致）
         """
         crc = 0xFFFF
         for byte in data:
-            crc ^= byte
+            crc ^= (int(byte) << 8)
             for _ in range(8):
-                if crc & 0x0001:
-                    crc = (crc >> 1) ^ 0xA001
+                if crc & 0x8000:
+                    crc = (crc << 1) ^ 0x1021
                 else:
-                    crc >>= 1
+                    crc = crc << 1
+                crc &= 0xFFFF
         return crc
 

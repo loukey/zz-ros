@@ -41,7 +41,7 @@ class KinematicDomainService:
         a4 = 0.401 
         d4 = 0.0856 
         d5 = 0.086 
-        d6 = 0.2785
+        d6 = 0.231  
         
         # 添加奇异性判断
         if abs(ax**2 + ay**2 - d4**2) < 1e-6:
