@@ -1,0 +1,318 @@
+"""
+运动规划应用服务
+"""
+from PyQt5.QtCore import QObject, pyqtSignal
+from controller.domain import MotionPlanningDomainService, MotionPlan, MotionConstructor
+from controller.infrastructure import MotionPlanRepository
+from .command_hub_service import CommandHubService
+from .message_response_service import MessageResponseService
+from typing import List, Dict
+
+
+class MotionPlanningApplicationService(QObject):
+    """
+    运动规划应用服务
+    
+    职责：
+    1. 协调Domain和Infrastructure
+    2. 自动保存
+    3. 发送UI更新信号
+    4. 执行运动规划（单点和整体方案）
+    5. 处理"获取位置"功能
+    """
+    
+    # 信号
+    plan_list_changed = pyqtSignal()  # 方案列表变化
+    current_plan_changed = pyqtSignal(int)  # 当前方案切换
+    point_list_changed = pyqtSignal()  # 节点列表变化
+    current_position_received = pyqtSignal(list)  # 当前位置数据（弧度值）
+    
+    # 夹爪命令映射表：从字符串转为 effector_mode
+    GRIPPER_MODE_MAP = {
+        "00: 不进行任何操作": 0x00,
+        "01: 夹爪手动使能": 0x01,
+        "02: 设置夹爪目标位置": 0x02,
+        "03: 设置夹爪速度": 0x03,
+        "04: 设置夹爪电流": 0x04,
+        "05: 查询夹爪抓取状态": 0x05,
+        "06: 查询夹爪目前位置": 0x06,
+        "07: 查询夹爪电流": 0x07
+    }
+    
+    def __init__(
+        self,
+        domain_service: MotionPlanningDomainService,
+        repository: MotionPlanRepository,
+        motion_constructor: MotionConstructor,
+        command_hub: CommandHubService,
+        message_response: MessageResponseService
+    ):
+        super().__init__()
+        self.domain_service = domain_service
+        self.repository = repository
+        self.motion_constructor = motion_constructor
+        self.command_hub = command_hub
+        self.message_response = message_response
+        
+        # 连接MessageResponse的位置数据信号
+        self.message_response.get_current_position_signal.connect(
+            self.current_position_received.emit
+        )
+        
+        self._load_data()
+    
+    def _load_data(self):
+        """加载数据"""
+        plans_data, current_index = self.repository.load()
+        
+        # 通过Domain Service的公共方法初始化数据
+        plans = [
+            MotionPlan(name=p["name"], points=p.get("points", []))
+            for p in plans_data
+        ]
+        self.domain_service.initialize(plans, current_index)
+    
+    def _save_data(self):
+        """保存数据"""
+        plans_data = [
+            {"name": plan.name, "points": plan.points}
+            for plan in self.domain_service.get_all_plans()
+        ]
+        self.repository.save(plans_data, self.domain_service.get_current_index())
+    
+    # ========== 方案操作 ==========
+    
+    def create_plan(self, name: str):
+        """创建方案"""
+        new_index = self.domain_service.create_plan(name)
+        self._save_data()
+        self.plan_list_changed.emit()
+        self.current_plan_changed.emit(new_index)
+        self.point_list_changed.emit()
+    
+    def delete_plan(self, index: int) -> bool:
+        """
+        删除方案
+        
+        Returns:
+            True=删除成功, False=删除失败（违反业务规则）
+        """
+        if self.domain_service.delete_plan(index):
+            self._save_data()
+            self.plan_list_changed.emit()
+            self.current_plan_changed.emit(self.domain_service.get_current_index())
+            self.point_list_changed.emit()
+            return True
+        return False
+    
+    def switch_plan(self, index: int):
+        """切换方案"""
+        if self.domain_service.set_current_index(index):
+            self._save_data()
+            self.current_plan_changed.emit(index)
+            self.point_list_changed.emit()
+    
+    def rename_plan(self, index: int, new_name: str):
+        """重命名方案"""
+        if self.domain_service.rename_plan(index, new_name):
+            self._save_data()
+            self.plan_list_changed.emit()
+    
+    # ========== 节点操作 ==========
+    
+    def add_point(self, point_data: dict):
+        """添加节点"""
+        self.domain_service.add_point(point_data)
+        self._save_data()
+        self.point_list_changed.emit()
+    
+    def delete_point(self, index: int):
+        """删除节点"""
+        self.domain_service.remove_point(index)
+        self._save_data()
+        self.point_list_changed.emit()
+    
+    def move_point_up(self, index: int):
+        """上移节点"""
+        if self.domain_service.move_point_up(index):
+            self._save_data()
+            self.point_list_changed.emit()
+    
+    def move_point_down(self, index: int):
+        """下移节点"""
+        if self.domain_service.move_point_down(index):
+            self._save_data()
+            self.point_list_changed.emit()
+    
+    def update_point(self, index: int, point_data: dict):
+        """更新节点"""
+        self.domain_service.update_point(index, point_data)
+        self._save_data()
+        self.point_list_changed.emit()
+    
+    def get_single_point(self, index: int) -> dict:
+        """获取单个节点数据
+        
+        Args:
+            index: 节点索引
+            
+        Returns:
+            节点数据字典，如果索引无效则返回None
+        """
+        points = self.domain_service.get_all_points()
+        if 0 <= index < len(points):
+            return points[index]
+        return None
+    
+    # ========== 执行操作 ==========
+    
+    def execute_single_point(self, index: int):
+        """
+        执行单个节点
+        
+        流程：
+        1. 获取节点数据
+        2. 解析为任务列表（可能包含运动+夹爪）
+        3. 准备运动任务序列
+        4. 查询当前位置
+        
+        Args:
+            index: 节点索引
+        """
+        point = self.get_single_point(index)
+        if not point:
+            print(f"节点索引无效: {index}")
+            return
+        
+        # 解析节点数据为任务列表
+        tasks_list = self._parse_point_to_tasks(point)
+        
+        # 准备运动任务序列
+        self.motion_constructor.prepare_motion_sequence(tasks_list)
+        
+        # 查询当前位置，触发执行
+        self.command_hub.get_current_position()
+        
+        print(f"正在执行节点 {index + 1}: {point.get('mode', '')}")
+    
+    def execute_motion_plan(self):
+        """
+        执行整个运动规划方案
+        
+        流程：
+        1. 获取当前方案的所有节点
+        2. 逐个解析为任务列表（每个节点可能生成1-2个任务）
+        3. 展平所有任务
+        4. 批量准备运动序列
+        5. 查询当前位置，触发执行
+        """
+        points = self.domain_service.get_all_points()
+        
+        if not points:
+            print("当前方案为空，无法执行")
+            return
+        
+        # 解析所有节点为任务列表
+        tasks_list = []
+        for point in points:
+            point_tasks = self._parse_point_to_tasks(point)
+            tasks_list.extend(point_tasks)  # 展平
+        
+        print(f"正在执行运动规划方案，共 {len(points)} 个节点，{len(tasks_list)} 个任务")
+        
+        # 批量准备运动序列
+        self.motion_constructor.prepare_motion_sequence(tasks_list)
+        
+        # 查询当前位置，触发执行
+        self.command_hub.run_motion_sequence()
+    
+    def _parse_point_to_tasks(self, point: Dict) -> List[Dict]:
+        """
+        将节点数据解析为任务列表
+        
+        注意：每个节点只会生成一个任务，不会同时有运动和夹爪
+        - 如果是示教节点，只返回示教任务
+        - 如果是运动点，只返回运动任务
+        - 如果是夹爪节点，只返回夹爪任务
+        
+        Args:
+            point: 节点数据字典，包含：
+                - mode: 模式（"运动点"、"示教-xxx"、"夹爪"等）
+                - joint_angles: 关节角度
+                - curve_type: 曲线类型（"S曲线"、"直线"）
+                - frequency: 频率
+                - gripper_command: 夹爪命令
+                - gripper_param: 夹爪参数
+                - teach_data: 示教数据（示教模式节点）
+                
+        Returns:
+            任务列表，每个节点只返回一个任务
+        """
+        mode = point.get("mode", "")
+        
+        # 1. 判断是否为示教节点
+        if mode.startswith("示教-"):
+            # 兼容旧字段名 teach_angles 和新字段名 teach_data
+            teach_data = point.get("teach_data") or point.get("teach_angles", [])
+            return [{
+                "type": "teach",
+                "teach_data": teach_data
+            }]
+        
+        # 2. 判断是否为夹爪节点
+        gripper_command = point.get("gripper_command", "00: 不进行任何操作")
+        if gripper_command != "00: 不进行任何操作":
+            effector_mode = self._parse_gripper_command(gripper_command)
+            effector_data = point.get("gripper_param", 0.0)
+            
+            return [{
+                "type": "gripper",
+                "effector_mode": effector_mode,
+                "effector_data": effector_data
+            }]
+        
+        # 3. 默认为普通运动点
+        # 从 UI 字段名 (joint1-joint6) 构建角度列表
+        target_angles = [
+            point.get("joint1", 0.0),
+            point.get("joint2", 0.0),
+            point.get("joint3", 0.0),
+            point.get("joint4", 0.0),
+            point.get("joint5", 0.0),
+            point.get("joint6", 0.0)
+        ]
+        
+        return [{
+            "type": "motion",
+            "target_angles": target_angles,
+            "curve_type": "linear" if point.get("curve_type") == "直线" else "s_curve",
+            "frequency": point.get("frequency", 0.01)
+        }]
+    
+    def _parse_gripper_command(self, gripper_str: str) -> int:
+        """
+        解析夹爪命令字符串为 effector_mode
+        
+        Args:
+            gripper_str: 夹爪命令字符串，如 "02: 设置夹爪目标位置"
+            
+        Returns:
+            effector_mode (int)
+        """
+        return self.GRIPPER_MODE_MAP.get(gripper_str, 0x00)
+    
+    # ========== 获取位置功能 ==========
+    
+    def request_current_position(self):
+        """
+        请求获取当前位置（仅用于UI显示）
+        
+        流程：
+        1. 发送 0x07 命令查询位置
+        2. 串口返回数据后，MessageResponseService 检查 has_pending_motion()
+        3. 因为没有调用 prepare_motion，所以 has_pending_motion() 为 False
+        4. MessageResponseService emit get_current_position_signal
+        5. 本Service转发信号给ViewModel
+        """
+        self.command_hub.single_send_command(control=0x07)
+
