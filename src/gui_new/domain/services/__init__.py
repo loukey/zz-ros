@@ -14,7 +14,7 @@ from .motion import MotionRunner, MotionConstructor
 from .communication import SerialDomainService, MessageDomainService
 from .state import RobotStateDomainService, TeachRecordDomainService
 from .planning import MotionPlanningDomainService
-from .vision import CameraDomainService
+from .vision import CameraDomainService, RecognitionDomainService
 
 __all__ = [
     # Algorithm
@@ -36,4 +36,5 @@ __all__ = [
     'MotionPlanningDomainService',
     # Vision
     'CameraDomainService',
+    'RecognitionDomainService',
 ]

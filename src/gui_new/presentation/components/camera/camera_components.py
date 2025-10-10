@@ -350,6 +350,14 @@ class CameraDisplayWidget(BaseComponent):
                 self.view_model.stop_display
             )
             
+            # 检测控制
+            self.camera_frame.start_detection_requested.connect(
+                self.view_model.start_detection
+            )
+            self.camera_frame.stop_detection_requested.connect(
+                self.view_model.stop_detection
+            )
+            
             # ========== 连接ViewModel反馈信号 ==========
             # 图像显示
             self.view_model.image_display_requested.connect(
@@ -379,6 +387,11 @@ class CameraDisplayWidget(BaseComponent):
             # 清除显示
             self.view_model.clear_display_requested.connect(
                 self.camera_frame.clear_display
+            )
+            
+            # 检测状态变化
+            self.view_model.detection_status_changed.connect(
+                self.camera_frame.update_detection_state
             )
     
     def display_image(self, image, image_type):

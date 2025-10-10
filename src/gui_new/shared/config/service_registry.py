@@ -39,6 +39,7 @@ def register_domain_services(container: DIContainer) -> None:
     container.register_singleton(MotionPlanningDomainService)
     # 视觉服务
     container.register_singleton(CameraDomainService)
+    container.register_singleton(RecognitionDomainService)
     
 def register_application_services(container: DIContainer) -> None:
     """注册Application层服务"""

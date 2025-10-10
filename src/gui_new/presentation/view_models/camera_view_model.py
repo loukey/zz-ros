@@ -6,7 +6,8 @@ from PyQt5.QtCore import QTimer, pyqtSignal
 from typing import Optional
 from .base_view_model import BaseViewModel
 from application.services.camera_application_service import CameraApplicationService
-from domain.services.vision import CameraDomainService
+from domain.services.vision import CameraDomainService, RecognitionDomainService
+from domain.utils import ImageDrawingUtils
 
 
 class CameraViewModel(BaseViewModel):
@@ -16,26 +17,31 @@ class CameraViewModel(BaseViewModel):
     职责：
     - 连接UI和Application Service
     - 管理图像显示状态（定时刷新）
-    - 提供图像数据给UI
+    - 管理检测状态
+    - 在图像上叠加检测结果
     """
     
     # ========== 信号定义 ==========
     image_display_requested = pyqtSignal(np.ndarray, str)  # (image, image_type: 'color'/'depth')
     status_updated = pyqtSignal(str)  # 状态文本更新
     image_info_updated = pyqtSignal(dict)  # 图像信息更新
-    connection_status_changed = pyqtSignal(bool)  # 连接状态
+    connection_status_changed = pyqtSignal(bool)  # 摄像头连接状态
     button_states_changed = pyqtSignal(bool, bool)  # (color_active, depth_active)
     clear_display_requested = pyqtSignal()  # 清除显示
+    detection_status_changed = pyqtSignal(bool)  # 检测状态
+    detection_result_updated = pyqtSignal(dict)  # 检测结果（用于UI更新，如启用运动按钮）
     
     def __init__(
         self,
         app_service: CameraApplicationService,
         camera_service: CameraDomainService,
+        recognition_service: RecognitionDomainService,
         parent=None
     ):
         super().__init__(parent)
         self.app_service = app_service
         self.camera_service = camera_service
+        self.recognition_service = recognition_service
         
         # 显示状态
         self.current_display_mode = None  # None, 'color', 'depth'
@@ -112,6 +118,14 @@ class CameraViewModel(BaseViewModel):
         self.button_states_changed.emit(False, False)
         self.image_info_updated.emit({})
     
+    def start_detection(self):
+        """开始检测"""
+        self.app_service.start_detection()
+    
+    def stop_detection(self):
+        """停止检测"""
+        self.app_service.stop_detection()
+    
     # ========== 私有方法 ==========
     
     def _update_display(self):
@@ -120,6 +134,12 @@ class CameraViewModel(BaseViewModel):
             if self.camera_service.is_color_available():
                 image = self.camera_service.get_latest_color_image()
                 if image is not None:
+                    # ✨ 关键：如果检测正在运行，叠加检测结果
+                    if self.recognition_service.is_detection_running():
+                        detection = self.recognition_service.get_latest_result()
+                        if detection:
+                            image = ImageDrawingUtils.draw_detection_result(image, detection)
+                    
                     self.image_display_requested.emit(image, 'color')
                     self._update_image_info(image, 'color')
             else:
@@ -131,6 +151,13 @@ class CameraViewModel(BaseViewModel):
                 if raw_depth is not None:
                     # 可视化深度图
                     vis_depth = self.camera_service.visualize_depth_image(raw_depth)
+                    
+                    # ✨ 关键：深度图也叠加检测结果
+                    if self.recognition_service.is_detection_running():
+                        detection = self.recognition_service.get_latest_result()
+                        if detection:
+                            vis_depth = ImageDrawingUtils.draw_detection_result(vis_depth, detection)
+                    
                     self.image_display_requested.emit(vis_depth, 'depth')
                     self._update_image_info(raw_depth, 'depth')
             else:
@@ -156,11 +183,22 @@ class CameraViewModel(BaseViewModel):
     
     def _connect_signals(self):
         """连接Application Service信号"""
+        # 摄像头连接状态
         self.app_service.connection_status_changed.connect(
             self.connection_status_changed.emit
         )
         self.app_service.connection_status_changed.connect(
             self._on_connection_status_changed
+        )
+        
+        # 检测状态
+        self.app_service.detection_status_changed.connect(
+            self.detection_status_changed.emit
+        )
+        
+        # 检测结果（直接从Recognition Service获取，用于UI更新）
+        self.recognition_service.detection_result_received.connect(
+            self._on_detection_result_received
         )
     
     def _on_connection_status_changed(self, connected: bool):
@@ -169,9 +207,18 @@ class CameraViewModel(BaseViewModel):
         if not connected and self.current_display_mode is not None:
             self.stop_display()
     
+    def _on_detection_result_received(self, detection: dict):
+        """处理检测结果"""
+        # 发射信号给UI（用于启用运动按钮等）
+        self.detection_result_updated.emit(detection)
+    
     def cleanup(self):
         """清理资源"""
         try:
+            # 停止检测
+            if self.recognition_service.is_detection_running():
+                self.recognition_service.stop_detection()
+            
             # 停止显示
             self.stop_display()
             
