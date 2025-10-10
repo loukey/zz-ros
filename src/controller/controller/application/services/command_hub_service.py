@@ -84,8 +84,7 @@ class CommandHubService(BaseService):
     def get_current_position(self):
         self.message_display.clear_messages()
         self._display_message("正在获取当前位置...", "控制")
-        self.motion_constructor.construct_motion_data([0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
-        # self.single_send_command(control=0x07)
+        self.single_send_command(control=0x07)
     
     def run_teach_record(self, angles_list: list):
         """

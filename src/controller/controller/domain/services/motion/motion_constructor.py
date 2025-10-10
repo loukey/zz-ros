@@ -99,40 +99,16 @@ class MotionConstructor:
             start_position: 起始位置（只在最开始查询一次）
         """
         if not self._pending_tasks:
-            print("没有待规划的任务")
             return
-        
-        task_count = len(self._pending_tasks)
-        print(f"开始规划运动序列，共 {task_count} 个任务")
-        print(f"起始位置: {start_position}")
         
         self.motion_runner.clear_data()
         current_position = start_position
         
-        for i, task in enumerate(self._pending_tasks):
-            task_type = task['type']
-            print(f"正在规划任务 {i+1}/{task_count}: {task_type}")
-            
-            # 显示任务详情
-            if task_type == "motion":
-                print(f"  - 目标位置: {task['target_angles']}")
-                print(f"  - 曲线类型: {task.get('curve_type', 's_curve')}")
-            elif task_type == "teach":
-                print(f"  - 示教点数: {len(task['teach_data'])}")
-            elif task_type == "gripper":
-                print(f"  - 夹爪模式: 0x{task['effector_mode']:02X}")
-            
+        for task in self._pending_tasks:
             current_position = self._process_task(task, current_position)
         
         self._has_pending_motion = False
         self._pending_tasks.clear()
-        
-        total_points = len(self.motion_runner.data_list)
-        print(f"运动序列规划完成！")
-        print(f"  - 总任务数: {task_count} 个")
-        print(f"  - 总轨迹点: {total_points} 个")
-        print(f"  - 预计时间: {total_points * 0.01:.2f} 秒")
-        print(f"开始执行...")
         
         # 启动运动执行
         self.motion_runner.start_motion()
@@ -164,7 +140,6 @@ class MotionConstructor:
             return current_position  # 位置不变
         
         else:
-            print(f"未知任务类型: {task_type}")
             return current_position
     
     def _construct_motion(self, task: Dict, start_position: List[float]) -> List[float]:
@@ -225,7 +200,6 @@ class MotionConstructor:
         
         # 检查示教数据是否为空
         if not teach_data or len(teach_data) == 0:
-            print(f"⚠️ 警告：示教数据为空，跳过该任务")
             return start_position  # 位置不变
         
         target_first_point = teach_data[0]

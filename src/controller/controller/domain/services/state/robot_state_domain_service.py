@@ -92,7 +92,6 @@ class RobotStateDomainService(QObject):
             decoded_message: 解码后的消息对象
         """
         new_snapshot = RobotStateSnapshot.from_decoded_message(decoded_message)
-        
         old_snapshot = self._current_state
         self._current_state = new_snapshot
         self._last_update_time = new_snapshot.timestamp
@@ -192,40 +191,48 @@ class RobotStateDomainService(QObject):
         """
         计算静摩擦补偿（内部方法）
         
-        算法：状态机方式
+        算法：状态机方式（与旧版GUI完全一致）
         - 状态0（静止）：检测运动开始
         - 状态1（运动）：检测运动停止
+        
+        注意：
+        - 使用编码器位置值（整数）进行计算，不使用弧度
+        - 阈值 5 表示 5 个编码器位置值（约 0.00006 弧度）
+        - 这与旧版GUI的实现完全一致
         """
         if len(self._position_history) < 20:
             return
         
-        # 获取最新值
-        latest = self._position_history[-1]['angles']
+        # 运动检测阈值（编码器位置值）
+        MOTION_THRESHOLD = 5  # 5 个编码器值 ≈ 0.00006 弧度 ≈ 0.0034 度
+        
+        # 获取最新值（使用编码器位置值，不是弧度）
+        latest = self._position_history[-1]['positions']
         
         # 获取前19个值的最后5个（用于平均）
         recent_5 = list(self._position_history)[-6:-1]
         
         # 对每个关节维度计算
         for dim in range(6):
-            # 计算最近5个点的平均值
-            avg_5 = sum(data['angles'][dim] for data in recent_5) / 5
+            # 计算最近5个点的平均值（编码器位置值）
+            avg_5 = sum(data['positions'][dim] for data in recent_5) / 5
             
-            # 计算差值
+            # 计算差值（编码器位置值）
             difference = latest[dim] - avg_5
             
             # 状态机逻辑
             if self._friction_state[dim] == 0:
                 # 状态0：检测运动开始
-                if difference > 5:  # 正向运动
+                if difference > MOTION_THRESHOLD:  # 正向运动
                     self._friction_compensation[dim] = self._friction_config[dim]
                     self._friction_state[dim] = 1
-                elif difference < -5:  # 负向运动
+                elif difference < -MOTION_THRESHOLD:  # 负向运动
                     self._friction_compensation[dim] = -self._friction_config[dim]
                     self._friction_state[dim] = 1
             
             elif self._friction_state[dim] == 1:
                 # 状态1：检测运动停止
-                if abs(difference) < 5:  # 运动停止
+                if abs(difference) < MOTION_THRESHOLD:  # 运动停止
                     self._friction_compensation[dim] = 0.0
                     self._friction_state[dim] = 0
     

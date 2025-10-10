@@ -48,19 +48,26 @@ class RobotStateSnapshot:
             
         Returns:
             RobotStateSnapshot: 状态快照
+            
+        注意：
+            decoded_msg.positions 已经通过 position2radian 转换为弧度值
+            所以不需要再次转换
         """        
         robot_utils = RobotUtils()
         
-        # 转换位置为角度
-        positions = decoded_msg.positions
-        angles = robot_utils.position2radian(positions)
+        # decoded_msg.positions 已经是弧度值（由MessageDecoder的transform完成）
+        # 所以直接使用，不需要再次转换
+        angles = decoded_msg.positions  # 已经是弧度值
         
+        # 反向计算原始编码器位置值（用于保存完整状态）
+        positions = robot_utils.radian2position(angles)
+        print(positions)
         return cls(
             init_status=decoded_msg.init_status,
             control=decoded_msg.control,
             mode=decoded_msg.mode,
-            joint_positions=tuple(positions),
-            joint_angles=tuple(angles),
+            joint_positions=tuple(positions),  # 反向计算的编码器值
+            joint_angles=tuple(angles),        # 直接使用解码后的弧度值
             joint_speeds=tuple(decoded_msg.speeds),
             joint_torques=tuple(decoded_msg.torques),
             joint_status=tuple(decoded_msg.status),

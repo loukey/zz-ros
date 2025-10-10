@@ -67,7 +67,6 @@ class MessageResponseService(BaseService):
                     decoded_message = self.message_domain_service.decode_message(
                         command_line + "0D0A"
                     )
-                    
                     # 更新统一的状态服务（单一入口）
                     self.robot_state_service.update_state(decoded_message)
                     
