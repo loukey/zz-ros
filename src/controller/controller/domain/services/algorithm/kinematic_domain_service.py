@@ -41,7 +41,7 @@ class KinematicDomainService:
         a4 = 0.401 
         d4 = 0.0856 
         d5 = 0.086 
-        d6 = 0.231  
+        d6 = 0.231
         
         # 添加奇异性判断
         if abs(ax**2 + ay**2 - d4**2) < 1e-6:
@@ -82,7 +82,7 @@ class KinematicDomainService:
                 # theta6
                 if abs(s5) < 1e-6:
                     # 腕部奇异性
-                    theta6 = self.kinematic_dh[5, 3]
+                    theta6 = initial_theta[5]
                 else:
                     m1 = -s1 * nx + c1 * ny
                     n1 = -s1 * ox + c1 * oy
@@ -117,7 +117,11 @@ class KinematicDomainService:
         
                     # theta4
                     if abs(s5) < 1e-6:
-                        theta4_candidate = [initial_theta[3]]
+                        # 在腕部奇异性时，使用更稳定的计算方式
+                        if initial_theta is not None:
+                            theta4_candidate = [initial_theta[3]]
+                        else:
+                            theta4_candidate = [initial_theta[3]]
                     else:
                         T01 = self.kinematic_utils.dh2rm(self.kinematic_dh[0, 0], self.kinematic_dh[0, 1], self.kinematic_dh[0, 2], theta1)
                         T12 = self.kinematic_utils.dh2rm(self.kinematic_dh[1, 0], self.kinematic_dh[1, 1], self.kinematic_dh[1, 2], theta2)

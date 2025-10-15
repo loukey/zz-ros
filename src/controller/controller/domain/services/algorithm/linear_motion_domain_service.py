@@ -14,11 +14,13 @@ class LinearMotionDomainService:
         self.j_max = np.asarray(j_max,dtype=float)
         self.dt = float(dt)
         self.kinematic_solver = KinematicDomainService()
+        self.nearest_position = []
 
     def clamp(self, x, low, high):
         return max(low, min(x, high))
 
     def linear_motion(self, start_position, end_position):
+        self.nearest_position = start_position
         start_quat, start_pos = self.kinematic_solver.get_gripper2base(start_position)
         end_quat, end_pos = self.kinematic_solver.get_gripper2base(end_position)
         quat_list, pos_list, L = self.sampling(start_quat, start_pos, end_quat, end_pos)
@@ -86,10 +88,10 @@ class LinearMotionDomainService:
         q1=q0
         q0 = np.asarray(q0, dtype=float).reshape(4)
         q1 = np.asarray(q1, dtype=float).reshape(4)
-        if np.argmax(np.abs(q0)) == 3:  # 可能是 [x,y,z,w]
-            q0 = np.roll(q0, 1)
-        if np.argmax(np.abs(q1)) == 3:
-            q1 = np.roll(q1, 1)
+        # if np.argmax(np.abs(q0)) == 3:  # 可能是 [x,y,z,w]
+        #     q0 = np.roll(q0, 1)
+        # if np.argmax(np.abs(q1)) == 3:
+        #     q1 = np.roll(q1, 1)
 
         # 计算需要的采样点数
         L = np.linalg.norm(p1 - p0)
@@ -123,7 +125,9 @@ class LinearMotionDomainService:
 
     def inverse_kinematic(self, quat, pos):
         rm = R.from_quat(quat).as_matrix()
-        return self.kinematic_solver.inverse_kinematic(rm, pos)
+        inverse_position = self.kinematic_solver.inverse_kinematic(rm, pos, initial_theta=self.nearest_position)
+        self.nearest_position = inverse_position
+        return inverse_position
 
     def _q_normalize(self,q):
         q = np.asarray(q, dtype=float)
