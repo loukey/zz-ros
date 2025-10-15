@@ -157,6 +157,10 @@ class DynamicsFrame(BaseComponent):
             self.view_model.record_list_updated.connect(
                 self._on_record_list_updated
             )
+            
+            # ⭐ 主动加载已存在的记录列表（解决启动时不显示的问题）
+            record_names = self.view_model.get_record_names()
+            self._on_record_list_updated(record_names)
     
     def _toggle_teaching_mode(self):
         """切换示教模式状态"""

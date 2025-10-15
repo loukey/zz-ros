@@ -75,21 +75,21 @@ class MotionListener():
             # 提取joint_angles的16进制数据
             angles_hex = message[start_idx:end_idx]
             
-            # 第一步：解析每个关节的位置值（无符号32位整数）
+            # 第一步：解析每个关节的位置值（有符号32位整数）
             positions = []
             for i in range(6):
                 # 提取单个关节的数据（4字节=8个16进制字符）
                 joint_hex = angles_hex[i*8:(i+1)*8]
                 
-                # 转换为无符号整数（大端序）
-                # 注意：编码时使用 & 0xFFFFFFFF，说明是无符号32位
-                position = int.from_bytes(
-                    bytes.fromhex(joint_hex), 
-                    byteorder='big', 
-                    signed=False  # 无符号
-                )
+                # 先转换为无符号整数
+                value = int(joint_hex, 16)
                 
-                positions.append(position)
+                # ⭐ 处理有符号数的补码表示（与ListParser保持一致）
+                # 4字节有符号整数范围：-2147483648 到 2147483647
+                if value >= 0x80000000:  # 如果最高位为1，表示负数
+                    value -= 0x100000000  # 转换为负数（2^32）
+                
+                positions.append(value)
             
             # 第二步：使用 position2radian 转换为弧度
             # 这里完全按照 RobotUtils 的逻辑反向计算
