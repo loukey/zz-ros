@@ -128,7 +128,7 @@ class SCurve():
         positions[-1, :] = target_angles        
         return accelerations, velocities, positions
 
-    def planning(self, start_angles, target_angles, v_start=[0] * 6, dt=0.1):
+    def planning(self, start_angles, target_angles, v_start=[0] * 6, dt=0.01):
         start_angles = np.array(start_angles)
         target_angles = np.array(target_angles)
         displacements = target_angles - start_angles
