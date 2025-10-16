@@ -25,6 +25,23 @@ class KinematicDomainService:
             self.gripper2base = reduce(lambda x, y: x @ y, rm_list, np.eye(4))
         quat = R.from_matrix(self.gripper2base[:3, :3]).as_quat()
         return quat, self.gripper2base[:3, 3]
+    
+    def get_gripper2base_rm(self, theta_list):
+        """
+        获取末端执行器相对于基座的变换矩阵
+        
+        Args:
+            theta_list: 关节角度列表（弧度）
+        
+        Returns:
+            4x4 齐次变换矩阵
+        """
+        self.kinematic_dh[:, 3] = theta_list
+        rm_list = []
+        for dh in self.kinematic_dh:
+            rm_list.append(self.kinematic_utils.dh2rm(*dh))
+        self.gripper2base = reduce(lambda x, y: x @ y, rm_list, np.eye(4))
+        return self.gripper2base
 
     def inverse_kinematic(self, rm, pos, initial_theta=None):
         if not initial_theta:

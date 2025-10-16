@@ -64,104 +64,70 @@ class HandEyeTransformDomainService:
         Returns:
             目标关节角度列表（弧度），如果无解则返回 None
         """
-        # 1. 像素坐标 → 相机坐标系
-        p1_cam = self._pixel_to_camera(central_center[0], central_center[1], depth)
-        p2_cam = self._pixel_to_camera(real_center[0], real_center[1], real_depth)
+        # 获取配置参数
+        intrinsics = self.config.camera_intrinsics
         
-        # 2. 正运动学：获取当前末端位姿
-        _, end_effector_pos = self.kinematic_service.get_gripper2base(current_joint_angles)
-        forward_matrix = self.kinematic_service.gripper2base  # 4x4变换矩阵
+        # 1. 像素坐标 → 相机坐标系（齐次坐标）
+        px1, py1, pz1 = central_center[0], central_center[1], depth
+        px2, py2, pz2 = real_center[0], real_center[1], real_depth
+        
+        # 深度单位转换：mm → m
+        pz1 *= 0.001
+        pz2 *= 0.001
+        
+        # 使用针孔相机模型
+        px1 = (px1 - intrinsics.cx) * pz1 / intrinsics.fx
+        py1 = (py1 - intrinsics.cy) * pz1 / intrinsics.fy
+        px2 = (px2 - intrinsics.cx) * pz2 / intrinsics.fx
+        py2 = (py2 - intrinsics.cy) * pz2 / intrinsics.fy
+        
+        p1_cam = np.array([px1, py1, pz1, 1])
+        p2_cam = np.array([px2, py2, pz2, 1])
+        
+        # 2. 正运动学：获取当前末端位姿（4x4变换矩阵）
+        forward_matrix = self.kinematic_service.get_gripper2base_rm(current_joint_angles)
         
         # 3. 相机坐标系 → 基坐标系
         T_cam2base = forward_matrix @ self.config.hand_eye_matrix
+        
         p1_base = T_cam2base @ p1_cam
         p2_base = T_cam2base @ p2_cam
+        v_base = p2_base - p1_base
         
         # 4. 计算目标位姿
-        target_matrix = self._calculate_target_pose(p1_base, p2_base, angle)
+        # 4.1 计算零件方向向量
+        theta = np.arctan2(v_base[1], v_base[0])
         
-        # 5. 逆运动学求解
-        target_rotation = target_matrix[:3, :3]
-        target_position = target_matrix[:3, 3]
+        # 4.2 构建绕 Z 轴旋转的变换矩阵
+        T_target2base = self.get_z_rotation_matrix(theta)
+        T_target2base[:, 3] = p2_base
         
-        target_angles = self.kinematic_service.inverse_kinematic(
-            target_rotation,
-            target_position,
-            initial_theta=current_joint_angles
-        )
+        # 4.3 添加偏移量
+        T_offset2target = np.eye(4)
+        T_offset2target[:3, 3] = self.config.target_offset.to_array()
+        T_target2base = T_target2base @ T_offset2target
         
-        if not target_angles:
-            return None
-        
-        return target_angles
-    
-    def _pixel_to_camera(self, u: float, v: float, depth_mm: float) -> np.ndarray:
-        """
-        像素坐标转换为相机坐标系（齐次坐标）
-        
-        Args:
-            u: 像素 x 坐标
-            v: 像素 y 坐标
-            depth_mm: 深度（毫米）
-        
-        Returns:
-            相机坐标系下的齐次坐标 [x, y, z, 1]
-        """
-        intrinsics = self.config.camera_intrinsics
-        
-        # 深度单位转换：mm → m
-        z = depth_mm * 0.001
-        
-        # 使用针孔相机模型
-        x = (u - intrinsics.cx) * z / intrinsics.fx
-        y = (v - intrinsics.cy) * z / intrinsics.fy
-        
-        return np.array([x, y, z, 1.0])
-    
-    def _calculate_target_pose(
-        self,
-        p1_base: np.ndarray,
-        p2_base: np.ndarray,
-        angle: float
-    ) -> np.ndarray:
-        """
-        计算目标位姿矩阵（基坐标系）
-        
-        Args:
-            p1_base: 中心点在基坐标系的位置（齐次坐标）
-            p2_base: 实际中心点在基坐标系的位置（齐次坐标）
-            angle: 零件角度（弧度）
-        
-        Returns:
-            4x4 目标位姿矩阵
-        """
-        # 1. 计算零件方向向量
-        v_base = p2_base - p1_base
-        theta = atan2(v_base[1], v_base[0])
-        
-        # 2. 构建绕 Z 轴旋转的变换矩阵
-        T_target2base = self._get_z_rotation_matrix(theta)
-        T_target2base[:3, 3] = p2_base[:3]  # 设置位置
-        
-        # 3. 添加偏移量
-        T_offset = np.eye(4)
-        T_offset[:3, 3] = self.config.target_offset.to_array()
-        T_target2base = T_target2base @ T_offset
-        
-        # 4. 调整末端姿态
+        # 4.4 调整末端姿态
         adjustment = self.config.end_effector_adjustment
         T_target2base = (
             T_target2base 
-            @ self._get_y_rotation_matrix(adjustment.y_rotation)
-            @ self._get_x_rotation_matrix(adjustment.x_rotation)
+            @ self.get_y_rotation_matrix(adjustment.y_rotation) 
+            @ self.get_x_rotation_matrix(adjustment.x_rotation)
         )
         
-        return T_target2base
+        # 5. 逆运动学求解
+        theta_list = self.kinematic_service.inverse_kinematic(
+            T_target2base[:3, :3], 
+            T_target2base[:3, 3],
+            initial_theta=current_joint_angles
+        )
+        
+        return theta_list
     
-    @staticmethod
-    def _get_z_rotation_matrix(angle: float) -> np.ndarray:
+    def get_z_rotation_matrix(self, angle: float) -> np.ndarray:
         """绕 Z 轴旋转的齐次变换矩阵"""
-        c, s = cos(angle), sin(angle)
+        c = cos(angle)
+        s = sin(angle)
         return np.array([
             [c, -s, 0, 0],
             [s,  c, 0, 0],
@@ -169,10 +135,10 @@ class HandEyeTransformDomainService:
             [0,  0, 0, 1]
         ])
     
-    @staticmethod
-    def _get_y_rotation_matrix(angle: float) -> np.ndarray:
+    def get_y_rotation_matrix(self, angle: float) -> np.ndarray:
         """绕 Y 轴旋转的齐次变换矩阵"""
-        c, s = cos(angle), sin(angle)
+        c = cos(angle)
+        s = sin(angle)
         return np.array([
             [ c, 0, s, 0],
             [ 0, 1, 0, 0],
@@ -180,10 +146,10 @@ class HandEyeTransformDomainService:
             [ 0, 0, 0, 1]
         ])
     
-    @staticmethod
-    def _get_x_rotation_matrix(angle: float) -> np.ndarray:
+    def get_x_rotation_matrix(self, angle: float) -> np.ndarray:
         """绕 X 轴旋转的齐次变换矩阵"""
-        c, s = cos(angle), sin(angle)
+        c = cos(angle)
+        s = sin(angle)
         return np.array([
             [1,  0,  0, 0],
             [0,  c, -s, 0],
