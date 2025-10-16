@@ -1,12 +1,12 @@
 """
 摄像头视图模型 - Presentation层
+只依赖Application层，不直接访问Domain层
 """
 import numpy as np
 from PyQt5.QtCore import QTimer, pyqtSignal
 from typing import Optional
 from .base_view_model import BaseViewModel
 from controller.application import CameraApplicationService
-from controller.domain import CameraDomainService, RecognitionDomainService, ImageDrawingUtils
 
 
 class CameraViewModel(BaseViewModel):
@@ -17,7 +17,11 @@ class CameraViewModel(BaseViewModel):
     - 连接UI和Application Service
     - 管理图像显示状态（定时刷新）
     - 管理检测状态
-    - 在图像上叠加检测结果
+    - 通过Application Service获取图像和检测结果
+    
+    架构原则：
+    - 只依赖Application层，不直接访问Domain层
+    - 所有Domain层调用通过Application Service转发
     """
     
     # ========== 信号定义 ==========
@@ -33,14 +37,10 @@ class CameraViewModel(BaseViewModel):
     def __init__(
         self,
         app_service: CameraApplicationService,
-        camera_service: CameraDomainService,
-        recognition_service: RecognitionDomainService,
         parent=None
     ):
         super().__init__(parent)
         self.app_service = app_service
-        self.camera_service = camera_service
-        self.recognition_service = recognition_service
         
         # 显示状态
         self.current_display_mode = None  # None, 'color', 'depth'
@@ -69,8 +69,8 @@ class CameraViewModel(BaseViewModel):
     
     def start_color_display(self):
         """开始显示彩色图"""
-        # 检查摄像头是否连接
-        if not self.camera_service.is_connected:
+        # ✅ 通过Application层检查摄像头是否连接
+        if not self.app_service.is_camera_connected():
             self.status_updated.emit("请先连接摄像头")
             return
         
@@ -86,8 +86,8 @@ class CameraViewModel(BaseViewModel):
     
     def start_depth_display(self):
         """开始显示深度图"""
-        # 检查摄像头是否连接
-        if not self.camera_service.is_connected:
+        # ✅ 通过Application层检查摄像头是否连接
+        if not self.app_service.is_camera_connected():
             self.status_updated.emit("请先连接摄像头")
             return
         
@@ -125,19 +125,27 @@ class CameraViewModel(BaseViewModel):
         """停止检测"""
         self.app_service.stop_detection()
     
+    def move_to_detected_part(self):
+        """
+        运动到检测到的零件位置
+        
+        职责：仅转发到 Application 层
+        """
+        self.app_service.move_to_detected_part()
+    
     # ========== 私有方法 ==========
     
     def _update_display(self):
         """定时器回调，刷新图像显示"""
         if self.current_display_mode == 'color':
-            if self.camera_service.is_color_available():
-                image = self.camera_service.get_latest_color_image()
+            # ✅ 通过Application层检查彩色图像是否可用
+            if self.app_service.is_color_available():
+                # ✅ 通过Application层获取最新彩色图像
+                image = self.app_service.get_latest_color_image()
                 if image is not None:
-                    # ✨ 关键：如果检测正在运行，叠加检测结果
-                    if self.recognition_service.is_detection_running():
-                        detection = self.recognition_service.get_latest_result()
-                        if detection:
-                            image = ImageDrawingUtils.draw_detection_result(image, detection)
+                    # ✅ 通过Application层的高级接口获取叠加了检测结果的图像
+                    # 封装了检测状态检查和图像绘制逻辑
+                    image = self.app_service.get_image_with_detection(image)
                     
                     self.image_display_requested.emit(image, 'color')
                     self._update_image_info(image, 'color')
@@ -145,17 +153,16 @@ class CameraViewModel(BaseViewModel):
                 self.status_updated.emit("等待彩色图像数据...")
         
         elif self.current_display_mode == 'depth':
-            if self.camera_service.is_depth_available():
-                raw_depth = self.camera_service.get_latest_depth_image()
+            # ✅ 通过Application层检查深度图像是否可用
+            if self.app_service.is_depth_available():
+                # ✅ 通过Application层获取最新深度图像
+                raw_depth = self.app_service.get_latest_depth_image()
                 if raw_depth is not None:
-                    # 可视化深度图
-                    vis_depth = self.camera_service.visualize_depth_image(raw_depth)
+                    # ✅ 通过Application层进行深度图可视化
+                    vis_depth = self.app_service.visualize_depth_image(raw_depth)
                     
-                    # ✨ 关键：深度图也叠加检测结果
-                    if self.recognition_service.is_detection_running():
-                        detection = self.recognition_service.get_latest_result()
-                        if detection:
-                            vis_depth = ImageDrawingUtils.draw_detection_result(vis_depth, detection)
+                    # ✅ 通过Application层的高级接口叠加检测结果
+                    vis_depth = self.app_service.get_image_with_detection(vis_depth)
                     
                     self.image_display_requested.emit(vis_depth, 'depth')
                     self._update_image_info(raw_depth, 'depth')
@@ -195,10 +202,9 @@ class CameraViewModel(BaseViewModel):
             self.detection_status_changed.emit
         )
         
-        # 检测结果（直接从Recognition Service获取，用于UI更新）
-        self.recognition_service.detection_result_received.connect(
-            self._on_detection_result_received
-        )
+        # ✅ 检测结果（现在不再需要单独订阅，因为在 _update_display 中统一处理）
+        # 如果需要接收检测结果用于UI更新（如启用运动按钮），
+        # 可以通过 Application Service 中转 Domain 层信号
     
     def _on_connection_status_changed(self, connected: bool):
         """处理连接状态变化"""
@@ -206,24 +212,19 @@ class CameraViewModel(BaseViewModel):
         if not connected and self.current_display_mode is not None:
             self.stop_display()
     
-    def _on_detection_result_received(self, detection: dict):
-        """处理检测结果"""
-        # 发射信号给UI（用于启用运动按钮等）
-        self.detection_result_updated.emit(detection)
-    
     def cleanup(self):
         """清理资源"""
         try:
-            # 停止检测
-            if self.recognition_service.is_detection_running():
-                self.recognition_service.stop_detection()
+            # 停止检测（✅ 通过Application层）
+            if self.app_service.is_detection_running():
+                self.app_service.stop_detection()
             
             # 停止显示
             self.stop_display()
             
-            # 断开摄像头
-            if self.camera_service.is_connected:
-                self.camera_service.disconnect()
+            # 断开摄像头（✅ 通过Application层）
+            if self.app_service.is_camera_connected():
+                self.app_service.disconnect_camera()
             
         except Exception as e:
             pass

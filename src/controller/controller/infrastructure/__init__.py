@@ -1,6 +1,6 @@
 """Infrastructure Layer - 基础设施层""" 
 from .communication import PortScanner, SerialAdapter, SerialReader, SerialWriter
-from .persistence import RecordRepository, MotionPlanRepository
+from .persistence import RecordRepository, MotionPlanRepository, HandEyeCalibrationRepository
 
 __all__ = [
     'PortScanner', 
@@ -8,5 +8,6 @@ __all__ = [
     'SerialReader', 
     'SerialWriter', 
     'RecordRepository',
-    'MotionPlanRepository'
+    'MotionPlanRepository',
+    'HandEyeCalibrationRepository'
 ]

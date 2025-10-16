@@ -15,6 +15,8 @@ def register_infrastructure_services(container: DIContainer) -> None:
     container.register_singleton(RecordRepository)
     # 运动规划方案持久化仓库
     container.register_singleton(MotionPlanRepository)
+    # 手眼标定配置仓库
+    container.register_singleton(HandEyeCalibrationRepository)
 
 def register_domain_services(container: DIContainer) -> None:
     """注册Domain层服务"""
@@ -41,6 +43,16 @@ def register_domain_services(container: DIContainer) -> None:
     container.register_singleton(CameraDomainService)
     container.register_singleton(RecognitionDomainService)
     
+    # 手眼标定配置（作为值对象注入）
+    def create_hand_eye_config():
+        repo = container.resolve(HandEyeCalibrationRepository)
+        return repo.load()
+    
+    container.register_singleton(HandEyeCalibrationConfig, create_hand_eye_config)
+    
+    # 手眼标定服务（会自动注入 HandEyeCalibrationConfig 和 KinematicDomainService）
+    container.register_singleton(HandEyeTransformDomainService)
+    
 def register_application_services(container: DIContainer) -> None:
     """注册Application层服务"""
     container.register_singleton(MessageDisplay)
@@ -63,6 +75,8 @@ def register_presentation_services(container: DIContainer) -> None:
     container.register_singleton(EffectorViewModel)
     container.register_singleton(TrajectoryViewModel)
     container.register_singleton(DynamicsViewModel)  
+    # CameraViewModel 只依赖 CameraApplicationService（Application层）
+    # DI容器会自动根据构造函数注入依赖
     container.register_singleton(CameraViewModel)
     # 运动规划ViewModel
     container.register_singleton(MotionPlanningViewModel)

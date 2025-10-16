@@ -358,6 +358,11 @@ class CameraDisplayWidget(BaseComponent):
                 self.view_model.stop_detection
             )
             
+            # 运动控制
+            self.camera_frame.move_to_part_requested.connect(
+                self.view_model.move_to_detected_part
+            )
+            
             # ========== 连接ViewModel反馈信号 ==========
             # 图像显示
             self.view_model.image_display_requested.connect(

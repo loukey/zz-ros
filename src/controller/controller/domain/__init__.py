@@ -1,5 +1,12 @@
 """Domain Layer - 领域层""" 
-from .value_objects import DHParam, RobotStateSnapshot
+from .value_objects import (
+    DHParam, 
+    RobotStateSnapshot,
+    HandEyeCalibrationConfig,
+    CameraIntrinsics,
+    TargetOffset,
+    EndEffectorAdjustment
+)
 from .utils import KinematicUtils, MessageEncoder, MessageDecoder, RobotUtils, ImageDrawingUtils
 from .services import (
     KinematicDomainService, 
@@ -15,13 +22,18 @@ from .services import (
     TeachRecordDomainService,
     MotionPlanningDomainService,
     CameraDomainService,
-    RecognitionDomainService
+    RecognitionDomainService,
+    HandEyeTransformDomainService
 )
 from .entities import MotionPlan
 
 __all__ = [
         'DHParam', 
         'RobotStateSnapshot',
+        'HandEyeCalibrationConfig',
+        'CameraIntrinsics',
+        'TargetOffset',
+        'EndEffectorAdjustment',
         'KinematicUtils', 
         'MessageEncoder', 
         'MessageDecoder',
@@ -41,5 +53,6 @@ __all__ = [
         'MotionPlanningDomainService',
         'CameraDomainService',
         'RecognitionDomainService',
+        'HandEyeTransformDomainService',
         'MotionPlan',
         ]
