@@ -137,7 +137,9 @@ class KinematicDomainService:
                             
         if not valid_solutions:
             raise ValueError("No valid solutions found")
-            
+        valid_solutions = [
+            [self.kinematic_utils.normalize_angle(a) for a in sol] for sol in valid_solutions
+        ]
         final_solution = min(valid_solutions, key=lambda sol: np.linalg.norm(np.array(sol) - np.array(initial_theta)))
         return final_solution
 
