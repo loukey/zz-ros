@@ -60,7 +60,7 @@ class MessageResponseService(BaseService):
             lines = self.message_buffer.split("0D0A")
             self.message_buffer = lines[-1]
             command_line = lines[0]
-            
+            self._display_message(command_line, "接收")
             if command_line.startswith("AA55"):
                 try:
                     # 解码消息
@@ -75,7 +75,7 @@ class MessageResponseService(BaseService):
                         self.handle_motion_message(decoded_message.positions)
 
                 except Exception as e:
-                    self._display_message(command_line, "接收")
+                    
                     self._display_message(f"解码消息失败: {str(e)}", "错误")
                     return
             else:

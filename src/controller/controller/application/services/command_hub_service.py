@@ -44,6 +44,7 @@ class CommandHubService(BaseService):
         
         if control in [0x00, 0x01, 0x02, 0x03, 0x04]:
             self.single_send_command(**config_dict)
+            self.get_current_position()
             
         elif control == 0x05:
             if mode == 0x0A:

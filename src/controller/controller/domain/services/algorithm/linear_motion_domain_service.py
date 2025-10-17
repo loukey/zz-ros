@@ -23,34 +23,39 @@ class LinearMotionDomainService:
         self.nearest_position = start_position
         start_quat, start_pos = self.kinematic_solver.get_gripper2base(start_position)
         end_quat, end_pos = self.kinematic_solver.get_gripper2base(end_position)
-        quat_list, pos_list, L = self.sampling(start_quat, start_pos, end_quat, end_pos)
-        positions = self.smooth(quat_list, pos_list, L)
+        quat_list, pos_list, n_seg = self.sampling(start_quat, start_pos, end_quat, end_pos)
+        positions = self.smooth(quat_list, pos_list, n_seg)
         return positions
 
-    def linear_motion_z_axis(self, start_position, distance, axis=-1):
-        # TODO
-        pass
-        # start_quat, start_pos = self.kinematic_solver.get_gripper2base(start_position)
-        # # todo: 按照distance计算终点位置
-        # p0 = np.asarray(p0, dtype=float).reshape(3)
-        # q0 = self._q_normalize(q0)
+    def linear_motion_z_axis(self, start_position, distance, direction, ds=0.002, include_end=True):
+        
+        start_quat, start_pos = self.kinematic_solver.get_gripper2base(start_position)
+        # todo: 按照distance计算终点位置
+        p0 = np.asarray(start_pos, dtype=float).reshape(3)
+        q0 = self._q_normalize(start_quat)
+        
+        direction = np.asarray(direction, dtype=float)
+        norm = np.linalg.norm(direction)
+        if norm < 1e-9:
+            raise ValueError("Direction vector is zero or too small")
+        direction = direction / norm
 
-        # # 需要的段数（保证每步不超过 ds）
-        # L = abs(float(distance))
-        # if L < 1e-12:
-        #     t = np.array([0.0, 1.0]) if include_end else np.array([0.0])
-        # else:
-        #     n_seg = max(1, int(np.ceil(L / ds)))
-        #     t = np.linspace(0.0, 1.0, n_seg + 1 if include_end else n_seg)
+        # 需要的段数（保证每步不超过 ds）
+        L = abs(float(distance))
+        if L < 1e-12:
+            t = np.array([0.0, 1.0]) if include_end else np.array([0.0])
+        else:
+            n_seg = max(1, int(np.ceil(L / ds)))
+            t = np.linspace(0.0, 1.0, n_seg + 1 if include_end else n_seg)
 
-        # # 直线方向：基坐标 Z 轴
-        # d = np.array([0.0, 0.0, distance], dtype=float)
+        # 直线方向：xiangliang
+        d = direction * float(distance)
 
-        # # 位置线性采样；姿态保持不变
-        # pos_list = p0[None, :] + t[:, None] * d[None, :]
-        # quat_list = np.repeat(q0[None, :], len(t), axis=0)
+        # 位置线性采样；姿态保持不变
+        pos_list = p0[None, :] + t[:, None] * d[None, :]
+        quat_list = np.repeat(q0[None, :], len(t), axis=0)
 
-        # return pos_list, quat_list
+        return pos_list, quat_list, n_seg
 
     def _q_slerp(self, q0, q1, t):
         """四元数最短弧 SLERP，t in [0,1]"""
@@ -108,9 +113,9 @@ class LinearMotionDomainService:
         quat_list = np.vstack([self._q_slerp(q0, q1, ti) for ti in t])
 
      
-        return quat_list, pos_list, L
+        return quat_list, pos_list, n_seg
 
-    def smooth(self, quat_list, pos_list, L):
+    def smooth(self, quat_list, pos_list, n_seg):
         positions = []
         for quat, pos in zip(quat_list, pos_list):
             position = self.inverse_kinematic(quat, pos)
@@ -119,7 +124,7 @@ class LinearMotionDomainService:
         # todo: 基于这个positions列表，规划rucking smooth
 
         q_wp = self.ensure_2d_array(positions)
-        grid_n = self.clamp(6*L,300,3000)    
+        grid_n = self.clamp(6*n_seg,300,3000)    
         t_list, positions, qd, qdd= self.toppra_time_parameterize(q_wp, self.v_max, self.a_max, self.dt, grid_n)
         return positions
 
