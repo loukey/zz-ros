@@ -655,8 +655,48 @@ class MotionPointDialog(QDialog):
         
         # 曲线类型选择
         self.curve_type_combo = QComboBox()
-        self.curve_type_combo.addItems(["S曲线", "直线"])
+        self.curve_type_combo.addItems(["S曲线", "直线", "向量"])
+        self.curve_type_combo.currentTextChanged.connect(self._on_curve_type_changed)
         form_layout.addRow("曲线类型:", self.curve_type_combo)
+        
+        # 向量运动参数容器（默认隐藏）
+        self.vector_params_widget = QWidget()
+        vector_layout = QFormLayout(self.vector_params_widget)
+        
+        # 距离输入
+        self.distance_spin = QDoubleSpinBox()
+        self.distance_spin.setRange(-10.0, 10.0)
+        self.distance_spin.setDecimals(4)
+        self.distance_spin.setSingleStep(0.01)
+        self.distance_spin.setValue(0.1)
+        vector_layout.addRow("移动距离(m):", self.distance_spin)
+        
+        # 方向向量 X
+        self.direction_x_spin = QDoubleSpinBox()
+        self.direction_x_spin.setRange(-1.0, 1.0)
+        self.direction_x_spin.setDecimals(4)
+        self.direction_x_spin.setSingleStep(0.1)
+        self.direction_x_spin.setValue(0.0)
+        vector_layout.addRow("方向X:", self.direction_x_spin)
+        
+        # 方向向量 Y
+        self.direction_y_spin = QDoubleSpinBox()
+        self.direction_y_spin.setRange(-1.0, 1.0)
+        self.direction_y_spin.setDecimals(4)
+        self.direction_y_spin.setSingleStep(0.1)
+        self.direction_y_spin.setValue(0.0)
+        vector_layout.addRow("方向Y:", self.direction_y_spin)
+        
+        # 方向向量 Z
+        self.direction_z_spin = QDoubleSpinBox()
+        self.direction_z_spin.setRange(-1.0, 1.0)
+        self.direction_z_spin.setDecimals(4)
+        self.direction_z_spin.setSingleStep(0.1)
+        self.direction_z_spin.setValue(1.0)
+        vector_layout.addRow("方向Z:", self.direction_z_spin)
+        
+        self.vector_params_widget.setVisible(False)
+        form_layout.addRow(self.vector_params_widget)
         
         # 夹爪命令选择
         self.gripper_command_combo = QComboBox()
@@ -707,6 +747,11 @@ class MotionPointDialog(QDialog):
         self.button_box.rejected.connect(self.reject)
         layout.addWidget(self.button_box)
     
+    def _on_curve_type_changed(self, curve_type: str):
+        """曲线类型变化时，显示/隐藏向量参数"""
+        is_vector = (curve_type == "向量")
+        self.vector_params_widget.setVisible(is_vector)
+    
     def fill_data(self, data):
         """使用提供的数据填充界面"""
         # 填充模式选择
@@ -730,6 +775,17 @@ class MotionPointDialog(QDialog):
             index = self.curve_type_combo.findText(data["curve_type"])
             if index >= 0:
                 self.curve_type_combo.setCurrentIndex(index)
+        
+        # 填充向量参数
+        if data.get("curve_type") == "向量":
+            if "distance" in data:
+                self.distance_spin.setValue(data["distance"])
+            if "direction_x" in data:
+                self.direction_x_spin.setValue(data["direction_x"])
+            if "direction_y" in data:
+                self.direction_y_spin.setValue(data["direction_y"])
+            if "direction_z" in data:
+                self.direction_z_spin.setValue(data["direction_z"])
         
         # 填充夹爪命令
         if "gripper_command" in data:
@@ -764,6 +820,13 @@ class MotionPointDialog(QDialog):
         
         # 获取曲线类型
         data["curve_type"] = self.curve_type_combo.currentText()
+        
+        # 如果是向量类型，添加向量参数
+        if data["curve_type"] == "向量":
+            data["distance"] = self.distance_spin.value()
+            data["direction_x"] = self.direction_x_spin.value()
+            data["direction_y"] = self.direction_y_spin.value()
+            data["direction_z"] = self.direction_z_spin.value()
         
         # 获取夹爪命令
         data["gripper_command"] = self.gripper_command_combo.currentText()

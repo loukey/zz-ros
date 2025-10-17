@@ -55,7 +55,9 @@ class LinearMotionDomainService:
         pos_list = p0[None, :] + t[:, None] * d[None, :]
         quat_list = np.repeat(q0[None, :], len(t), axis=0)
 
-        return pos_list, quat_list, n_seg
+        positions = self.smooth(quat_list, pos_list, n_seg)
+
+        return positions
 
     def _q_slerp(self, q0, q1, t):
         """四元数最短弧 SLERP，t in [0,1]"""

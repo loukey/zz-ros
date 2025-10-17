@@ -265,7 +265,24 @@ class MotionPlanningApplicationService(QObject):
                 "effector_data": effector_data
             }]
         
-        # 3. 默认为普通运动点
+        # 3. 判断是否为向量运动节点
+        curve_type = point.get("curve_type", "S曲线")
+        if curve_type == "向量":
+            direction = [
+                point.get("direction_x", 0.0),
+                point.get("direction_y", 0.0),
+                point.get("direction_z", 1.0)
+            ]
+            distance = point.get("distance", 0.1)
+            
+            return [{
+                "type": "vector_motion",
+                "distance": distance,
+                "direction": direction,
+                "frequency": point.get("frequency", 0.01)
+            }]
+        
+        # 4. 默认为普通运动点
         # 从 UI 字段名 (joint1-joint6) 构建角度列表
         target_angles = [
             point.get("joint1", 0.0),
@@ -279,7 +296,7 @@ class MotionPlanningApplicationService(QObject):
         return [{
             "type": "motion",
             "target_angles": target_angles,
-            "curve_type": "linear" if point.get("curve_type") == "直线" else "s_curve",
+            "curve_type": "linear" if curve_type == "直线" else "s_curve",
             "frequency": point.get("frequency", 0.01)
         }]
     

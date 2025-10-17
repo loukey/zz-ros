@@ -134,6 +134,10 @@ class MotionConstructor:
             # 示教轨迹
             return self._construct_teach(task, current_position)
             
+        elif task_type == "vector_motion":
+            # 向量直线运动
+            return self._construct_vector_motion(task, current_position)
+            
         elif task_type == "gripper":
             # 夹爪操作（不改变位置）
             self._construct_gripper(task)
@@ -225,6 +229,36 @@ class MotionConstructor:
         self.motion_runner.add_motion_data(all_positions)
         
         return teach_data[-1]
+    
+    def _construct_vector_motion(self, task: Dict, start_position: List[float]) -> List[float]:
+        """
+        构建向量直线运动任务
+        
+        使用 linear_motion_z_axis 方法，从当前位置沿指定方向移动指定距离
+        
+        Args:
+            task: 任务字典，包含 distance, direction, frequency
+            start_position: 起始位置
+            
+        Returns:
+            终点位置
+        """
+        distance = task["distance"]
+        direction = task["direction"]
+        frequency = task.get("frequency", 0.01)
+        
+        # 调用 linear_motion_z_axis，直接返回关节角度序列
+        positions = self.linear_motion_service.linear_motion_z_axis(
+            start_position=start_position,
+            distance=distance,
+            direction=direction
+        )
+        
+        # 添加到运动执行队列
+        self.motion_runner.add_motion_data(positions)
+        
+        # 返回终点关节角度（用于下一个任务的起点）
+        return positions[-1] if positions else start_position
     
     def _construct_gripper(self, task: Dict):
         """
