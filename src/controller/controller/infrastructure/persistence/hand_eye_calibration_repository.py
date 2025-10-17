@@ -6,19 +6,13 @@ import json
 import numpy as np
 from pathlib import Path
 from math import radians
+from ament_index_python.packages import get_package_share_directory
 from controller.domain.value_objects import (
     HandEyeCalibrationConfig,
     CameraIntrinsics,
     TargetOffset,
     EndEffectorAdjustment
 )
-
-# 尝试导入 ROS2 包查找工具
-try:
-    from ament_index_python.packages import get_package_share_directory
-    _HAS_AMENT_INDEX = True
-except ImportError:
-    _HAS_AMENT_INDEX = False
 
 
 class HandEyeCalibrationRepository:
@@ -38,20 +32,14 @@ class HandEyeCalibrationRepository:
         """
         if config_path is None:
             # 使用 ROS2 包资源管理方式查找配置文件
-            if _HAS_AMENT_INDEX:
-                try:
-                    # ROS2 方式：从 share 目录加载
-                    package_share_dir = get_package_share_directory('controller')
-                    config_path = Path(package_share_dir) / 'config' / 'hand_eye_calibration.json'
-                except Exception:
-                    # 如果包未安装，使用相对路径（开发模式）
-                    current_file = Path(__file__)
-                    controller_root = current_file.parent.parent.parent
-                    config_path = controller_root / "config" / "hand_eye_calibration.json"
-            else:
-                # 开发模式：相对路径
+            try:
+                # ROS2 方式：从 share 目录加载
+                package_share_dir = get_package_share_directory('controller')
+                config_path = Path(package_share_dir) / 'config' / 'hand_eye_calibration.json'
+            except Exception:
+                # 如果包未安装，使用相对路径（开发模式）
                 current_file = Path(__file__)
-                controller_root = current_file.parent.parent.parent  # infrastructure -> controller -> controller
+                controller_root = current_file.parent.parent.parent
                 config_path = controller_root / "config" / "hand_eye_calibration.json"
         
         self.config_path = Path(config_path)

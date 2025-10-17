@@ -143,7 +143,7 @@ class CameraApplicationService(QObject):
             self._display_message("无法获取当前机器人状态", "错误")
             return
         
-        current_joint_angles = current_state.joint_angles_rad
+        current_joint_angles = current_state.joint_angles  # ✅ 修复：正确的属性名（弧度）
         
         # 4. 手眼标定计算目标关节角度
         try:
@@ -168,13 +168,13 @@ class CameraApplicationService(QObject):
         motion_task = {
             'type': 'motion',
             'target_angles': target_angles,
-            'curve_type': 'S型',  # 或 '直线' 如果需要笛卡尔直线
+            'curve_type': 's_curve',  # 's_curve' 或 'linear'（笛卡尔直线）
             'frequency': 0.01
         }
         
         # 6. 准备运动并触发执行
         try:
-            self.motion_constructor.prepare_motion([motion_task])
+            self.motion_constructor.prepare_motion(motion_task)  # ✅ 修复：传入单个任务，不是列表
             self.command_hub.get_current_position()  # 触发运动执行
             
             self._display_message(
