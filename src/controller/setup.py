@@ -14,7 +14,7 @@ setup(
         ('share/' + package_name, ['package.xml']),
         # 安装配置文件到 share/controller/config/
         (os.path.join('share', package_name, 'config'), 
-         glob('controller/config/*.yaml')),
+         glob('controller/config/*.yaml') + glob('controller/config/*.json')),
     ],
     install_requires=['setuptools'],
     zip_safe=True,

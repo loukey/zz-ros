@@ -45,7 +45,7 @@ def register_domain_services(container: DIContainer) -> None:
     
     # 手眼标定配置（作为值对象注入）
     def create_hand_eye_config():
-        repo = container.resolve(HandEyeCalibrationRepository)
+        repo = resolve(HandEyeCalibrationRepository)
         return repo.load()
     
     container.register_singleton(HandEyeCalibrationConfig, create_hand_eye_config)

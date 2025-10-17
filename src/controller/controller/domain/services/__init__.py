@@ -9,7 +9,7 @@ Domain服务层
 - planning: 运动规划管理
 - vision: 视觉服务（摄像头、识别）
 """
-from .algorithm import KinematicDomainService, DynamicDomainService, SCurve, SmoothDomainService, LinearMotionDomainService
+from .algorithm import KinematicDomainService, DynamicDomainService, SCurve, SmoothDomainService, LinearMotionDomainService, HandEyeTransformDomainService
 from .motion import MotionRunner, MotionConstructor
 from .communication import SerialDomainService, MessageDomainService
 from .state import RobotStateDomainService, TeachRecordDomainService
@@ -23,6 +23,7 @@ __all__ = [
     'SCurve',
     'SmoothDomainService',
     'LinearMotionDomainService',
+    'HandEyeTransformDomainService',
     # Motion
     'MotionRunner',
     'MotionConstructor',
