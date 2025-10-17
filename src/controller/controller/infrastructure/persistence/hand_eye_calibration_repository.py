@@ -90,6 +90,7 @@ class HandEyeCalibrationRepository:
         # 解析末端姿态调整（角度转弧度）
         adjustment_data = data['end_effector_adjustment']
         end_effector_adjustment = EndEffectorAdjustment(
+            z_rotation=radians(adjustment_data['z_rotation_deg']),
             y_rotation=radians(adjustment_data['y_rotation_deg']),
             x_rotation=radians(adjustment_data['x_rotation_deg'])
         )
@@ -126,6 +127,7 @@ class HandEyeCalibrationRepository:
                 "comment": "相对于零件位置的偏移量（米）"
             },
             "end_effector_adjustment": {
+                "z_rotation_deg": np.degrees(config.end_effector_adjustment.z_rotation),
                 "y_rotation_deg": np.degrees(config.end_effector_adjustment.y_rotation),
                 "x_rotation_deg": np.degrees(config.end_effector_adjustment.x_rotation),
                 "comment": "末端姿态调整（角度）"

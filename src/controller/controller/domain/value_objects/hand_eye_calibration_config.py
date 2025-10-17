@@ -28,6 +28,7 @@ class TargetOffset:
 @dataclass(frozen=True)
 class EndEffectorAdjustment:
     """末端姿态调整（弧度）"""
+    z_rotation: float
     y_rotation: float
     x_rotation: float
 
