@@ -17,7 +17,7 @@ setup(
     maintainer_email='neu.ycl.za@gmail.com',
     description='TODO: Package description',
     license='TODO: License declaration',
-    tests_require=['pytest'],
+    extras_require={'test': ['pytest']},
     entry_points={
         'console_scripts': [
             'recognition_pub = recognition.recognition_pub:main',
