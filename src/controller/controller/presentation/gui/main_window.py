@@ -126,6 +126,9 @@ class MainWindow(QMainWindow):
         # 摄像头标签
         self._create_camera_tab()
         
+        # 工具标签
+        self._create_tools_tab()
+        
         parent.addWidget(left_widget)
     
     def _create_right_panel(self, parent):
@@ -233,6 +236,15 @@ class MainWindow(QMainWindow):
         )
         
         self.left_tab_widget.addTab(self.camera_widget, "摄像头")
+    
+    def _create_tools_tab(self):
+        """创建工具标签"""
+        tools_widget = ToolsComponent(
+            parent=self.left_tab_widget,
+            view_model=self.view_model.tools_vm
+        )
+        
+        self.left_tab_widget.addTab(tools_widget, "工具")
     
     def _create_menu_bar(self):
         """创建菜单栏"""

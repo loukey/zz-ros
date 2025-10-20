@@ -11,6 +11,7 @@ from .view_models import (
     DynamicsViewModel,
     CameraViewModel,
     MotionPlanningViewModel,
+    ToolsViewModel,
 )
 
 from .components import *
@@ -27,4 +28,5 @@ __all__ = [
     "DynamicsViewModel",
     "CameraViewModel",
     "MotionPlanningViewModel",
+    "ToolsViewModel",
 ] 

@@ -10,6 +10,7 @@ from .trajectory_view_model import TrajectoryViewModel
 from .dynamics_view_model import DynamicsViewModel
 from .camera_view_model import CameraViewModel
 from .motion_planning_view_model import MotionPlanningViewModel
+from .tools_view_model import ToolsViewModel
 
 __all__ = [
     'BaseViewModel',
@@ -23,4 +24,5 @@ __all__ = [
     'DynamicsViewModel',
     'CameraViewModel',
     'MotionPlanningViewModel',
+    'ToolsViewModel',
 ]

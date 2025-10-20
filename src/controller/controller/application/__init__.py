@@ -4,7 +4,8 @@ from .services import (
     CommandHubService, 
     MessageResponseService,
     MotionPlanningApplicationService,
-    CameraApplicationService
+    CameraApplicationService,
+    ToolsApplicationService
 )
 from .commands import MessageDisplay
 from .listener import MotionListener
@@ -15,6 +16,7 @@ __all__ = [
     'MessageResponseService',
     'MotionPlanningApplicationService',
     'CameraApplicationService',
+    'ToolsApplicationService',
     'MessageDisplay', 
     'MotionListener'
 ] 

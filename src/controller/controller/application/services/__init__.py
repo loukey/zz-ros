@@ -5,6 +5,7 @@ from .command_hub_service import CommandHubService
 from .message_response_service import MessageResponseService
 from .motion_planning_application_service import MotionPlanningApplicationService
 from .camera_application_service import CameraApplicationService
+from .tools_application_service import ToolsApplicationService
 
 __all__ = [
     'SerialApplicationService',
@@ -12,4 +13,5 @@ __all__ = [
     'MessageResponseService',
     'MotionPlanningApplicationService',
     'CameraApplicationService',
+    'ToolsApplicationService',
 ]     

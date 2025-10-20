@@ -21,6 +21,9 @@ from .camera.camera_components import CameraFrame, CameraDisplayWidget
 # Dynamics tab
 from .dynamics.dynamics_components import DynamicsFrame
 
+# Tools tab
+from .tools.tools_components import ToolsComponent
+
 # Right display panel
 from .display.data_display import DataDisplayFrame
 
@@ -47,6 +50,8 @@ __all__ = [
     "CameraDisplayWidget",
     # Dynamics
     "DynamicsFrame",
+    # Tools
+    "ToolsComponent",
     # Display
     "DataDisplayFrame",
     # Settings

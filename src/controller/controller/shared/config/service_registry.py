@@ -64,6 +64,8 @@ def register_application_services(container: DIContainer) -> None:
     container.register_singleton(MotionPlanningApplicationService)
     # 摄像头应用服务
     container.register_singleton(CameraApplicationService)
+    # 工具应用服务
+    container.register_singleton(ToolsApplicationService)
 
 def register_presentation_services(container: DIContainer) -> None:
     """注册Presentation层服务"""
@@ -80,6 +82,8 @@ def register_presentation_services(container: DIContainer) -> None:
     container.register_singleton(CameraViewModel)
     # 运动规划ViewModel
     container.register_singleton(MotionPlanningViewModel)
+    # 工具ViewModel
+    container.register_singleton(ToolsViewModel)
     container.register_singleton(MainViewModel)
 
 def configure_services() -> DIContainer:
