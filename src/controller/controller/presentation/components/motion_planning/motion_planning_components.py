@@ -655,7 +655,7 @@ class MotionPointDialog(QDialog):
         
         # 曲线类型选择
         self.curve_type_combo = QComboBox()
-        self.curve_type_combo.addItems(["S曲线", "直线", "向量"])
+        self.curve_type_combo.addItems(["S曲线", "直线", "向量", "曲线"])
         self.curve_type_combo.currentTextChanged.connect(self._on_curve_type_changed)
         form_layout.addRow("曲线类型:", self.curve_type_combo)
         
@@ -697,6 +697,61 @@ class MotionPointDialog(QDialog):
         
         self.vector_params_widget.setVisible(False)
         form_layout.addRow(self.vector_params_widget)
+        
+        # 曲线运动参数容器（默认隐藏）
+        self.curve_params_widget = QWidget()
+        curve_layout = QFormLayout(self.curve_params_widget)
+        
+        # 中间点1 - X
+        self.mid_point1_x_spin = QDoubleSpinBox()
+        self.mid_point1_x_spin.setRange(-2.0, 2.0)
+        self.mid_point1_x_spin.setDecimals(4)
+        self.mid_point1_x_spin.setSingleStep(0.01)
+        self.mid_point1_x_spin.setValue(0.0)
+        curve_layout.addRow("中间点1-X(m):", self.mid_point1_x_spin)
+        
+        # 中间点1 - Y
+        self.mid_point1_y_spin = QDoubleSpinBox()
+        self.mid_point1_y_spin.setRange(-2.0, 2.0)
+        self.mid_point1_y_spin.setDecimals(4)
+        self.mid_point1_y_spin.setSingleStep(0.01)
+        self.mid_point1_y_spin.setValue(0.0)
+        curve_layout.addRow("中间点1-Y(m):", self.mid_point1_y_spin)
+        
+        # 中间点1 - Z
+        self.mid_point1_z_spin = QDoubleSpinBox()
+        self.mid_point1_z_spin.setRange(-2.0, 2.0)
+        self.mid_point1_z_spin.setDecimals(4)
+        self.mid_point1_z_spin.setSingleStep(0.01)
+        self.mid_point1_z_spin.setValue(0.0)
+        curve_layout.addRow("中间点1-Z(m):", self.mid_point1_z_spin)
+        
+        # 中间点2 - X
+        self.mid_point2_x_spin = QDoubleSpinBox()
+        self.mid_point2_x_spin.setRange(-2.0, 2.0)
+        self.mid_point2_x_spin.setDecimals(4)
+        self.mid_point2_x_spin.setSingleStep(0.01)
+        self.mid_point2_x_spin.setValue(0.0)
+        curve_layout.addRow("中间点2-X(m):", self.mid_point2_x_spin)
+        
+        # 中间点2 - Y
+        self.mid_point2_y_spin = QDoubleSpinBox()
+        self.mid_point2_y_spin.setRange(-2.0, 2.0)
+        self.mid_point2_y_spin.setDecimals(4)
+        self.mid_point2_y_spin.setSingleStep(0.01)
+        self.mid_point2_y_spin.setValue(0.0)
+        curve_layout.addRow("中间点2-Y(m):", self.mid_point2_y_spin)
+        
+        # 中间点2 - Z
+        self.mid_point2_z_spin = QDoubleSpinBox()
+        self.mid_point2_z_spin.setRange(-2.0, 2.0)
+        self.mid_point2_z_spin.setDecimals(4)
+        self.mid_point2_z_spin.setSingleStep(0.01)
+        self.mid_point2_z_spin.setValue(0.0)
+        curve_layout.addRow("中间点2-Z(m):", self.mid_point2_z_spin)
+        
+        self.curve_params_widget.setVisible(False)
+        form_layout.addRow(self.curve_params_widget)
         
         # 夹爪命令选择
         self.gripper_command_combo = QComboBox()
@@ -748,9 +803,11 @@ class MotionPointDialog(QDialog):
         layout.addWidget(self.button_box)
     
     def _on_curve_type_changed(self, curve_type: str):
-        """曲线类型变化时，显示/隐藏向量参数"""
+        """曲线类型变化时，显示/隐藏向量参数和曲线参数"""
         is_vector = (curve_type == "向量")
+        is_curve = (curve_type == "曲线")
         self.vector_params_widget.setVisible(is_vector)
+        self.curve_params_widget.setVisible(is_curve)
     
     def fill_data(self, data):
         """使用提供的数据填充界面"""
@@ -786,6 +843,21 @@ class MotionPointDialog(QDialog):
                 self.direction_y_spin.setValue(data["direction_y"])
             if "direction_z" in data:
                 self.direction_z_spin.setValue(data["direction_z"])
+        
+        # 填充曲线参数
+        if data.get("curve_type") == "曲线":
+            if "mid_point1_x" in data:
+                self.mid_point1_x_spin.setValue(data["mid_point1_x"])
+            if "mid_point1_y" in data:
+                self.mid_point1_y_spin.setValue(data["mid_point1_y"])
+            if "mid_point1_z" in data:
+                self.mid_point1_z_spin.setValue(data["mid_point1_z"])
+            if "mid_point2_x" in data:
+                self.mid_point2_x_spin.setValue(data["mid_point2_x"])
+            if "mid_point2_y" in data:
+                self.mid_point2_y_spin.setValue(data["mid_point2_y"])
+            if "mid_point2_z" in data:
+                self.mid_point2_z_spin.setValue(data["mid_point2_z"])
         
         # 填充夹爪命令
         if "gripper_command" in data:
@@ -827,6 +899,15 @@ class MotionPointDialog(QDialog):
             data["direction_x"] = self.direction_x_spin.value()
             data["direction_y"] = self.direction_y_spin.value()
             data["direction_z"] = self.direction_z_spin.value()
+        
+        # 如果是曲线类型，添加曲线参数
+        if data["curve_type"] == "曲线":
+            data["mid_point1_x"] = self.mid_point1_x_spin.value()
+            data["mid_point1_y"] = self.mid_point1_y_spin.value()
+            data["mid_point1_z"] = self.mid_point1_z_spin.value()
+            data["mid_point2_x"] = self.mid_point2_x_spin.value()
+            data["mid_point2_y"] = self.mid_point2_y_spin.value()
+            data["mid_point2_z"] = self.mid_point2_z_spin.value()
         
         # 获取夹爪命令
         data["gripper_command"] = self.gripper_command_combo.currentText()

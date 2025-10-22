@@ -1,5 +1,4 @@
-from functools import reduce
-from math import atan2, acos, sin, cos, pi, sqrt
+from math import pi
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 import toppra as ta
@@ -8,216 +7,23 @@ import toppra.algorithm as algo
 import matplotlib.pyplot as plt
 from scipy.interpolate import CubicSpline
 from scipy.interpolate import interp1d
-class KinematicUtils:
-
-    @staticmethod
-    def dh2rm(a, alpha, d, theta):
-        c_theta = cos(theta)
-        s_theta = sin(theta)
-        c_alpha = cos(alpha)
-        s_alpha = sin(alpha)
-
-        return np.array([
-            [c_theta, -s_theta, 0, a],
-            [s_theta * c_alpha, c_theta * c_alpha, -s_alpha, -s_alpha * d],
-            [s_theta * s_alpha, c_theta * s_alpha, c_alpha, c_alpha * d],
-            [0, 0, 0, 1]
-        ], dtype=np.float64)
-
-    @staticmethod
-    def rm2quat(rm):
-        return R.from_matrix(rm).as_quat()
-
-    @staticmethod
-    def quat2rm(quat):
-        return R.from_quat(quat).as_matrix()
-
-    @staticmethod
-    def quat2euler(quat):
-        return R.from_quat(quat).as_euler('xyz', degrees=False)
-
-    @staticmethod
-    def euler2quat(euler):
-        return R.from_euler('xyz', euler, degrees=False).as_quat()
-
-    @staticmethod
-    def euler2rm(euler):
-        return R.from_euler('xyz', euler, degrees=False).as_matrix()
-
-    @staticmethod
-    def rm2euler(rm):
-        return R.from_matrix(rm).as_euler('xyz', degrees=False)
-
-    @staticmethod
-    def normalize_angle(angle):
-        return (angle + pi) % (2 * pi) - pi
-
-
-class KinematicDomainService:
-    def __init__(self):
-        self.kinematic_dh = np.array([
-            [0.0, 0.0, 0.0, 0.0],
-            [0.0, -pi / 2, 0.0, -pi / 2],
-            [0.425, pi, 0.0, 0.0],
-            [0.401, pi, 0.0856, pi / 2],
-            [0.0, pi / 2, 0.086, 0.0],
-            [0.0, -pi / 2, 0.231, 0.0]
-        ], dtype=float)
-        self.kinematic_utils = KinematicUtils()
-        self.gripper2base = self.get_gripper2base(self.kinematic_dh[:, 3])
-
-    def get_kinematic_dh(self):
-        return self.kinematic_dh
-
-    def get_gripper2base(self, theta_list=None):
-        if theta_list is not None:
-            self.kinematic_dh[:, 3] = theta_list
-            rm_list = []
-            for dh in self.kinematic_dh:
-                rm_list.append(self.kinematic_utils.dh2rm(*dh))
-            self.gripper2base = reduce(lambda x, y: x @ y, rm_list, np.eye(4))
-        quat = R.from_matrix(self.gripper2base[:3, :3]).as_quat()
-        return quat, self.gripper2base[:3, 3]
-
-    def normalize_angle(self, angle):
-        return (angle + pi) % (2 * pi) - pi
-
-    def inverse_kinematic(self, rm, pos, initial_theta=None):
-        if not initial_theta:
-            initial_theta = self.kinematic_dh[:, 3]
-        valid_solutions = []
-        # rotation matrix
-        nx, ny, nz = rm[:, 0]
-        ox, oy, oz = rm[:, 1]
-        ax, ay, az = rm[:, 2]
-        px, py, pz = pos
-
-        # DH参数
-        a3 = 0.425
-        a4 = 0.401
-        d4 = 0.0856
-        d5 = 0.086
-        d6 = 0.231
-
-        # 添加奇异性判断
-        if abs(ax ** 2 + ay ** 2 - d4 ** 2) < 1e-6:
-            return valid_solutions
-
-        # theta1计算
-        m = ay * d6 - py
-        n = ax * d6 - px
-        try:
-            delta = m ** 2 + n ** 2 - d4 ** 2
-
-            if delta < 0:
-                return valid_solutions
-
-            theta1_0 = atan2(m, n) - atan2(-d4, sqrt(m ** 2 + n ** 2 - d4 ** 2))
-            theta1_1 = atan2(m, n) - atan2(-d4, -sqrt(m ** 2 + n ** 2 - d4 ** 2))
-            theta1_candidate = [theta1_0, theta1_1]
-
-        except Exception as e:
-            return valid_solutions
-
-        # theta5
-        for i, theta1 in enumerate(theta1_candidate):
-            s1 = sin(theta1)
-            c1 = cos(theta1)
-            # 修改theta5的计算方式
-            cos_theta5 = -s1 * ax + c1 * ay
-            if abs(cos_theta5) > 1:
-                cos_theta5 = 1 if cos_theta5 > 0 else -1
-
-            theta5_val = acos(cos_theta5)
-            theta5_candidate = [theta5_val, -theta5_val]
-
-            for j, theta5 in enumerate(theta5_candidate):
-                s5 = sin(theta5)
-                c5 = cos(theta5)
-
-                # theta6
-                if abs(s5) < 1e-6:
-                    # 腕部奇异性
-                    theta6 = initial_theta[5]
-                else:
-                    m1 = -s1 * nx + c1 * ny
-                    n1 = -s1 * ox + c1 * oy
-                    theta6 = atan2(-n1 / s5, m1 / s5)
-
-                # theta3
-                s6 = sin(theta6)
-                c6 = cos(theta6)
-                m2 = d5 * (s6 * (nx * c1 + ny * s1) + c6 * (ox * c1 + oy * s1)) - d6 * (
-                            ax * c1 + ay * s1) + px * c1 + py * s1
-                n2 = d5 * (oz * c6 + nz * s6) + pz - az * d6
-
-                # 计算到关节3的距离
-                r = sqrt(m2 ** 2 + n2 ** 2)
-
-                if r > (a3 + a4) * 1.2 or r < abs(a3 - a4) * 0.8:  # 进一步放宽工作空间限制
-                    continue
-                temp = (m2 ** 2 + n2 ** 2 - a3 ** 2 - a4 ** 2) / (2 * a3 * a4)
-                if abs(temp) > 1:
-                    temp = 1 if temp > 0 else -1
-                theta3_candidate = [acos(temp), -acos(temp)]
-
-                for k, theta3 in enumerate(theta3_candidate):
-                    # theta2
-                    s3 = sin(theta3)
-                    c3 = cos(theta3)
-                    # 修改theta2的计算方式
-                    k1 = a3 + a4 * c3
-                    k2 = a4 * s3
-                    s2 = (k1 * n2 - k2 * m2) / (k1 ** 2 + k2 ** 2)
-                    c2 = (k1 * m2 + k2 * n2) / (k1 ** 2 + k2 ** 2)
-                    theta2 = -atan2(s2, c2)
-
-                    # theta4
-                    if abs(s5) < 1e-6:
-                        # 在腕部奇异性时，使用更稳定的计算方式
-                        if initial_theta is not None:
-                            theta4_candidate = [initial_theta[3]]
-                        else:
-                            theta4_candidate = [initial_theta[3]]
-                    else:
-                        T01 = self.kinematic_utils.dh2rm(self.kinematic_dh[0, 0], self.kinematic_dh[0, 1],
-                                                         self.kinematic_dh[0, 2], theta1)
-                        T12 = self.kinematic_utils.dh2rm(self.kinematic_dh[1, 0], self.kinematic_dh[1, 1],
-                                                         self.kinematic_dh[1, 2], theta2)
-                        T23 = self.kinematic_utils.dh2rm(self.kinematic_dh[2, 0], self.kinematic_dh[2, 1],
-                                                         self.kinematic_dh[2, 2], theta3)
-                        R03 = (T01 @ T12 @ T23)[:3, :3]
-                        R36 = R03.T @ rm
-                        theta4 = atan2(R36[1, 2], R36[0, 2])
-                        theta4_candidate = [-theta4, pi - theta4]
-                    for theta4 in theta4_candidate:
-                        candidate = [theta1, theta2, theta3, theta4, theta5, theta6]
-                        if self.verify_solution(candidate, (px, py, pz)):
-                            valid_solutions.append(candidate)
-
-        if not valid_solutions:
-            raise ValueError("No valid solutions found")
-        valid_solutions = [
-            [self.kinematic_utils.normalize_angle(a) for a in sol] for sol in valid_solutions
-        ]
-        final_solution = min(valid_solutions, key=lambda sol: np.linalg.norm(np.array(sol) - np.array(initial_theta)))
-        return final_solution
-
-    def verify_solution(self, theta_list, target_pos):
-        self.get_gripper2base(theta_list)
-        current_pos = self.gripper2base[:3, 3]
-        error = np.linalg.norm(current_pos - target_pos)
-
-        return error < 1e-5
+from .kinematic_domain_service import KinematicDomainService
 
 
 class CurveMotionDomainService:
-    def __init__(self, v_max=[pi / 4] * 6, a_max=[pi / 8] * 6, j_max=[pi / 16] * 6, dt=0.01):
+    def __init__(
+        self, 
+        kinematic_solver: KinematicDomainService,
+        v_max=[pi / 4] * 6, 
+        a_max=[pi / 8] * 6, 
+        j_max=[pi / 16] * 6, 
+        dt=0.01,
+    ):
         self.v_max = np.asarray(v_max, dtype=float)
         self.a_max = np.asarray(a_max, dtype=float)
         self.j_max = np.asarray(j_max, dtype=float)
         self.dt = float(dt)
-        self.kinematic_solver = KinematicDomainService()
+        self.kinematic_solver = kinematic_solver
         self.nearest_position = None
 
     def clamp(self, x, low, high):
@@ -263,11 +69,21 @@ class CurveMotionDomainService:
         t_list, positions, qd, qdd = self.smooth(quat_list, pos_list, n_seg)
         return t_list, positions, qd, qdd
 
-    def make_pos_fun_spline(self, points: np.ndarray, bc_type="natural"):
+    def make_pos_fun_spline(
+        self, 
+        start_position,
+        end_position,
+        mid_points, 
+        bc_type="natural"):
         """
         points: (N,3) 或 (N,2) 控制点，按轨迹顺序排列
         返回:  pos_fun(u)  支持 u 标量或一维数组，定义域 [0,1]
         """
+        _, start_pos = self.kinematic_solver.get_gripper2base(start_position)
+        _, end_pos = self.kinematic_solver.get_gripper2base(end_position)
+        print(start_pos, end_pos)
+        print(mid_points)
+        points = np.vstack([start_pos, mid_points, end_pos])
         P = np.asarray(points, dtype=float)
         if P.ndim != 2 or P.shape[0] < 2 or P.shape[1] not in (2, 3):
             raise ValueError("points 形状必须是 (N,3) 或 (N,2)，且 N>=2")
@@ -393,7 +209,6 @@ class CurveMotionDomainService:
         quat_list = np.array(quat_list)
         for quat, pos in zip(quat_list, pos_list):
             position = self.inverse_kinematic(quat, pos)
-            print(position)
             positions.append(position)
 
         
@@ -484,44 +299,4 @@ class CurveMotionDomainService:
         qd = jnt_traj.evald(t)
         qdd = jnt_traj.evaldd(t)
         return t.tolist(), q.tolist(), qd.tolist(), qdd.tolist()
-
-
-start_position = [1.39,
-                  -0.85,
-                  -1.34,
-                  -0.49,
-                  -1.26,
-                  1.57
-                  ]
-
-end_position = [-0.38,
-                -1.34,
-                -2.01,
-                -0.7,
-                -0.63,
-                -1.53
-                ]
-start_pos = [-0.000093, 0.868412, 0.216573]
-end_pos   = [0.607092, 0.050687, 0.254759]
-mid_points = np.array([
-    [0.1, 0.5, 0.23],
-    [0.5,0.05,0.24]
-])
-way_pts = np.vstack([start_pos, mid_points, end_pos])
-curve_motion_domain_service = CurveMotionDomainService()
-pos_fun,s = curve_motion_domain_service.make_pos_fun_spline(way_pts, bc_type="natural")
-
-
-t_list, positions, qd, qdd = curve_motion_domain_service.curve_motion(
-    pos_fun=pos_fun, 
-    u0=0, 
-    u1=1, 
-    start_position=start_position, 
-    end_position=end_position, 
-    ds = 0.002, 
-    include_end=True,
-    orientation_mode = "slerp", 
-    tool_axis = "z", 
-    up_hint= np.array([0, 0, 1.0]))
-
 

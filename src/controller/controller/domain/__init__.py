@@ -15,6 +15,7 @@ from .services import (
     SCurve, 
     SmoothDomainService,
     LinearMotionDomainService,
+    CurveMotionDomainService,
     SerialDomainService, 
     MotionRunner, 
     MotionConstructor, 
@@ -54,5 +55,6 @@ __all__ = [
         'CameraDomainService',
         'RecognitionDomainService',
         'HandEyeTransformDomainService',
+        'CurveMotionDomainService',
         'MotionPlan',
         ]

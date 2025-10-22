@@ -4,6 +4,7 @@ from .trajectory_domain_service import SCurve
 from .smooth_domain_service import SmoothDomainService
 from .linear_motion_domain_service import LinearMotionDomainService
 from .hand_eye_transform_domain_service import HandEyeTransformDomainService
+from .curve_motion import CurveMotionDomainService
 
 __all__ = [
     'KinematicDomainService',
@@ -12,4 +13,5 @@ __all__ = [
     'SmoothDomainService',
     'LinearMotionDomainService',
     'HandEyeTransformDomainService',
+    'CurveMotionDomainService',
 ]

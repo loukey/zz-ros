@@ -30,6 +30,7 @@ def register_domain_services(container: DIContainer) -> None:
     # 运动学和轨迹规划服务
     container.register_singleton(KinematicDomainService)
     container.register_singleton(LinearMotionDomainService)  # 依赖 KinematicDomainService
+    container.register_singleton(CurveMotionDomainService)  # 依赖 KinematicDomainService
     container.register_singleton(MotionConstructor)  # 会自动注入 SmoothDomainService 和 LinearMotionDomainService
     # 机械臂状态服务
     container.register_singleton(RobotStateDomainService)

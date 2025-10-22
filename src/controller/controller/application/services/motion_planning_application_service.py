@@ -282,7 +282,40 @@ class MotionPlanningApplicationService(QObject):
                 "frequency": point.get("frequency", 0.01)
             }]
         
-        # 4. 默认为普通运动点
+        # 4. 判断是否为曲线运动节点
+        if curve_type == "曲线":
+            # 提取中间点坐标
+            mid_points = [
+                [
+                    point.get("mid_point1_x", 0.0),
+                    point.get("mid_point1_y", 0.0),
+                    point.get("mid_point1_z", 0.0)
+                ],
+                [
+                    point.get("mid_point2_x", 0.0),
+                    point.get("mid_point2_y", 0.0),
+                    point.get("mid_point2_z", 0.0)
+                ]
+            ]
+            
+            # 提取终点位置（关节角度）
+            target_angles = [
+                point.get("joint1", 0.0),
+                point.get("joint2", 0.0),
+                point.get("joint3", 0.0),
+                point.get("joint4", 0.0),
+                point.get("joint5", 0.0),
+                point.get("joint6", 0.0)
+            ]
+            
+            return [{
+                "type": "curve_motion",
+                "target_position": target_angles,
+                "mid_points": mid_points,
+                "frequency": point.get("frequency", 0.01)
+            }]
+        
+        # 5. 默认为普通运动点
         # 从 UI 字段名 (joint1-joint6) 构建角度列表
         target_angles = [
             point.get("joint1", 0.0),
