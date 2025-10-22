@@ -1,7 +1,7 @@
 from .motion_runner import MotionRunner
 from ..algorithm import SCurve, SmoothDomainService, LinearMotionDomainService
 from typing import List, Dict
-
+import numpy as np
 
 class MotionConstructor:
     """
@@ -163,10 +163,49 @@ class MotionConstructor:
         
         if curve_type == "linear":
             # 直线运动规划
-            positions = self.linear_motion_service.linear_motion(
-                start_position, 
-                end_position
-            )
+            # positions = self.linear_motion_service.linear_motion(
+            #     start_position, 
+            #     end_position
+            # )
+
+            start_position = [1.39,
+                    -0.85,
+                    -1.34,
+                    -0.49,
+                    -1.26,
+                    1.57
+                    ]
+
+            end_position = [-0.38,
+                            -1.34,
+                            -2.01,
+                            -0.7,
+                            -0.63,
+                            -1.53
+                            ]
+            start_pos = [-0.000093, 0.868412, 0.216573]
+            end_pos   = [0.607092, 0.050687, 0.254759]
+            mid_points = np.array([
+                [0.1, 0.5, 0.23],
+                [0.5,0.05,0.24]
+            ])
+            way_pts = np.vstack([start_pos, mid_points, end_pos])
+            curve_motion_domain_service = CurveMotionDomainService()
+            pos_fun,s = curve_motion_domain_service.make_pos_fun_spline(way_pts, bc_type="natural")
+
+
+            positions = curve_motion_domain_service.curve_motion(
+                pos_fun=pos_fun, 
+                u0=0, 
+                u1=1, 
+                start_position=start_position, 
+                end_position=end_position, 
+                ds = 0.002, 
+                include_end=True,
+                orientation_mode = "slerp", 
+                tool_axis = "z", 
+                up_hint= np.array([0, 0, 1.0]))
+
         else:
             # S曲线运动规划（默认）
             # 使用关键字参数 dt 指定采样时间间隔，v_start 使用默认值 [0]*6
