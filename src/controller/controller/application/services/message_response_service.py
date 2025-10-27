@@ -58,7 +58,9 @@ class MessageResponseService(BaseService):
         self.message_buffer += message_in
         if "0D0A" in self.message_buffer:
             self._display_message(self.message_buffer,"接收")
-            lines = self.message_buffer.split("0D0A")            
+            if self.message_buffer.startswith("AA55") and len(self.message_buffer) < 120:
+                return
+            lines = self.message_buffer.rsplit("0D0A", 1)            
             self.message_buffer = lines[-1]
             command_line = lines[0]
             self._display_message(command_line, "接收")
