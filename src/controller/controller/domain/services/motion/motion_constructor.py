@@ -1,7 +1,9 @@
 from .motion_runner import MotionRunner
 from ..algorithm import SCurve, SmoothDomainService, LinearMotionDomainService, CurveMotionDomainService
 from typing import List, Dict
+from scipy.interpolate import interp1d
 import numpy as np
+from math import pi
 
 class MotionConstructor:
     """
@@ -206,7 +208,7 @@ class MotionConstructor:
             终点位置（示教数据的最后一个点）
         """
         teach_data = task["teach_data"]
-        
+        end_position = teach_data[-1]
         # 检查示教数据是否为空
         if not teach_data or len(teach_data) == 0:
             return start_position  # 位置不变
@@ -220,17 +222,23 @@ class MotionConstructor:
         )
         
         # 对示教数据进行平滑处理
-        smoothed_positions = self.smooth_service.smooth_trajectory(
+        smoothed_positions = self.smooth_service.teach_smooth(
             teach_data,
-            method="spline_savgol",
-            upsample=5,
-            sg_window=211,
-            sg_poly=3
+            target_first_point,
+            end_position,
+            step = 0.5,
+            eps = 1e-6            
         )
         
+        toppra_positions = self.smooth_service.toppra_smooth(
+            smoothed_positions,
+            v_max = [pi/4] * 6,
+            a_max = [pi/8] * 6,
+            dt = 0.01
+        )
         # 合并轨迹
         all_positions = initial_positions.tolist()
-        all_positions.extend(smoothed_positions)
+        all_positions.extend(toppra_positions)
         
         # 添加到运动执行队列
         self.motion_runner.add_motion_data(all_positions)
@@ -297,13 +305,13 @@ class MotionConstructor:
         pos_fun,s = self.curve_motion_service.make_pos_fun_spline(start_position, end_position, mid_points, bc_type="natural")
 
 
-        positions = self.curve_motion_service.curve_motion(
+        _, positions, _, _, = self.curve_motion_service.curve_motion(
             pos_fun=pos_fun, 
             u0=0, 
             u1=1, 
             start_position=start_position, 
             end_position=end_position, 
-            ds = 0.002, 
+            ds = 0.02, 
             include_end=True,
             orientation_mode = "slerp", 
             tool_axis = "z", 
