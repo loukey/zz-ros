@@ -81,8 +81,6 @@ class CurveMotionDomainService:
         """
         _, start_pos = self.kinematic_solver.get_gripper2base(start_position)
         _, end_pos = self.kinematic_solver.get_gripper2base(end_position)
-        print(start_pos, end_pos)
-        print(mid_points)
         points = np.vstack([start_pos, mid_points, end_pos])
         P = np.asarray(points, dtype=float)
         if P.ndim != 2 or P.shape[0] < 2 or P.shape[1] not in (2, 3):
@@ -211,7 +209,6 @@ class CurveMotionDomainService:
             position = self.inverse_kinematic(quat, pos)
             positions.append(position)
 
-        print(positions)
         positions = np.array(positions)
         # todo: 基于这个positions列表，规划rucking smooth
         q_wp = self.ensure_2d_array(positions)

@@ -3,6 +3,7 @@
 """
 from PyQt5.QtCore import QObject, pyqtSignal
 from controller.domain import MotionPlanningDomainService, MotionPlan, MotionConstructor
+from controller.domain.value_objects.motion_operation_mode import MotionOperationMode
 from controller.infrastructure import MotionPlanRepository
 from .command_hub_service import CommandHubService
 from .message_response_service import MessageResponseService
@@ -26,6 +27,7 @@ class MotionPlanningApplicationService(QObject):
     current_plan_changed = pyqtSignal(int)  # 当前方案切换
     point_list_changed = pyqtSignal()  # 节点列表变化
     current_position_received = pyqtSignal(list)  # 当前位置数据（弧度值）
+    trajectory_preview_signal = pyqtSignal(dict, dict)  # 轨迹预览数据（轨迹数据，上下文）
     
     # 夹爪命令映射表：从字符串转为 effector_mode
     GRIPPER_MODE_MAP = {
@@ -57,6 +59,11 @@ class MotionPlanningApplicationService(QObject):
         # 连接MessageResponse的位置数据信号
         self.message_response.get_current_position_signal.connect(
             self.current_position_received.emit
+        )
+        
+        # 连接MessageResponse的轨迹预览信号
+        self.message_response.trajectory_preview_signal.connect(
+            self.trajectory_preview_signal.emit
         )
         
         self._load_data()
@@ -172,22 +179,22 @@ class MotionPlanningApplicationService(QObject):
         
         流程：
         1. 获取节点数据
-        2. 解析为任务列表（可能包含运动+夹爪）
-        3. 准备运动任务序列
+        2. 解析为任务列表
+        3. 准备执行操作
         4. 查询当前位置
         
         Args:
             index: 节点索引
         """
-        point = self.get_single_point(index)
-        if not point:
+        tasks = self._get_node_tasks(index)
+        if not tasks:
             return
         
-        # 解析节点数据为任务列表
-        tasks_list = self._parse_point_to_tasks(point)
-        
-        # 准备运动任务序列
-        self.motion_constructor.prepare_motion_sequence(tasks_list)
+        # 准备执行操作
+        self.motion_constructor.prepare_operation(
+            MotionOperationMode.EXECUTE,
+            tasks
+        )
         
         # 查询当前位置，触发执行
         self.command_hub.get_current_position()
@@ -197,25 +204,19 @@ class MotionPlanningApplicationService(QObject):
         执行整个运动规划方案
         
         流程：
-        1. 获取当前方案的所有节点
-        2. 逐个解析为任务列表（每个节点可能生成1-2个任务）
-        3. 展平所有任务
-        4. 批量准备运动序列
-        5. 查询当前位置，触发执行
+        1. 获取所有节点的任务
+        2. 准备执行操作
+        3. 查询当前位置，触发执行
         """
-        points = self.domain_service.get_all_points()
-        
-        if not points:
+        tasks = self._get_plan_tasks()
+        if not tasks:
             return
         
-        # 解析所有节点为任务列表
-        tasks_list = []
-        for point in points:
-            point_tasks = self._parse_point_to_tasks(point)
-            tasks_list.extend(point_tasks)  # 展平
-        
-        # 批量准备运动序列
-        self.motion_constructor.prepare_motion_sequence(tasks_list)
+        # 准备执行操作
+        self.motion_constructor.prepare_operation(
+            MotionOperationMode.EXECUTE,
+            tasks
+        )
         
         # 查询当前位置，触发执行
         self.command_hub.run_motion_sequence()
@@ -353,10 +354,200 @@ class MotionPlanningApplicationService(QObject):
         
         流程：
         1. 发送 0x07 命令查询位置
-        2. 串口返回数据后，MessageResponseService 检查 has_pending_motion()
-        3. 因为没有调用 prepare_motion，所以 has_pending_motion() 为 False
+        2. 串口返回数据后，MessageResponseService 检查 has_pending_operation()
+        3. 因为没有调用 prepare_operation，所以返回 False
         4. MessageResponseService emit get_current_position_signal
         5. 本Service转发信号给ViewModel
         """
         self.command_hub.single_send_command(control=0x07)
+    
+    # ========== 保存轨迹功能 ==========
+    
+    def save_node_trajectory(self, node_index: int) -> bool:
+        """
+        保存单个节点的轨迹
+        
+        流程：
+        1. 获取节点任务
+        2. 准备保存操作
+        3. 查询当前位置
+        4. MessageResponseService 自动完成保存
+        
+        Args:
+            node_index: 节点索引
+            
+        Returns:
+            True: 准备成功
+            False: 准备失败
+        """
+        try:
+            tasks = self._get_node_tasks(node_index)
+            if not tasks:
+                return False
+            
+            current_plan = self.domain_service.get_current_plan()
+            if not current_plan:
+                return False
+            
+            context = {
+                "filename": f"{current_plan.name}-{node_index}",
+                "type": "node"
+            }
+            
+            self.motion_constructor.prepare_operation(
+                MotionOperationMode.SAVE,
+                tasks,
+                context
+            )
+            
+            self.command_hub.get_current_position()
+            return True
+        except Exception:
+            return False
+    
+    def save_plan_trajectory(self) -> bool:
+        """
+        保存整个方案的轨迹
+        
+        流程：
+        1. 获取方案所有任务
+        2. 准备保存操作
+        3. 查询当前位置
+        4. MessageResponseService 自动完成保存
+        
+        Returns:
+            True: 准备成功
+            False: 准备失败
+        """
+        try:
+            tasks = self._get_plan_tasks()
+            if not tasks:
+                return False
+            
+            current_plan = self.domain_service.get_current_plan()
+            if not current_plan:
+                return False
+            
+            context = {
+                "filename": current_plan.name,
+                "type": "plan"
+            }
+            
+            self.motion_constructor.prepare_operation(
+                MotionOperationMode.SAVE,
+                tasks,
+                context
+            )
+            
+            self.command_hub.get_current_position()
+            return True
+        except Exception:
+            return False
+    
+    # ========== 预览轨迹功能 ==========
+    
+    def preview_node_trajectory(self, node_index: int) -> bool:
+        """
+        预览单个节点的轨迹曲线
+        
+        流程：
+        1. 获取节点任务
+        2. 准备预览操作
+        3. 查询当前位置
+        4. MessageResponseService 自动发射预览信号
+        
+        Args:
+            node_index: 节点索引
+            
+        Returns:
+            True: 准备成功
+            False: 准备失败
+        """
+        try:
+            tasks = self._get_node_tasks(node_index)
+            if not tasks:
+                return False
+            
+            context = {
+                "type": "node",
+                "node_index": node_index
+            }
+            
+            self.motion_constructor.prepare_operation(
+                MotionOperationMode.PREVIEW,
+                tasks,
+                context
+            )
+            
+            self.command_hub.get_current_position()
+            return True
+        except Exception:
+            return False
+    
+    def preview_plan_trajectory(self) -> bool:
+        """
+        预览整个方案的轨迹曲线
+        
+        流程：
+        1. 获取方案所有任务
+        2. 准备预览操作
+        3. 查询当前位置
+        4. MessageResponseService 自动发射预览信号
+        
+        Returns:
+            True: 准备成功
+            False: 准备失败
+        """
+        try:
+            tasks = self._get_plan_tasks()
+            if not tasks:
+                return False
+            
+            context = {"type": "plan"}
+            
+            self.motion_constructor.prepare_operation(
+                MotionOperationMode.PREVIEW,
+                tasks,
+                context
+            )
+            
+            self.command_hub.get_current_position()
+            return True
+        except Exception:
+            return False
+    
+    # ========== 辅助方法 ==========
+    
+    def _get_node_tasks(self, node_index: int) -> List[Dict]:
+        """
+        获取节点的任务列表（复用逻辑）
+        
+        Args:
+            node_index: 节点索引
+            
+        Returns:
+            任务列表
+        """
+        point = self.get_single_point(node_index)
+        if not point:
+            return []
+        return self._parse_point_to_tasks(point)
+    
+    def _get_plan_tasks(self) -> List[Dict]:
+        """
+        获取方案的所有任务列表（复用逻辑）
+        
+        Returns:
+            任务列表
+        """
+        points = self.domain_service.get_all_points()
+        if not points:
+            return []
+        
+        all_tasks = []
+        for point in points:
+            tasks = self._parse_point_to_tasks(point)
+            all_tasks.extend(tasks)
+        
+        return all_tasks
 

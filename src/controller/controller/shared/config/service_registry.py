@@ -17,6 +17,8 @@ def register_infrastructure_services(container: DIContainer) -> None:
     container.register_singleton(MotionPlanRepository)
     # 手眼标定配置仓库
     container.register_singleton(HandEyeCalibrationRepository)
+    # 轨迹数据仓库
+    container.register_singleton(TrajectoryRepository)
 
 def register_domain_services(container: DIContainer) -> None:
     """注册Domain层服务"""
@@ -31,7 +33,12 @@ def register_domain_services(container: DIContainer) -> None:
     container.register_singleton(KinematicDomainService)
     container.register_singleton(LinearMotionDomainService)  # 依赖 KinematicDomainService
     container.register_singleton(CurveMotionDomainService)  # 依赖 KinematicDomainService
-    container.register_singleton(MotionConstructor)  # 会自动注入 SmoothDomainService 和 LinearMotionDomainService
+    # S曲线算法
+    container.register_singleton(SCurve)
+    # 轨迹规划服务（依赖 SCurve, SmoothDomainService, LinearMotionDomainService, CurveMotionDomainService）
+    container.register_singleton(TrajectoryPlanningService)
+    # 运动构造器（依赖 MotionRunner, TrajectoryPlanningService）
+    container.register_singleton(MotionConstructor)
     # 机械臂状态服务
     container.register_singleton(RobotStateDomainService)
     # 动力学服务

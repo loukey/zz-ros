@@ -1,2 +1,3 @@
 from .motion_runner import MotionRunner
 from .motion_constructor import MotionConstructor
+from .trajectory_planning_service import TrajectoryPlanningService

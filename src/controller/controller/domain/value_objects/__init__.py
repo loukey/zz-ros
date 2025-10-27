@@ -6,6 +6,7 @@ from .hand_eye_calibration_config import (
     TargetOffset,
     EndEffectorAdjustment
 )
+from .motion_operation_mode import MotionOperationMode
 
 __all__ = [
     'DHParam',
@@ -13,5 +14,6 @@ __all__ = [
     'HandEyeCalibrationConfig',
     'CameraIntrinsics',
     'TargetOffset',
-    'EndEffectorAdjustment'
+    'EndEffectorAdjustment',
+    'MotionOperationMode'
 ]

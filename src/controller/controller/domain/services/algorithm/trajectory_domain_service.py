@@ -139,7 +139,8 @@ class SCurve():
             velocities = np.zeros((num_samples, 6))
             accelerations = np.zeros((num_samples, 6))
             positions = np.copy(start_angles).reshape((num_samples, 6))
-            return times, velocities, accelerations, positions
+            # 保持与其他返回路径一致的顺序：times, accelerations, velocities, positions
+            return times, accelerations, velocities, positions
         max_displacement_idx = np.argmax(abs_displacements)
         max_displacement = abs_displacements[max_displacement_idx]
         a_max = self.acc_max[max_displacement_idx]

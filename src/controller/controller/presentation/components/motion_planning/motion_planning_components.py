@@ -8,6 +8,7 @@ from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
                             QButtonGroup, QInputDialog)
 from PyQt5.QtCore import Qt, pyqtSignal
 from ..base_component import BaseComponent
+from .trajectory_plot_dialog import TrajectoryPlotDialog
 import math
 
 
@@ -37,6 +38,11 @@ class MotionPlanningFrame(BaseComponent):
             # ViewModel响应 → UI显示
             self.view_model.current_position_received.connect(
                 self.set_current_position
+            )
+            
+            # 连接"轨迹预览"信号
+            self.view_model.trajectory_preview_signal.connect(
+                self.show_trajectory_plot
             )
     
     def setup_ui(self):
@@ -71,7 +77,7 @@ class MotionPlanningFrame(BaseComponent):
         self.motion_table = MotionPlanningTable(self)
         layout.addWidget(self.motion_table)
         
-        # ========== 3. 操作按钮区 ==========
+        # ========== 3. 操作按钮区（第一行） ==========
         button_layout = QHBoxLayout()
         
         # 添加关节点按钮
@@ -116,8 +122,36 @@ class MotionPlanningFrame(BaseComponent):
         self.run_btn.clicked.connect(self.run_motion_plan)
         button_layout.addWidget(self.run_btn)
         
-        # 添加按钮布局
+        # 添加第一行按钮布局
         layout.addLayout(button_layout)
+        
+        # ========== 4. 轨迹操作按钮区（第二行） ==========
+        button_layout2 = QHBoxLayout()
+        
+        # 保存节点轨迹按钮
+        self.save_node_btn = QPushButton("保存节点轨迹")
+        self.save_node_btn.clicked.connect(self.save_node_trajectory)
+        button_layout2.addWidget(self.save_node_btn)
+        
+        # 保存方案轨迹按钮
+        self.save_plan_btn = QPushButton("保存方案轨迹")
+        self.save_plan_btn.clicked.connect(self.save_plan_trajectory)
+        button_layout2.addWidget(self.save_plan_btn)
+        
+        # 显示节点曲线按钮
+        self.preview_node_btn = QPushButton("显示节点曲线")
+        self.preview_node_btn.clicked.connect(self.preview_node_trajectory)
+        button_layout2.addWidget(self.preview_node_btn)
+        
+        # 显示方案曲线按钮
+        self.preview_plan_btn = QPushButton("显示方案曲线")
+        self.preview_plan_btn.clicked.connect(self.preview_plan_trajectory)
+        button_layout2.addWidget(self.preview_plan_btn)
+        
+        button_layout2.addStretch()
+        
+        # 添加第二行按钮布局
+        layout.addLayout(button_layout2)
         
         # ========== 初始化加载 ==========
         self.refresh_plan_list()
@@ -332,6 +366,122 @@ class MotionPlanningFrame(BaseComponent):
         
         # 调用 ViewModel 的执行方法
         self.view_model.execute_single_point(current_row)
+    
+    # ========== 保存轨迹功能 ==========
+    
+    def save_node_trajectory(self):
+        """保存选中节点的轨迹"""
+        if not self.view_model:
+            return
+        
+        current_row = self.motion_table.currentRow()
+        if current_row < 0:
+            QMessageBox.warning(self, "警告", "请先选择要保存的节点")
+            return
+        
+        # 调用 ViewModel 的保存方法
+        success = self.view_model.save_node_trajectory(current_row)
+        
+        if success:
+            QMessageBox.information(
+                self,
+                "提示",
+                "正在获取当前位置并保存轨迹...\n请查看消息显示区域查看保存结果"
+            )
+        else:
+            QMessageBox.warning(self, "错误", "准备保存失败，请检查节点数据")
+    
+    def save_plan_trajectory(self):
+        """保存整个方案的轨迹"""
+        if not self.view_model:
+            return
+        
+        motion_data = self.view_model.get_all_points()
+        if not motion_data:
+            QMessageBox.warning(self, "警告", "当前方案没有运动节点")
+            return
+        
+        # 确认对话框
+        reply = QMessageBox.question(
+            self,
+            "确认保存",
+            "是否保存整个方案的轨迹？",
+            QMessageBox.Yes | QMessageBox.No
+        )
+        
+        if reply == QMessageBox.Yes:
+            success = self.view_model.save_plan_trajectory()
+            
+            if success:
+                QMessageBox.information(
+                    self,
+                    "提示",
+                    "正在获取当前位置并保存轨迹...\n请查看消息显示区域查看保存结果"
+                )
+            else:
+                QMessageBox.warning(self, "错误", "准备保存失败，请检查方案数据")
+    
+    # ========== 预览轨迹功能 ==========
+    
+    def preview_node_trajectory(self):
+        """显示选中节点的轨迹曲线"""
+        if not self.view_model:
+            return
+        
+        current_row = self.motion_table.currentRow()
+        if current_row < 0:
+            QMessageBox.warning(self, "警告", "请先选择要预览的节点")
+            return
+        
+        # 调用 ViewModel 的预览方法
+        success = self.view_model.preview_node_trajectory(current_row)
+        
+        if success:
+            QMessageBox.information(
+                self,
+                "提示",
+                "正在获取当前位置并生成轨迹曲线...\n请稍候"
+            )
+        else:
+            QMessageBox.warning(self, "错误", "准备预览失败，请检查节点数据")
+    
+    def preview_plan_trajectory(self):
+        """显示整个方案的轨迹曲线"""
+        if not self.view_model:
+            return
+        
+        motion_data = self.view_model.get_all_points()
+        if not motion_data:
+            QMessageBox.warning(self, "警告", "当前方案没有运动节点")
+            return
+        
+        # 调用 ViewModel 的预览方法
+        success = self.view_model.preview_plan_trajectory()
+        
+        if success:
+            QMessageBox.information(
+                self,
+                "提示",
+                "正在获取当前位置并生成轨迹曲线...\n请稍候"
+            )
+        else:
+            QMessageBox.warning(self, "错误", "准备预览失败，请检查方案数据")
+    
+    def show_trajectory_plot(self, trajectory_data: dict, context: dict):
+        """
+        显示轨迹曲线对话框
+        
+        Args:
+            trajectory_data: 轨迹数据 {
+                "time": [...],
+                "positions": [[...], ...],
+                "velocities": [[...], ...],
+                "accelerations": [[...], ...]
+            }
+            context: 上下文信息 {"type": "node|plan", ...}
+        """
+        dialog = TrajectoryPlotDialog(self, trajectory_data, context)
+        dialog.exec_()
     
     def refresh_point_list(self):
         """刷新节点列表"""

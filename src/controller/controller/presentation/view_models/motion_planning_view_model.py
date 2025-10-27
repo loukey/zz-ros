@@ -26,6 +26,7 @@ class MotionPlanningViewModel(QObject):
     current_plan_changed = pyqtSignal(int)
     point_list_changed = pyqtSignal()
     current_position_received = pyqtSignal(list)  # 当前位置数据（弧度值）
+    trajectory_preview_signal = pyqtSignal(dict, dict)  # 轨迹预览数据（轨迹数据，上下文）
     
     def __init__(
         self, 
@@ -41,6 +42,7 @@ class MotionPlanningViewModel(QObject):
         self.app_service.current_plan_changed.connect(self.current_plan_changed.emit)
         self.app_service.point_list_changed.connect(self.point_list_changed.emit)
         self.app_service.current_position_received.connect(self.current_position_received.emit)
+        self.app_service.trajectory_preview_signal.connect(self.trajectory_preview_signal.emit)
     
     # ========== 方案操作 ==========
     
@@ -125,4 +127,54 @@ class MotionPlanningViewModel(QObject):
         委托给Application Service处理
         """
         self.app_service.request_current_position()
+    
+    # ========== 保存轨迹功能 ==========
+    
+    def save_node_trajectory(self, node_index: int) -> bool:
+        """
+        保存单个节点的轨迹
+        
+        Args:
+            node_index: 节点索引
+            
+        Returns:
+            True: 准备成功
+            False: 准备失败
+        """
+        return self.app_service.save_node_trajectory(node_index)
+    
+    def save_plan_trajectory(self) -> bool:
+        """
+        保存整个方案的轨迹
+        
+        Returns:
+            True: 准备成功
+            False: 准备失败
+        """
+        return self.app_service.save_plan_trajectory()
+    
+    # ========== 预览轨迹功能 ==========
+    
+    def preview_node_trajectory(self, node_index: int) -> bool:
+        """
+        预览单个节点的轨迹曲线
+        
+        Args:
+            node_index: 节点索引
+            
+        Returns:
+            True: 准备成功
+            False: 准备失败
+        """
+        return self.app_service.preview_node_trajectory(node_index)
+    
+    def preview_plan_trajectory(self) -> bool:
+        """
+        预览整个方案的轨迹曲线
+        
+        Returns:
+            True: 准备成功
+            False: 准备失败
+        """
+        return self.app_service.preview_plan_trajectory()
 
