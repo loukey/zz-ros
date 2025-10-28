@@ -186,7 +186,7 @@ class TrajectoryPlanningService:
         
         if curve_type == "linear":
             # 直线运动规划
-            positions = self.linear_motion_service.linear_motion(
+            _, positions, _, _ = self.linear_motion_service.linear_motion(
                 start_position, 
                 end_position
             )
@@ -243,7 +243,7 @@ class TrajectoryPlanningService:
         distance = task["distance"]
         direction = task["direction"]
         
-        positions = self.linear_motion_service.linear_motion_z_axis(
+        _, positions, _, _ = self.linear_motion_service.linear_motion_z_axis(
             start_position=start_position,
             distance=distance,
             direction=direction
@@ -290,15 +290,11 @@ class TrajectoryPlanningService:
         
         if curve_type == "linear":
             # 直线运动：只有位置，没有速度加速度数据
-            positions = self.linear_motion_service.linear_motion(
+            time, positions, velocities, accelerations = self.linear_motion_service.linear_motion(
                 start_position, 
                 end_position
             )
-            # 估算时间
-            time = [i * 0.01 for i in range(len(positions))]
-            # 速度和加速度为零
-            velocities = [[0.0] * 6 for _ in positions]
-            accelerations = [[0.0] * 6 for _ in positions]
+
         else:
             # S曲线运动规划
             # 注意：s_curve.planning 返回顺序是 times, accelerations, velocities, positions
@@ -307,11 +303,11 @@ class TrajectoryPlanningService:
                 end_position,
                 dt=frequency
             )
-            # 确保转换为列表
-            time = time if isinstance(time, list) else time.tolist() if hasattr(time, 'tolist') else list(time)
-            positions = positions if isinstance(positions, list) else positions.tolist() if hasattr(positions, 'tolist') else list(positions)
-            velocities = velocities if isinstance(velocities, list) else velocities.tolist() if hasattr(velocities, 'tolist') else list(velocities)
-            accelerations = accelerations if isinstance(accelerations, list) else accelerations.tolist() if hasattr(accelerations, 'tolist') else list(accelerations)
+        # 确保转换为列表
+        time = time if isinstance(time, list) else time.tolist() if hasattr(time, 'tolist') else list(time)
+        positions = positions if isinstance(positions, list) else positions.tolist() if hasattr(positions, 'tolist') else list(positions)
+        velocities = velocities if isinstance(velocities, list) else velocities.tolist() if hasattr(velocities, 'tolist') else list(velocities)
+        accelerations = accelerations if isinstance(accelerations, list) else accelerations.tolist() if hasattr(accelerations, 'tolist') else list(accelerations)
         
         return {
             "time": time,
@@ -378,18 +374,17 @@ class TrajectoryPlanningService:
         distance = task["distance"]
         direction = task["direction"]
         
-        positions = self.linear_motion_service.linear_motion_z_axis(
+        time, positions, velocities, accelerations = self.linear_motion_service.linear_motion_z_axis(
             start_position=start_position,
             distance=distance,
             direction=direction
         )
-        
-        # 生成时间序列
-        time = [i * 0.01 for i in range(len(positions))]
-        
-        # 速度和加速度为零（简化）
-        velocities = [[0.0] * 6 for _ in positions]
-        accelerations = [[0.0] * 6 for _ in positions]
+
+        # 确保转换为列表
+        time = time if isinstance(time, list) else time.tolist() if hasattr(time, 'tolist') else list(time)
+        positions = positions if isinstance(positions, list) else positions.tolist() if hasattr(positions, 'tolist') else list(positions)
+        velocities = velocities if isinstance(velocities, list) else velocities.tolist() if hasattr(velocities, 'tolist') else list(velocities)
+        accelerations = accelerations if isinstance(accelerations, list) else accelerations.tolist() if hasattr(accelerations, 'tolist') else list(accelerations)
         
         return {
             "time": time,
