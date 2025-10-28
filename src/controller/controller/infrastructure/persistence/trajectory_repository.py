@@ -56,6 +56,37 @@ class TrajectoryRepository:
         with open(filepath, 'r', encoding='utf-8') as f:
             return json.load(f)
     
+    def list_trajectory_files(self) -> List[str]:
+        """
+        列出所有可用的轨迹文件
+        
+        Returns:
+            文件名列表（不带扩展名）
+            例如: ["默认方案-0", "默认方案-1", "test_trajectory"]
+        """
+        if not self.plans_dir.exists():
+            return []
+        
+        files = []
+        for file in self.plans_dir.glob("*.json"):
+            files.append(file.stem)  # 文件名不带扩展名
+        
+        return sorted(files)
+    
+    def trajectory_exists(self, filename: str) -> bool:
+        """
+        检查轨迹文件是否存在
+        
+        Args:
+            filename: 文件名（不含扩展名）
+            
+        Returns:
+            True: 文件存在
+            False: 文件不存在
+        """
+        filepath = self.plans_dir / f"{filename}.json"
+        return filepath.exists()
+    
     def _sanitize_filename(self, name: str) -> str:
         """
         清理文件名中的非法字符

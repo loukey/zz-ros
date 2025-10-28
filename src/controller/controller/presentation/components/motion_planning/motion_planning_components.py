@@ -90,6 +90,11 @@ class MotionPlanningFrame(BaseComponent):
         self.load_teach_btn.clicked.connect(self.load_teach_record)
         button_layout.addWidget(self.load_teach_btn)
         
+        # 加载本地轨迹按钮
+        self.load_trajectory_btn = QPushButton("加载本地轨迹")
+        self.load_trajectory_btn.clicked.connect(self.load_local_trajectory)
+        button_layout.addWidget(self.load_trajectory_btn)
+        
         # 删除选中点按钮
         self.delete_point_btn = QPushButton("删除节点")
         self.delete_point_btn.clicked.connect(self.delete_motion_point)
@@ -341,6 +346,33 @@ class MotionPlanningFrame(BaseComponent):
             self.view_model.add_point(point_data)
             QMessageBox.information(self, "成功", f"已加载示教记录：{record_name}")
     
+    def load_local_trajectory(self):
+        """从 plans 目录加载本地轨迹文件"""
+        if not self.view_model:
+            return
+        
+        # 使用文件选择对话框
+        from PyQt5.QtWidgets import QFileDialog
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "选择轨迹文件",
+            "./plans",  # 默认目录
+            "轨迹文件 (*.json);;所有文件 (*)"
+        )
+        
+        if not file_path:
+            return
+        
+        # 加载文件
+        success = self.view_model.load_local_trajectory(file_path)
+        
+        if success:
+            from pathlib import Path
+            filename = Path(file_path).stem
+            QMessageBox.information(self, "成功", f"已加载轨迹文件：{filename}")
+        else:
+            QMessageBox.warning(self, "失败", "轨迹加载失败，请检查文件格式")
+    
     def run_motion_plan(self):
         """执行整个运动方案"""
         if not self.view_model:
@@ -564,35 +596,35 @@ class MotionPlanningTable(QTableWidget):
         self.setAlternatingRowColors(True)
         self.setEditTriggers(QTableWidget.NoEditTriggers)  # 禁止直接编辑单元格
         
-        # 设置列宽
+        # 设置列宽（用户可以手动调整）
         header = self.horizontalHeader()
         
-        # 设置固定宽度的列
-        self.setColumnWidth(0, 80)   # 模式列
-        header.setSectionResizeMode(0, QHeaderView.Fixed)
+        # 设置初始列宽，并允许用户手动调整
+        self.setColumnWidth(0, 180)   # 模式列
+        header.setSectionResizeMode(0, QHeaderView.Interactive)
         
-        # 关节角度列 - 使用适中的固定宽度
+        # 关节角度列
         for i in range(1, 7):
             self.setColumnWidth(i, 100)
-            header.setSectionResizeMode(i, QHeaderView.Fixed)
+            header.setSectionResizeMode(i, QHeaderView.Interactive)
         
         # 频率列
         self.setColumnWidth(7, 80)
-        header.setSectionResizeMode(7, QHeaderView.Fixed)
+        header.setSectionResizeMode(7, QHeaderView.Interactive)
         
         # 曲线类型列
         self.setColumnWidth(8, 100)
-        header.setSectionResizeMode(8, QHeaderView.Fixed)
+        header.setSectionResizeMode(8, QHeaderView.Interactive)
         
-        # 夹爪命令列 - 需要更宽以显示完整命令
+        # 夹爪命令列
         self.setColumnWidth(9, 180)
-        header.setSectionResizeMode(9, QHeaderView.Fixed)
+        header.setSectionResizeMode(9, QHeaderView.Interactive)
         
         # 夹爪参数列
         self.setColumnWidth(10, 100)
-        header.setSectionResizeMode(10, QHeaderView.Fixed)
+        header.setSectionResizeMode(10, QHeaderView.Interactive)
         
-        # 备注列 - 自适应剩余空间
+        # 备注列 - 自适应剩余空间（也可手动调整）
         header.setSectionResizeMode(11, QHeaderView.Stretch)
         
         # 连接双击信号

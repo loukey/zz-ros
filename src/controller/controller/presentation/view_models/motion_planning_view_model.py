@@ -177,4 +177,28 @@ class MotionPlanningViewModel(QObject):
             False: 准备失败
         """
         return self.app_service.preview_plan_trajectory()
+    
+    # ========== 加载本地轨迹功能 ==========
+    
+    def load_local_trajectory(self, file_path: str) -> bool:
+        """
+        从 plans 目录加载轨迹文件
+        
+        Args:
+            file_path: 轨迹文件的完整路径或文件名
+        
+        Returns:
+            True: 加载成功
+            False: 加载失败
+        """
+        return self.app_service.load_local_trajectory(file_path)
+    
+    def get_local_trajectory_files(self) -> List[str]:
+        """
+        获取所有可用的本地轨迹文件
+        
+        Returns:
+            文件名列表（不带扩展名）
+        """
+        return self.app_service.get_local_trajectory_files()
 

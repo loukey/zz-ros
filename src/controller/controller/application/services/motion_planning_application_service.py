@@ -4,10 +4,11 @@
 from PyQt5.QtCore import QObject, pyqtSignal
 from controller.domain import MotionPlanningDomainService, MotionPlan, MotionConstructor
 from controller.domain.value_objects.motion_operation_mode import MotionOperationMode
-from controller.infrastructure import MotionPlanRepository
+from controller.infrastructure import MotionPlanRepository, TrajectoryRepository
 from .command_hub_service import CommandHubService
 from .message_response_service import MessageResponseService
-from typing import List, Dict
+from typing import List, Dict, Any
+from pathlib import Path
 
 
 class MotionPlanningApplicationService(QObject):
@@ -47,7 +48,8 @@ class MotionPlanningApplicationService(QObject):
         repository: MotionPlanRepository,
         motion_constructor: MotionConstructor,
         command_hub: CommandHubService,
-        message_response: MessageResponseService
+        message_response: MessageResponseService,
+        trajectory_repository: TrajectoryRepository
     ):
         super().__init__()
         self.domain_service = domain_service
@@ -55,6 +57,7 @@ class MotionPlanningApplicationService(QObject):
         self.motion_constructor = motion_constructor
         self.command_hub = command_hub
         self.message_response = message_response
+        self.trajectory_repository = trajectory_repository
         
         # 连接MessageResponse的位置数据信号
         self.message_response.get_current_position_signal.connect(
@@ -550,4 +553,93 @@ class MotionPlanningApplicationService(QObject):
             all_tasks.extend(tasks)
         
         return all_tasks
+    
+    # ========== 加载本地轨迹功能 ==========
+    
+    def load_local_trajectory(self, file_path: str) -> bool:
+        """
+        从 plans 目录加载轨迹文件，作为示教节点添加
+        
+        Args:
+            file_path: 轨迹文件的完整路径或文件名
+        
+        Returns:
+            True: 加载成功
+            False: 加载失败
+        """
+        try:
+            # 1. 提取文件名（不带路径和扩展名）
+            file_stem = Path(file_path).stem
+            
+            # 2. 从 TrajectoryRepository 加载
+            trajectory_data = self.trajectory_repository.load_trajectory(file_stem)
+            
+            # 3. 验证数据
+            if not self._validate_trajectory_data(trajectory_data):
+                return False
+            
+            # 4. 创建示教节点数据（复用示教模式的格式）
+            point_data = {
+                "mode": f"示教-{file_stem}",
+                "joint1": 0.0,
+                "joint2": 0.0,
+                "joint3": 0.0,
+                "joint4": 0.0,
+                "joint5": 0.0,
+                "joint6": 0.0,
+                "frequency": 0.01,
+                "curve_type": "S曲线",
+                "gripper_command": "00: 不进行任何操作",
+                "gripper_param": 0.0,
+                "note": f"本地轨迹，共{len(trajectory_data)}个点",
+                "teach_record_name": file_stem,
+                "teach_data": trajectory_data,
+                "source": "local_trajectory"  # 标记来源
+            }
+            
+            # 5. 添加节点
+            self.domain_service.add_point(point_data)
+            self._save_data()  # 持久化保存
+            self.point_list_changed.emit()
+            return True
+            
+        except Exception:
+            return False
+    
+    def get_local_trajectory_files(self) -> List[str]:
+        """
+        获取所有可用的本地轨迹文件
+        
+        Returns:
+            文件名列表（不带扩展名）
+        """
+        return self.trajectory_repository.list_trajectory_files()
+    
+    def _validate_trajectory_data(self, data: Any) -> bool:
+        """
+        验证轨迹数据格式
+        
+        要求：
+        - 列表类型
+        - 至少2个点
+        - 每个点是长度为6的列表
+        - 所有值都是数字
+        
+        Args:
+            data: 待验证的数据
+        
+        Returns:
+            True: 数据有效
+            False: 数据无效
+        """
+        if not isinstance(data, list) or len(data) < 2:
+            return False
+        
+        for point in data:
+            if not isinstance(point, list) or len(point) != 6:
+                return False
+            if not all(isinstance(x, (int, float)) for x in point):
+                return False
+        
+        return True
 
