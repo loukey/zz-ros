@@ -168,7 +168,7 @@ class LinearMotionDomainService:
     v_max: np.ndarray | float,
     a_max: np.ndarray | float,
     dt: float = 0.01,
-    grid_n: int = 400,
+    grid_n: int = 400
     ):
         waypoints = np.asarray(waypoints, dtype=float)
         if waypoints.ndim != 2 or waypoints.shape[1] != 6 or waypoints.shape[0] < 2:

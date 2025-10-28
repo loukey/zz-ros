@@ -120,66 +120,53 @@ class SmoothDomainService:
         
         return resampled.tolist()
     
-    def toppra_smooth(
-        self,
-        angles_list: List[List[float]],
-        v_max: List[float] = [pi/4] * 6,
-        a_max: List[float] = [pi/8] * 6,
-        dt: float = 0.01
-    ) -> List[List[float]]:
-        """
-        TOPPRA 时间参数化平滑（参考旧版 RuckigSmooth）
-        
-        使用时间最优路径参数化算法
-        
-        Args:
-            angles_list: 原始轨迹 N×6
-            v_max: 最大速度限制（关节空间）
-            a_max: 最大加速度限制（关节空间）
-            dt: 采样时间间隔
-        
-        Returns:
-            平滑后的轨迹列表
-        """
-        
-        arr = np.asarray(angles_list, dtype=float)
-        N = len(arr)
-        
-        if N < 2:
-            return angles_list
-        
-        try:
-            # 1. 构造路径（使用归一化参数 s）
-            path = ta.SplineInterpolator(
-                np.linspace(0, 1, N),  # 路径参数 s
-                arr                    # 关节角度
-            )
-            
-            # 2. 定义约束
-            pc_vel = ta_constraint.JointVelocityConstraint(v_max)
-            pc_acc = ta_constraint.JointAccelerationConstraint(a_max)
-            
-            # 3. 计算时间参数化
-            instance = ta_algo.TOPPRA(
-                [pc_vel, pc_acc],
-                path,
-                parametrizer="ParametrizeConstAccel"
-            )
-            
-            jnt_traj = instance.compute_trajectory()
-            
-            if jnt_traj is None:
-                return angles_list
-            
-            # 4. 采样轨迹
-            duration = jnt_traj.duration
-            ts_sample = np.arange(0, duration, dt)
-            qs_sample = jnt_traj(ts_sample)
-            
-            return qs_sample.tolist()
-        
-        except Exception as e:
-            return angles_list
+    def toppra_smooth(self,
+        waypoints: np.ndarray,
+        v_max: np.ndarray | float,
+        a_max: np.ndarray | float,
+        dt: float = 0.01,
+        grid_n: int = 400
+    ):
+        waypoints = np.asarray(waypoints, dtype=float)
+        if waypoints.ndim != 2 or waypoints.shape[1] != 6 or waypoints.shape[0] < 2:
+            raise ValueError("waypoints 必须是 (N,6) 且 N>=2")
+
+        dof = waypoints.shape[1]
+
+        # 1) 几何路径：用样条在路径参数 s∈[0,1] 上插值
+        breaks = np.linspace(0.0, 1.0, waypoints.shape[0])
+        path = ta.SplineInterpolator(breaks, waypoints)  # 官方示例同款 API
+
+        # 2) 速度/加速度约束（上下界格式）
+        v_max = np.full(dof, float(v_max)) if np.isscalar(v_max) else np.asarray(v_max, dtype=float)
+        a_max = np.full(dof, float(a_max)) if np.isscalar(a_max) else np.asarray(a_max, dtype=float)
+        if v_max.shape != (dof,) or a_max.shape != (dof,):
+            raise ValueError("v_max/a_max 需为标量或 shape=(6,)")
+
+        v_bounds = np.column_stack((-np.abs(v_max), np.abs(v_max)))  # (2,6) -> [v_min; v_max]
+        a_bounds = np.column_stack((-np.abs(a_max), np.abs(a_max)))  # (2,6) -> [a_min; a_max]
+
+        pc_vel = constraint.JointVelocityConstraint(v_bounds)
+        pc_acc = constraint.JointAccelerationConstraint(a_bounds)
+
+        # 3) TOPPRA 主算法 + 常用参数化器（常用且满足边界/约束）
+        gridpoints = np.linspace(0, path.duration, int(grid_n))
+        instance = algo.TOPPRA([pc_vel, pc_acc], path, gridpoints=gridpoints, parametrizer="ParametrizeConstAccel")
+ 
+        # 4) 求解时间参数化，得到可按时间采样的 jnt_traj
+        jnt_traj = instance.compute_trajectory(sd_start=0.0, sd_end=0.0)
+        if jnt_traj is None:
+            raise RuntimeError("TOPPRA 求解失败：给定约束下不可行，或路径异常。")
+
+        # 5) 按 dt 采样
+        T = float(jnt_traj.duration)
+        M = max(2, int(np.ceil(T / dt)) + 1)
+        t = np.linspace(0.0, T, M)
+
+        q   = jnt_traj.eval(t)
+        qd  = jnt_traj.evald(t)
+        qdd = jnt_traj.evaldd(t)
+        return q.tolist()
 
     def remove_redundant_points(self, q_teach: List[List[float]], eps: float = 1e-4) -> List[List[float]]:
             """
