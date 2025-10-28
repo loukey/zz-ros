@@ -229,7 +229,8 @@ class TrajectoryPlanningService:
             smoothed_positions,
             v_max=[pi/4] * 6,
             a_max=[pi/8] * 6,
-            dt=0.01
+            dt = 0.01,
+            grid_n = 400
         )
         
         # 合并轨迹
