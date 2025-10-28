@@ -92,7 +92,7 @@ class LinearMotionDomainService:
 
         # 兼容两种四元数顺序：若最后一项绝对值最大，视为 [x,y,z,w]，转成 [w,x,y,z]
         q0=start_quat
-        q1=q0
+        q1=end_quat
         q0 = np.asarray(q0, dtype=float).reshape(4)
         q1 = np.asarray(q1, dtype=float).reshape(4)
         # if np.argmax(np.abs(q0)) == 3:  # 可能是 [x,y,z,w]
@@ -168,7 +168,7 @@ class LinearMotionDomainService:
     v_max: np.ndarray | float,
     a_max: np.ndarray | float,
     dt: float = 0.01,
-    grid_n: int = 400
+    grid_n: int = 800
     ):
         waypoints = np.asarray(waypoints, dtype=float)
         if waypoints.ndim != 2 or waypoints.shape[1] != 6 or waypoints.shape[0] < 2:

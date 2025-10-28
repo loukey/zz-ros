@@ -9,8 +9,8 @@ from scipy.interpolate import interp1d
 from typing import List, Tuple
 from math import pi
 import toppra as ta
-import toppra.constraint as ta_constraint
-import toppra.algorithm as ta_algo
+import toppra.constraint as constraint
+import toppra.algorithm as algo
 
 
 class SmoothDomainService:
@@ -125,7 +125,7 @@ class SmoothDomainService:
         v_max: np.ndarray | float,
         a_max: np.ndarray | float,
         dt: float = 0.01,
-        grid_n: int = 400
+        grid_n: int = 800
     ):
         waypoints = np.asarray(waypoints, dtype=float)
         if waypoints.ndim != 2 or waypoints.shape[1] != 6 or waypoints.shape[0] < 2:
