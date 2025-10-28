@@ -24,8 +24,8 @@ class LinearMotionDomainService:
         start_quat, start_pos = self.kinematic_solver.get_gripper2base(start_position)
         end_quat, end_pos = self.kinematic_solver.get_gripper2base(end_position)
         quat_list, pos_list, n_seg = self.sampling(start_quat, start_pos, end_quat, end_pos)
-        positions = self.smooth(quat_list, pos_list, n_seg)
-        return positions
+        t_list, positions, qd, qdd = self.smooth(quat_list, pos_list, n_seg)
+        return t_list, positions, qd, qdd
 
     def linear_motion_z_axis(self, start_position, distance, direction, ds=0.002, include_end=True):
         
@@ -55,9 +55,9 @@ class LinearMotionDomainService:
         pos_list = p0[None, :] + t[:, None] * d[None, :]
         quat_list = np.repeat(q0[None, :], len(t), axis=0)
 
-        positions = self.smooth(quat_list, pos_list, n_seg)
+        t_list, positions, qd, qdd = self.smooth(quat_list, pos_list, n_seg)
 
-        return positions
+        return t_list, positions, qd, qdd
 
     def _q_slerp(self, q0, q1, t):
         """四元数最短弧 SLERP，t in [0,1]"""
@@ -128,7 +128,7 @@ class LinearMotionDomainService:
         q_wp = self.ensure_2d_array(positions)
         grid_n = self.clamp(6*n_seg,300,3000)    
         t_list, positions, qd, qdd= self.toppra_time_parameterize(q_wp, self.v_max, self.a_max, self.dt, grid_n)
-        return positions
+        return t_list, positions, qd, qdd
 
     def inverse_kinematic(self, quat, pos):
         rm = R.from_quat(quat).as_matrix()
@@ -207,6 +207,6 @@ class LinearMotionDomainService:
         t = np.linspace(0.0, T, M)
 
         q   = jnt_traj.eval(t)
-        qd  = jnt_traj.eval(t)
-        qdd = jnt_traj.eval(t)
+        qd  = jnt_traj.evald(t)
+        qdd = jnt_traj.evaldd(t)
         return t.tolist(), q.tolist(), qd.tolist(), qdd.tolist()
