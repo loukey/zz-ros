@@ -12,9 +12,10 @@ from controller.domain import (
     ImageDrawingUtils,
     HandEyeTransformDomainService,
     KinematicDomainService,
-    RobotStateDomainService
+    RobotStateDomainService,
+    MotionConstructor,
+    MotionOperationMode
 )
-from controller.domain import MotionConstructor
 from ..commands import MessageDisplay
 from .command_hub_service import CommandHubService
 
@@ -174,7 +175,11 @@ class CameraApplicationService(QObject):
         
         # 6. 准备运动并触发执行
         try:
-            self.motion_constructor.prepare_motion(motion_task)  # ✅ 修复：传入单个任务，不是列表
+            # 使用统一的 prepare_operation 接口
+            self.motion_constructor.prepare_operation(
+                MotionOperationMode.EXECUTE,
+                [motion_task]  # 需要传入任务列表
+            )
             self.command_hub.get_current_position()  # 触发运动执行
             
             self._display_message(

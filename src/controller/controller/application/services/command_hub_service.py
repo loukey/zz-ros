@@ -1,6 +1,12 @@
 from ..commands import MessageDisplay
 from .base_service import BaseService
-from controller.domain import MessageDomainService, MotionRunner, MotionConstructor, SerialDomainService
+from controller.domain import (
+    MessageDomainService, 
+    MotionRunner, 
+    MotionConstructor, 
+    SerialDomainService,
+    MotionOperationMode
+)
 
 
 class CommandHubService(BaseService):
@@ -73,7 +79,10 @@ class CommandHubService(BaseService):
                     "curve_type": "s_curve",
                     "frequency": 0.01
                 }
-                self.motion_constructor.prepare_motion(task)
+                self.motion_constructor.prepare_operation(
+                    MotionOperationMode.EXECUTE,
+                    [task]
+                )
                 self._display_message(f"准备运动到目标位置: {target_angles}", "控制")
                 self.get_current_position()
             
@@ -103,7 +112,10 @@ class CommandHubService(BaseService):
             "type": "teach",
             "teach_data": angles_list
         }
-        self.motion_constructor.prepare_motion(task)
+        self.motion_constructor.prepare_operation(
+            MotionOperationMode.EXECUTE,
+            [task]
+        )
         self._display_message(f"准备播放示教轨迹，共 {len(angles_list)} 个点", "示教")
         self.get_current_position()
     

@@ -5,7 +5,8 @@ from .value_objects import (
     HandEyeCalibrationConfig,
     CameraIntrinsics,
     TargetOffset,
-    EndEffectorAdjustment
+    EndEffectorAdjustment,
+    MotionOperationMode
 )
 from .utils import KinematicUtils, MessageEncoder, MessageDecoder, RobotUtils, ImageDrawingUtils
 from .services import (
@@ -36,6 +37,7 @@ __all__ = [
         'CameraIntrinsics',
         'TargetOffset',
         'EndEffectorAdjustment',
+        'MotionOperationMode',
         'KinematicUtils', 
         'MessageEncoder', 
         'MessageDecoder',

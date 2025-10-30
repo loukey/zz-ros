@@ -2,8 +2,12 @@
 运动规划应用服务
 """
 from PyQt5.QtCore import QObject, pyqtSignal
-from controller.domain import MotionPlanningDomainService, MotionPlan, MotionConstructor
-from controller.domain.value_objects.motion_operation_mode import MotionOperationMode
+from controller.domain import (
+    MotionPlanningDomainService, 
+    MotionPlan, 
+    MotionConstructor,
+    MotionOperationMode
+)
 from controller.infrastructure import MotionPlanRepository, TrajectoryRepository
 from .command_hub_service import CommandHubService
 from .message_response_service import MessageResponseService

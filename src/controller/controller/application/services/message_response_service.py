@@ -8,9 +8,9 @@ from controller.domain import (
     RobotStateDomainService, 
     MotionConstructor, 
     MotionRunner,
-    TrajectoryPlanningService
+    TrajectoryPlanningService,
+    MotionOperationMode
 )
-from controller.domain.value_objects.motion_operation_mode import MotionOperationMode
 from controller.infrastructure import TrajectoryRepository
 from .base_service import BaseService
 from ..commands import MessageDisplay

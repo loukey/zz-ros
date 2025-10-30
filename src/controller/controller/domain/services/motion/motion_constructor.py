@@ -2,10 +2,10 @@
 运动构造器 - Domain层
 协调轨迹规划和运动执行
 """
+from typing import List, Dict
 from .motion_runner import MotionRunner
 from .trajectory_planning_service import TrajectoryPlanningService
-from ...value_objects.motion_operation_mode import MotionOperationMode
-from typing import List, Dict
+from controller.domain import MotionOperationMode
 
 
 class MotionConstructor:
