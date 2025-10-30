@@ -14,11 +14,16 @@ class ToolsComponent(BaseComponent):
     
     def __init__(self, parent=None, view_model=None):
         super().__init__(parent, view_model)
+        # 保存当前的旋转矩阵和位置，用于逆解计算
+        self.current_rotation_matrix = None
+        self.current_position = None
     
     def connect_signals(self):
         """连接视图模型信号"""
         if self.view_model:
             self.view_model.calculation_result.connect(self.display_result)
+            self.view_model.current_angles_received.connect(self.fill_current_angles)
+            self.view_model.inverse_result.connect(self.display_inverse_result)
     
     def setup_ui(self):
         """设置UI"""
@@ -30,8 +35,11 @@ class ToolsComponent(BaseComponent):
         # 1. 输入区域
         self._create_input_section(layout)
         
-        # 2. 结果显示区域
+        # 2. 正运动学结果显示区域
         self._create_result_section(layout)
+        
+        # 3. 逆运动学区域
+        self._create_inverse_section(layout)
         
         layout.addStretch()
     
@@ -69,6 +77,11 @@ class ToolsComponent(BaseComponent):
         # 按钮行
         button_layout = QHBoxLayout()
         button_layout.addStretch()
+        
+        self.get_current_btn = QPushButton("获取当前位置")
+        self.get_current_btn.setMinimumWidth(120)
+        self.get_current_btn.clicked.connect(self.on_get_current_clicked)
+        button_layout.addWidget(self.get_current_btn)
         
         self.generate_btn = QPushButton("生成")
         self.generate_btn.setMinimumWidth(100)
@@ -177,6 +190,57 @@ class ToolsComponent(BaseComponent):
         group_box.setLayout(group_layout)
         layout.addWidget(group_box)
     
+    def _create_inverse_section(self, layout):
+        """创建逆运动学区域"""
+        group_box = QGroupBox("逆运动学求解")
+        group_layout = QVBoxLayout()
+        
+        # 说明文字
+        info_label = QLabel("根据上方显示的旋转矩阵和位置计算逆解")
+        info_label.setStyleSheet("QLabel { color: #666; font-size: 10pt; }")
+        group_layout.addWidget(info_label)
+        
+        # 按钮
+        button_layout = QHBoxLayout()
+        button_layout.addStretch()
+        
+        self.inverse_btn = QPushButton("生成逆解")
+        self.inverse_btn.setMinimumWidth(120)
+        self.inverse_btn.clicked.connect(self.on_inverse_clicked)
+        button_layout.addWidget(self.inverse_btn)
+        
+        group_layout.addLayout(button_layout)
+        
+        # 结果显示 - 使用网格布局显示6个关节角度
+        result_grid = QGridLayout()
+        result_grid.setSpacing(10)
+        
+        self.inverse_labels = []
+        for i in range(6):
+            label = QLabel(f"关节{i+1}:")
+            label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            
+            value_label = QLabel("--")
+            value_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+            value_label.setStyleSheet("QLabel { background-color: #f0f0f0; padding: 3px; }")
+            value_label.setMinimumWidth(150)
+            
+            row = i // 3
+            col = (i % 3) * 2
+            result_grid.addWidget(label, row, col)
+            result_grid.addWidget(value_label, row, col + 1)
+            
+            self.inverse_labels.append(value_label)
+        
+        group_layout.addLayout(result_grid)
+        group_box.setLayout(group_layout)
+        layout.addWidget(group_box)
+    
+    def on_get_current_clicked(self):
+        """获取当前位置按钮点击事件"""
+        if self.view_model:
+            self.view_model.get_current_position()
+    
     def on_generate_clicked(self):
         """生成按钮点击事件"""
         # 获取6个角度
@@ -234,3 +298,48 @@ class ToolsComponent(BaseComponent):
                 matrix_str += "\n"
         
         self.matrix_text.setText(matrix_str)
+        
+        # 保存当前的旋转矩阵和位置，供逆解使用
+        self.current_rotation_matrix = rm
+        self.current_position = pos
+    
+    def fill_current_angles(self, angles: list):
+        """填充当前关节角度到输入框"""
+        if len(angles) >= 6:
+            for i, spin in enumerate(self.joint_spins):
+                spin.setValue(angles[i])
+    
+    def on_inverse_clicked(self):
+        """逆解按钮点击事件"""
+        if self.current_rotation_matrix is None or self.current_position is None:
+            QMessageBox.warning(self, "错误", "请先生成正运动学结果后再计算逆解")
+            return
+        
+        # 获取当前输入框的角度作为初始值
+        initial_theta = [spin.value() for spin in self.joint_spins]
+        
+        # 请求计算逆解
+        if self.view_model:
+            self.view_model.calculate_inverse_kinematics(
+                self.current_rotation_matrix,
+                self.current_position,
+                initial_theta
+            )
+    
+    def display_inverse_result(self, result: dict):
+        """显示逆解结果"""
+        if "error" in result:
+            QMessageBox.warning(self, "逆解计算错误", result["error"])
+            # 重置显示
+            for label in self.inverse_labels:
+                label.setText("--")
+            return
+        
+        # 更新逆解显示（显示弧度和角度）
+        joint_angles = result["joint_angles"]
+        joint_angles_deg = result["joint_angles_deg"]
+        
+        for i, label in enumerate(self.inverse_labels):
+            if i < len(joint_angles):
+                # 同时显示弧度和角度
+                label.setText(f"{joint_angles[i]:.6f} rad ({joint_angles_deg[i]:.2f}°)")

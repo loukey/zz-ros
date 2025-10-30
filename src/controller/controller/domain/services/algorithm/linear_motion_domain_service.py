@@ -28,7 +28,7 @@ class LinearMotionDomainService:
         return t_list, positions, qd, qdd
 
     def linear_motion_z_axis(self, start_position, distance, direction, ds=0.002, include_end=True):
-        
+        self.nearest_position = start_position
         start_quat, start_pos = self.kinematic_solver.get_gripper2base(start_position)
         # todo: 按照distance计算终点位置
         p0 = np.asarray(start_pos, dtype=float).reshape(3)
