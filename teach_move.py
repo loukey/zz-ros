@@ -203,13 +203,13 @@ class TeachPathProcessor:
 if __name__ == "__main__":
     # 示例：原始示教关节角（弧度）
     
-    with open("teach_record.json", "r", encoding="utf-8") as f:
-         data = json.load(f) 
-         q_teach = data["record2"]
-
+    with open("test.json", "r", encoding="utf-8") as f:
+        #  data = json.load(f) 
+        #  q_teach = data["record2"]
+           q_teach = json.load(f) 
     # 目标：关节空间相邻点的距离约 0.01 rad
-    q_start_req = np.array([1.3918838331828283, -0.8470450163106025, -1.3399202339932021, -0.49325871287957135, -1.2632571472736362, 1.5706165634213163 ])
-    q_end_req = np.array([1.5384868564500553, -1.5853212073801888, -1.7178187979338109, -0.1775343077479523, -1.4224436066914876, 2.9365785181338584 ])
+    q_start_req = np.array([ -0.46737278708400093, -1.2174534396853633, -1.806514046458355, -0.3804152511707337, -0.10641991715956636, -1.8006058235800142 ])
+    q_end_req = np.array([-0.467384771309, -1.21744145546, -1.806490078009, -0.380415251171, -0.106431901384, -1.800593839355 ])
     proc = TeachPathProcessor()  # ← 需要实例化
     q_eq, num_points = proc.teach_smooth(q_teach, q_start_req, q_end_req, step=0.2, eps=1e-4)
     print(num_points)

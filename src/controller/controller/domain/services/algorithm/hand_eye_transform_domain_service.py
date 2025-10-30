@@ -113,6 +113,7 @@ class HandEyeTransformDomainService:
             T_target2base 
             @ self.get_z_rotation_matrix(adjustment.z_rotation) 
             @ self.get_y_rotation_matrix(adjustment.y_rotation)
+            @ self.get_x_rotation_matrix(adjustment.x_rotation)
         )
         
         # 5. 逆运动学求解
