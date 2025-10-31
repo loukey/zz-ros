@@ -110,8 +110,8 @@ class MotionConstructor:
         执行运动（仅用于EXECUTE模式）
         
         流程：
-        1. 调用 trajectory_planner 规划轨迹
-        2. 将轨迹传给 motion_runner 执行
+        1. 按任务顺序规划每个任务
+        2. 按顺序添加运动数据和夹爪命令
         3. 清除状态
         
         Args:
@@ -126,26 +126,28 @@ class MotionConstructor:
         if not self._pending_tasks:
             return
         
-        # 规划轨迹
-        all_positions = self.trajectory_planner.plan_task_sequence(
-            self._pending_tasks,
-            start_position
-        )
-        
         # 执行
         self.motion_runner.clear_data()
         
-        # 处理每个任务（包括夹爪操作）
+        # 按顺序处理每个任务，保持原有顺序
+        current_position = start_position
+        
         for task in self._pending_tasks:
             if task["type"] == "gripper":
-                # 夹爪任务单独处理
+                # 夹爪任务：直接添加夹爪命令
                 effector_mode = task["effector_mode"]
                 effector_data = task["effector_data"]
                 self.motion_runner.add_gripper_data(effector_mode, effector_data)
-        
-        # 添加运动轨迹
-        if all_positions:
-            self.motion_runner.add_motion_data(all_positions)
+            else:
+                # 运动任务：规划轨迹并添加
+                positions, end_position = self.trajectory_planner._plan_single_task(
+                    task, 
+                    current_position
+                )
+                # 注意：positions 可能是 numpy 数组，不能直接用 if positions
+                if len(positions) > 0:
+                    self.motion_runner.add_motion_data(positions)
+                    current_position = end_position
         
         self.motion_runner.start_motion()
         

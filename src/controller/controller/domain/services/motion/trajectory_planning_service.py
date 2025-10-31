@@ -197,6 +197,9 @@ class TrajectoryPlanningService:
                 end_position,
                 dt=frequency
             )
+            # S曲线返回numpy数组，需要转换为列表
+            if hasattr(positions, 'tolist'):
+                positions = positions.tolist()
         
         return (positions, end_position)
     
