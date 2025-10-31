@@ -157,7 +157,13 @@ class KinematicDomainService:
         valid_solutions = [
             [self.kinematic_utils.normalize_angle(a) for a in sol] for sol in valid_solutions
         ]
-        final_solution = min(valid_solutions, key=lambda sol: np.linalg.norm(np.array(sol) - np.array(initial_theta)))
+
+        norm_initial_theta = [self.kinematic_utils.normalize_angle(a) for a in initial_theta]
+        final_solution = min(valid_solutions, key=lambda sol: np.linalg.norm(np.array(sol) - np.array(norm_initial_theta)))
+        
+        gap = [n - i for n, i in zip(norm_initial_theta, initial_theta)]
+        final_solution = [f - g for f, g in zip(final_solution, gap)]
+
         return final_solution
 
     def verify_solution(self, theta_list, target_pos):
