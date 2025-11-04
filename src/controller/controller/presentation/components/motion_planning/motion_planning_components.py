@@ -584,10 +584,10 @@ class MotionPlanningTable(QTableWidget):
         super(MotionPlanningTable, self).__init__(parent)
         
         # 设置列数和列标题
-        self.setColumnCount(12)
+        self.setColumnCount(14)
         self.setHorizontalHeaderLabels([
             "模式", "关节1", "关节2", "关节3", "关节4", "关节5", "关节6", 
-            "频率", "曲线类型", "夹爪命令", "夹爪参数", "备注"
+            "频率", "曲线类型", "夹爪命令", "夹爪参数", "前置等待", "后置等待", "备注"
         ])
         
         # 设置表格属性
@@ -624,8 +624,16 @@ class MotionPlanningTable(QTableWidget):
         self.setColumnWidth(10, 100)
         header.setSectionResizeMode(10, QHeaderView.Interactive)
         
+        # 前置等待列
+        self.setColumnWidth(11, 100)
+        header.setSectionResizeMode(11, QHeaderView.Interactive)
+        
+        # 后置等待列
+        self.setColumnWidth(12, 100)
+        header.setSectionResizeMode(12, QHeaderView.Interactive)
+        
         # 备注列 - 自适应剩余空间（也可手动调整）
-        header.setSectionResizeMode(11, QHeaderView.Stretch)
+        header.setSectionResizeMode(13, QHeaderView.Stretch)
         
         # 连接双击信号
         self.cellDoubleClicked.connect(self.edit_motion_point)
@@ -680,9 +688,19 @@ class MotionPlanningTable(QTableWidget):
         gripper_param_item.setTextAlignment(Qt.AlignCenter)
         self.setItem(row_position, 10, gripper_param_item)
         
-        # 备注 (第11列)
+        # 前置等待 (第11列)
+        pre_delay_item = QTableWidgetItem(str(motion_data.get("gripper_pre_delay", 0.0)) + "s")
+        pre_delay_item.setTextAlignment(Qt.AlignCenter)
+        self.setItem(row_position, 11, pre_delay_item)
+        
+        # 后置等待 (第12列)
+        post_delay_item = QTableWidgetItem(str(motion_data.get("gripper_post_delay", 1.0)) + "s")
+        post_delay_item.setTextAlignment(Qt.AlignCenter)
+        self.setItem(row_position, 12, post_delay_item)
+        
+        # 备注 (第13列)
         note_item = QTableWidgetItem(motion_data.get("note", ""))
-        self.setItem(row_position, 11, note_item)
+        self.setItem(row_position, 13, note_item)
     
     def edit_motion_point(self, row, column):
         """编辑运动点（双击时触发）"""
@@ -732,8 +750,24 @@ class MotionPlanningTable(QTableWidget):
             gripper_param_item = self.item(row, 10)
             point_data["gripper_param"] = float(gripper_param_item.text()) if gripper_param_item else 0.0
             
-            # 备注 (第11列)
-            note_item = self.item(row, 11)
+            # 前置等待 (第11列) - 移除"s"后缀
+            pre_delay_item = self.item(row, 11)
+            if pre_delay_item:
+                pre_delay_text = pre_delay_item.text().replace("s", "").strip()
+                point_data["gripper_pre_delay"] = float(pre_delay_text) if pre_delay_text else 0.0
+            else:
+                point_data["gripper_pre_delay"] = 0.0
+            
+            # 后置等待 (第12列) - 移除"s"后缀
+            post_delay_item = self.item(row, 12)
+            if post_delay_item:
+                post_delay_text = post_delay_item.text().replace("s", "").strip()
+                point_data["gripper_post_delay"] = float(post_delay_text) if post_delay_text else 1.0
+            else:
+                point_data["gripper_post_delay"] = 1.0
+            
+            # 备注 (第13列)
+            note_item = self.item(row, 13)
             point_data["note"] = note_item.text() if note_item else ""
             
             motion_data.append(point_data)
@@ -773,9 +807,19 @@ class MotionPlanningTable(QTableWidget):
         gripper_param_item.setTextAlignment(Qt.AlignCenter)
         self.setItem(row, 10, gripper_param_item)
         
-        # 备注 (第11列)
+        # 前置等待 (第11列)
+        pre_delay_item = QTableWidgetItem(str(new_data.get("gripper_pre_delay", 0.0)) + "s")
+        pre_delay_item.setTextAlignment(Qt.AlignCenter)
+        self.setItem(row, 11, pre_delay_item)
+        
+        # 后置等待 (第12列)
+        post_delay_item = QTableWidgetItem(str(new_data.get("gripper_post_delay", 1.0)) + "s")
+        post_delay_item.setTextAlignment(Qt.AlignCenter)
+        self.setItem(row, 12, post_delay_item)
+        
+        # 备注 (第13列)
         note_item = QTableWidgetItem(new_data.get("note", ""))
-        self.setItem(row, 11, note_item)
+        self.setItem(row, 13, note_item)
 
 
 class MotionPointDialog(QDialog):
@@ -957,6 +1001,24 @@ class MotionPointDialog(QDialog):
         self.gripper_param_spin.setValue(0.0)
         form_layout.addRow("夹爪参数:", self.gripper_param_spin)
         
+        # 夹爪前置等待时间
+        self.gripper_pre_delay_spin = QDoubleSpinBox()
+        self.gripper_pre_delay_spin.setRange(0.0, 10.0)
+        self.gripper_pre_delay_spin.setDecimals(2)
+        self.gripper_pre_delay_spin.setSingleStep(0.1)
+        self.gripper_pre_delay_spin.setValue(0.0)
+        self.gripper_pre_delay_spin.setSuffix(" 秒")
+        form_layout.addRow("夹爪前置等待:", self.gripper_pre_delay_spin)
+        
+        # 夹爪后置等待时间
+        self.gripper_post_delay_spin = QDoubleSpinBox()
+        self.gripper_post_delay_spin.setRange(0.0, 10.0)
+        self.gripper_post_delay_spin.setDecimals(2)
+        self.gripper_post_delay_spin.setSingleStep(0.1)
+        self.gripper_post_delay_spin.setValue(1.0)
+        self.gripper_post_delay_spin.setSuffix(" 秒")
+        form_layout.addRow("夹爪后置等待:", self.gripper_post_delay_spin)
+        
         # 备注输入
         self.note_input = QLineEdit()
         form_layout.addRow("备注:", self.note_input)
@@ -1051,6 +1113,12 @@ class MotionPointDialog(QDialog):
         if "gripper_param" in data:
             self.gripper_param_spin.setValue(data["gripper_param"])
         
+        # 填充夹爪延迟时间
+        if "gripper_pre_delay" in data:
+            self.gripper_pre_delay_spin.setValue(data["gripper_pre_delay"])
+        if "gripper_post_delay" in data:
+            self.gripper_post_delay_spin.setValue(data["gripper_post_delay"])
+        
         # 填充备注
         if "note" in data:
             self.note_input.setText(data["note"])
@@ -1096,6 +1164,10 @@ class MotionPointDialog(QDialog):
         
         # 获取夹爪参数
         data["gripper_param"] = self.gripper_param_spin.value()
+        
+        # 获取夹爪延迟时间
+        data["gripper_pre_delay"] = self.gripper_pre_delay_spin.value()
+        data["gripper_post_delay"] = self.gripper_post_delay_spin.value()
         
         # 获取备注
         data["note"] = self.note_input.text()

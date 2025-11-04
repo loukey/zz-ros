@@ -5,7 +5,7 @@ from PyQt5.QtCore import pyqtSignal, QObject
 
 
 class DelayCommand:
-    def __init__(self, delay_s: int):
+    def __init__(self, delay_s: float):
         self.delay_s = delay_s
         self.is_delay = True
 
@@ -36,7 +36,21 @@ class MotionRunner(QObject):
             message = self.message_domain_service.encode_message(**msg_dict)
             self.data_list.append(message)
 
-    def add_gripper_data(self, effector_mode, effector_data):
+    def add_gripper_data(self, effector_mode, effector_data, pre_delay=0.0, post_delay=1.0):
+        """
+        添加夹爪命令
+        
+        Args:
+            effector_mode: 夹爪模式
+            effector_data: 夹爪参数
+            pre_delay: 前置等待时间（秒），默认0秒
+            post_delay: 后置等待时间（秒），默认1秒
+        """
+        # 添加前置延迟（如果>0）
+        if pre_delay > 0:
+            self.data_list.append(DelayCommand(delay_s=pre_delay))
+        
+        # 添加夹爪命令
         msg_dict = {
             'control': 0x00,
             'mode': 0x08,
@@ -45,7 +59,10 @@ class MotionRunner(QObject):
         }
         message = self.message_domain_service.encode_message(**msg_dict)
         self.data_list.append(message)
-        self.data_list.append(DelayCommand(delay_s=1))
+        
+        # 添加后置延迟（如果>0）
+        if post_delay > 0:
+            self.data_list.append(DelayCommand(delay_s=post_delay))
 
     def start_motion(self):
         self.data_index = 0

@@ -134,10 +134,17 @@ class MotionConstructor:
         
         for task in self._pending_tasks:
             if task["type"] == "gripper":
-                # 夹爪任务：直接添加夹爪命令
+                # 夹爪任务：直接添加夹爪命令（带延迟）
                 effector_mode = task["effector_mode"]
                 effector_data = task["effector_data"]
-                self.motion_runner.add_gripper_data(effector_mode, effector_data)
+                pre_delay = task.get("pre_delay", 0.0)
+                post_delay = task.get("post_delay", 1.0)
+                self.motion_runner.add_gripper_data(
+                    effector_mode, 
+                    effector_data,
+                    pre_delay=pre_delay,
+                    post_delay=post_delay
+                )
             else:
                 # 运动任务：规划轨迹并添加
                 positions, end_position = self.trajectory_planner._plan_single_task(

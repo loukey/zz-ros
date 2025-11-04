@@ -76,4 +76,3 @@ class RobotStateSnapshot:
             effector_data=decoded_msg.effector_data,
             timestamp=time.time()
         )
-

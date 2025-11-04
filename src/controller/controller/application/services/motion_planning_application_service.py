@@ -266,11 +266,15 @@ class MotionPlanningApplicationService(QObject):
         if gripper_command != "00: 不进行任何操作":
             effector_mode = self._parse_gripper_command(gripper_command)
             effector_data = point.get("gripper_param", 0.0)
+            pre_delay = point.get("gripper_pre_delay", 0.0)
+            post_delay = point.get("gripper_post_delay", 1.0)
             
             return [{
                 "type": "gripper",
                 "effector_mode": effector_mode,
-                "effector_data": effector_data
+                "effector_data": effector_data,
+                "pre_delay": pre_delay,
+                "post_delay": post_delay
             }]
         
         # 3. 判断是否为向量运动节点
