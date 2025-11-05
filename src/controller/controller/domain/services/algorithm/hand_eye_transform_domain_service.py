@@ -99,7 +99,7 @@ class HandEyeTransformDomainService:
         theta = np.arctan2(v_base[1], v_base[0])
         print(theta)
         # 4.2 构建绕 Z 轴旋转的变换矩阵
-        length = 0.122
+        length = 0.12
         T_target2base = self.get_z_rotation_matrix(theta)
         T_target2base[:3, 3] = p1_base[:3]+length * T_target2base[:3, 0]
 
@@ -119,7 +119,7 @@ class HandEyeTransformDomainService:
         T_offset2target[:3, 3] = [0, -0.016, 0]
         T_target2base = T_target2base @ T_offset2target
 
-        T_offset2target[:3, 3] = [-0.01, -0.1, 0.0755]
+        T_offset2target[:3, 3] = [0, -0.1, 0.0755]
         T_target2base = T_offset2target @ T_target2base
 
         # 5. 逆运动学求解
