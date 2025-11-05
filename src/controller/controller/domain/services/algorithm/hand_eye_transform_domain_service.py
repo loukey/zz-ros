@@ -116,10 +116,10 @@ class HandEyeTransformDomainService:
          # 4.4 添加偏移量
         
         T_offset2target = np.eye(4)
-        T_offset2target[:3, 3] = [0, -0.016, 0]
+        T_offset2target[:3, 3] = [0, -0.015, 0]
         T_target2base = T_target2base @ T_offset2target
 
-        T_offset2target[:3, 3] = [0, -0.1, 0.0755]
+        T_offset2target[:3, 3] = [-0.01, -0.1, 0.0755]
         T_target2base = T_offset2target @ T_target2base
 
         # 5. 逆运动学求解
