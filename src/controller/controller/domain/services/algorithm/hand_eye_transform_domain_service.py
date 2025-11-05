@@ -126,7 +126,7 @@ class HandEyeTransformDomainService:
         theta_list = self.kinematic_service.inverse_kinematic(
             T_target2base[:3, :3], 
             T_target2base[:3, 3],
-            initial_theta=current_joint_angles
+            initial_theta=[1.21489, -0.68856, -1.26255, 2.56762, 0.44942, -1.5708]
         )
         
         return theta_list
