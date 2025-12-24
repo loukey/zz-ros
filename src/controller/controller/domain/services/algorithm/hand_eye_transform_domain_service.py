@@ -89,7 +89,7 @@ class HandEyeTransformDomainService:
         
         # 3. 相机坐标系 → 基坐标系
         T_cam2base = forward_matrix @ self.config.hand_eye_matrix
-        
+        print(T_cam2base)
         p1_base = T_cam2base @ p1_cam
         p2_base = T_cam2base @ p2_cam
         v_base = p2_base - p1_base
@@ -97,7 +97,7 @@ class HandEyeTransformDomainService:
         # 4. 计算目标位姿
         # 4.1 计算零件方向向量
         theta = np.arctan2(v_base[1], v_base[0])
-        print(theta)
+        print(theta)  
         # 4.2 构建绕 Z 轴旋转的变换矩阵
         length = 0
         T_target2base = self.get_z_rotation_matrix(theta)
