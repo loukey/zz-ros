@@ -194,6 +194,7 @@ class HandEyeCalibration(Node):
         self.robot_poses.append(robot_pose)
         self.camera_poses.append(camera_pose)
         
+        
         # 保存图像
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
         image_path = os.path.join(self.save_dir, f'pose_{len(self.robot_poses)}_{timestamp}.jpg')
@@ -201,8 +202,8 @@ class HandEyeCalibration(Node):
         self.calibration_images.append(image_path)
         
         self.get_logger().info(f'已保存第 {len(self.robot_poses)} 个标定位姿')
-        self.get_logger().info(f'机器人位姿: [{robot_pose[0,3]:.3f}, {robot_pose[1,3]:.3f}, {robot_pose[2,3]:.3f}]')
-        self.get_logger().info(f'标定板位姿: [{camera_pose[0,3]:.3f}, {camera_pose[1,3]:.3f}, {camera_pose[2,3]:.3f}]')
+        self.get_logger().info(f'机器人位姿: [{robot_pose}]')
+        self.get_logger().info(f'标定板位姿: [{camera_pose}]')
         
         # 添加位姿移动建议
         self.provide_next_pose_suggestion()
