@@ -11,8 +11,7 @@ from ...value_objects import RobotStateSnapshot
 
 
 class RobotStateDomainService(QObject):
-    """
-    机械臂状态领域服务 - 单一数据源
+    """机械臂状态领域服务 - 单一数据源。
     
     职责：
     1. 维护当前机械臂状态（最新快照）
@@ -24,6 +23,11 @@ class RobotStateDomainService(QObject):
     - Single Source of Truth: 所有状态只在这里维护
     - Pub-Sub Pattern: 支持多个订阅者
     - Thread Safe: 使用锁保护可变数据
+    
+    Attributes:
+        state_updated (pyqtSignal): 状态更新信号，携带 RobotStateSnapshot。
+        angles_changed (pyqtSignal): 角度显著变化信号，携带 [θ1, θ2, ..., θ6] 列表。
+        torque_compensation_requested (pyqtSignal): 力矩补偿请求信号，携带当前角度列表。
     """
     
     # ════════════════════════════════════════════════════════
@@ -83,13 +87,12 @@ class RobotStateDomainService(QObject):
     # ════════════════════════════════════════════════════════
     
     def update_state(self, decoded_message):
-        """
-        更新机械臂状态（核心方法）
+        """更新机械臂状态（核心方法）。
         
         由 MessageResponseService 调用，每次接收到串口数据并解码后调用。
         
         Args:
-            decoded_message: 解码后的消息对象
+            decoded_message (Any): 解码后的消息对象。
         """
         new_snapshot = RobotStateSnapshot.from_decoded_message(decoded_message)
         old_snapshot = self._current_state
@@ -127,28 +130,51 @@ class RobotStateDomainService(QObject):
     # ════════════════════════════════════════════════════════
     
     def get_current_state(self) -> Optional[RobotStateSnapshot]:
-        """获取当前状态快照（不可变，线程安全）"""
+        """获取当前状态快照（不可变，线程安全）。
+        
+        Returns:
+            Optional[RobotStateSnapshot]: 当前状态快照。
+        """
         return self._current_state
     
     def get_current_angles(self) -> List[float]:
-        """获取当前关节角度（弧度）"""
+        """获取当前关节角度（弧度）。
+        
+        Returns:
+            List[float]: 6个关节的角度列表。
+        """
         if self._current_state:
             return list(self._current_state.joint_angles)
         return [0.0] * 6
     
     def get_current_positions(self) -> List[int]:
-        """获取当前关节位置（编码器值）"""
+        """获取当前关节位置（编码器值）。
+        
+        Returns:
+            List[int]: 6个关节的编码器位置列表。
+        """
         if self._current_state:
             return list(self._current_state.joint_positions)
         return [0] * 6
     
     def get_position_history(self, count: int = 20) -> List[Dict]:
-        """获取历史位置数据"""
+        """获取历史位置数据。
+        
+        Args:
+            count (int, optional): 获取的记录数量. Defaults to 20.
+            
+        Returns:
+            List[Dict]: 历史位置数据列表，每个元素包含 timestamp, angles, positions。
+        """
         with self._lock:
             return list(self._position_history)[-count:]
     
     def get_friction_compensation(self) -> List[float]:
-        """获取当前静摩擦补偿值"""
+        """获取当前静摩擦补偿值。
+        
+        Returns:
+            List[float]: 6个关节的静摩擦补偿值列表。
+        """
         with self._lock:
             return self._friction_compensation.copy()
     
@@ -157,11 +183,10 @@ class RobotStateDomainService(QObject):
     # ════════════════════════════════════════════════════════
     
     def set_teaching_mode(self, enabled: bool):
-        """
-        设置示教模式
+        """设置示教模式。
         
         Args:
-            enabled: True=开启, False=关闭
+            enabled (bool): True=开启, False=关闭。
         """
         self._teaching_mode = enabled
         if enabled:
@@ -172,12 +197,16 @@ class RobotStateDomainService(QObject):
                 self._friction_compensation = [0.0] * 6
     
     def set_friction_config(self, config: List[float]):
-        """设置静摩擦配置"""
+        """设置静摩擦配置。
+        
+        Args:
+            config (List[float]): 6个关节的静摩擦阈值列表。
+        """
         if len(config) == 6:
             self._friction_config = config
     
     def clear_history(self):
-        """清空历史数据"""
+        """清空历史数据。"""
         with self._lock:
             self._position_history.clear()
             self._friction_state = [0] * 6
@@ -188,8 +217,7 @@ class RobotStateDomainService(QObject):
     # ════════════════════════════════════════════════════════
     
     def _calculate_friction_compensation(self):
-        """
-        计算静摩擦补偿（内部方法）
+        """计算静摩擦补偿（内部方法）。
         
         算法：状态机方式（与旧版GUI完全一致）
         - 状态0（静止）：检测运动开始
@@ -237,16 +265,15 @@ class RobotStateDomainService(QObject):
                     self._friction_state[dim] = 0
     
     def _angles_changed_significantly(self, old_snapshot, new_snapshot, threshold=0.001):
-        """
-        检查角度是否显著变化
+        """检查角度是否显著变化。
         
         Args:
-            old_snapshot: 旧快照
-            new_snapshot: 新快照
-            threshold: 变化阈值（弧度）
+            old_snapshot (RobotStateSnapshot): 旧快照。
+            new_snapshot (RobotStateSnapshot): 新快照。
+            threshold (float, optional): 变化阈值（弧度）. Defaults to 0.001.
             
         Returns:
-            bool: 是否有显著变化
+            bool: 是否有显著变化。
         """
         for old_a, new_a in zip(old_snapshot.joint_angles, new_snapshot.joint_angles):
             if abs(new_a - old_a) > threshold:

@@ -9,25 +9,27 @@ from typing import Dict, Tuple
 
 
 class ImageDrawingUtils:
-    """图像绘制工具类"""
+    """图像绘制工具类。
+    
+    提供静态方法用于在 OpenCV 图像上绘制检测结果和辅助图形。
+    """
     
     @staticmethod
     def draw_detection_result(image: np.ndarray, detection: Dict) -> np.ndarray:
-        """
-        在图像上绘制检测结果
+        """在图像上绘制检测结果。
         
         Args:
-            image: 原始图像（BGR）
-            detection: 检测结果字典，包含：
-                - head_center: (x, y) 头部中心点
-                - central_center: (x, y) 中央中心点
-                - real_center: (x, y) 实际中心点
-                - angle: float 角度（弧度）
-                - depth: float central_center的深度（米）
-                - real_depth: float real_center的深度（米）
+            image (np.ndarray): 原始图像（BGR）。
+            detection (Dict): 检测结果字典，包含：
+                - head_center (Tuple[float, float]): 头部中心点 (x, y)。
+                - central_center (Tuple[float, float]): 中央中心点 (x, y)。
+                - real_center (Tuple[float, float]): 实际中心点 (x, y)。
+                - angle (float): 角度（弧度）。
+                - depth (float): central_center 的深度（米）。
+                - real_depth (float): real_center 的深度（米）。
             
         Returns:
-            绘制后的图像（新图像，不修改原图）
+            np.ndarray: 绘制后的图像（新图像，不修改原图）。
         """
         if not detection:
             return image
@@ -100,13 +102,12 @@ class ImageDrawingUtils:
     
     @staticmethod
     def draw_direction_arrow(image: np.ndarray, center: Tuple[int, int], angle: float):
-        """
-        绘制方向箭头
+        """绘制方向箭头。
         
         Args:
-            image: 图像（原地修改）
-            center: 中心点坐标 (x, y)
-            angle: 角度（弧度）- 直着向上为0，顺时针为正
+            image (np.ndarray): 图像（原地修改）。
+            center (Tuple[int, int]): 中心点坐标 (x, y)。
+            angle (float): 角度（弧度）- 直着向上为 0，顺时针为正。
         """
         try:
             # 箭头参数

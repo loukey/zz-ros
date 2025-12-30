@@ -7,30 +7,30 @@ from typing import Dict, List, Optional
 
 
 class RecordRepository:
-    """
-    示教记录持久化仓库 - Infrastructure层
+    """示教记录持久化仓库 - Infrastructure层。
     
     职责：
     - 从JSON文件加载记录数据
     - 保存记录数据到JSON文件
     - 管理记录文件的读写
+    
+    Attributes:
+        file_path (str): 记录文件路径。
     """
     
     def __init__(self, file_path: str = "teach_record.json"):
-        """
-        初始化记录仓库
+        """初始化记录仓库。
         
-        参数:
-            file_path: 记录文件路径
+        Args:
+            file_path (str, optional): 记录文件路径. Defaults to "teach_record.json".
         """
         self.file_path = file_path
     
     def load_records(self) -> Dict[str, List[List[float]]]:
-        """
-        从文件加载记录数据
+        """从文件加载记录数据。
         
-        返回:
-            记录数据字典 {记录名: 角度列表}
+        Returns:
+            Dict[str, List[List[float]]]: 记录数据字典 {记录名: 角度列表}。
         """
         try:
             if os.path.exists(self.file_path):
@@ -43,14 +43,13 @@ class RecordRepository:
             return {}
     
     def save_records(self, records: Dict[str, List[List[float]]]) -> bool:
-        """
-        保存记录数据到文件
+        """保存记录数据到文件。
         
-        参数:
-            records: 记录数据字典
+        Args:
+            records (Dict[str, List[List[float]]]): 记录数据字典。
             
-        返回:
-            是否保存成功
+        Returns:
+            bool: 是否保存成功。
         """
         try:
             with open(self.file_path, 'w', encoding='utf-8') as f:
@@ -60,11 +59,10 @@ class RecordRepository:
             return False
     
     def delete_file(self) -> bool:
-        """
-        删除记录文件
+        """删除记录文件。
         
-        返回:
-            是否删除成功
+        Returns:
+            bool: 是否删除成功。
         """
         try:
             if os.path.exists(self.file_path):

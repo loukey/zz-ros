@@ -8,26 +8,29 @@ from controller.domain import RobotStateDomainService, RobotStateSnapshot
 
 
 class StatusViewModel(BaseViewModel):
-    """
-    状态视图模型 - 订阅状态服务
+    """状态视图模型。
+    
+    管理机器人状态显示，订阅 RobotStateDomainService 的状态更新，不再自己维护状态。
     
     职责：
     1. 订阅 RobotStateDomainService 的状态更新
     2. 转换数据格式（转换为 dict 供 UI 组件使用）
-    3. 发射信号给UI组件
+    3. 发射信号给 UI 组件
     
-    注意：不再自己维护状态，所有状态来自 RobotStateDomainService
+    Attributes:
+        status_updated (pyqtSignal): 状态更新信号，携带状态数据字典。
+        robot_state_service (RobotStateDomainService): 机械臂状态服务。
     """
     
     # 状态更新信号
     status_updated = pyqtSignal(dict)
     
     def __init__(self, robot_state_service: RobotStateDomainService, parent=None):
-        """
-        初始化状态视图模型
+        """初始化状态视图模型。
         
         Args:
-            robot_state_service: 机械臂状态服务（依赖注入）
+            robot_state_service (RobotStateDomainService): 机械臂状态服务（依赖注入）。
+            parent (QObject, optional): 父对象. Defaults to None.
         """
         super().__init__(parent)
         self.robot_state_service = robot_state_service
@@ -36,11 +39,12 @@ class StatusViewModel(BaseViewModel):
         self.robot_state_service.state_updated.connect(self._on_state_updated)
     
     def _on_state_updated(self, snapshot: RobotStateSnapshot):
-        """
-        状态更新回调
+        """状态更新回调。
+        
+        将状态快照转换为 UI 所需的字典格式并发送信号。
         
         Args:
-            snapshot: 状态快照（不可变）
+            snapshot (RobotStateSnapshot): 状态快照（不可变）。
         """
         # 转换为 dict 格式供 UI 组件使用
         status_data = {
@@ -59,12 +63,11 @@ class StatusViewModel(BaseViewModel):
         # 发射信号给UI组件
         self.status_updated.emit(status_data)
     
-    def get_position_string(self):
-        """
-        获取位置信息的字符串表示
+    def get_position_string(self) -> str:
+        """获取位置信息的字符串表示。
         
         Returns:
-            str: 位置字符串，如 "[0.50, -1.20, 0.30, 0.00, 0.00, 0.00]"
+            str: 位置字符串，如 "[0.50, -1.20, 0.30, 0.00, 0.00, 0.00]"。如果无数据返回 "--"。
         """
         snapshot = self.robot_state_service.get_current_state()
         if snapshot:
@@ -72,12 +75,11 @@ class StatusViewModel(BaseViewModel):
             return f"[{', '.join(f'{pos:.3f}' for pos in positions[:6])}]"
         return "--"
     
-    def get_status_summary(self):
-        """
-        获取状态摘要
+    def get_status_summary(self) -> str:
+        """获取状态摘要。
         
         Returns:
-            str: 状态摘要字符串，如 "CMD:0x06 | MODE:0x08 | STA:0x01"
+            str: 状态摘要字符串，如 "CMD:0x06 | MODE:0x08 | STA:0x01"。如果无数据返回 "无状态数据"。
         """
         snapshot = self.robot_state_service.get_current_state()
         if not snapshot:

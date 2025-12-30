@@ -9,7 +9,15 @@ from controller.application import MessageDisplay
 
 
 class DisplayViewModel(BaseViewModel):
-    """显示视图模型 - 消息显示中心分发器"""
+    """显示视图模型。
+    
+    作为消息显示的中心分发器，其他服务调用它的方法来显示消息。
+    
+    Attributes:
+        message_display_signal (pyqtSignal): 消息显示信号，携带 (消息内容, 消息类型)。
+        clear_requested (pyqtSignal): 清除消息请求信号。
+        message_display (MessageDisplay): 消息显示服务。
+    """
     
     # 消息显示信号，供DataDisplayFrame连接
     message_display_signal = pyqtSignal(str, str)  # (消息内容, 消息类型)
@@ -17,18 +25,26 @@ class DisplayViewModel(BaseViewModel):
     clear_requested = pyqtSignal()
     
     def __init__(self, message_display: MessageDisplay, parent=None):
-        """初始化显示视图模型"""
+        """初始化显示视图模型。
+        
+        Args:
+            message_display (MessageDisplay): 消息显示服务。
+            parent (QObject, optional): 父对象. Defaults to None.
+        """
         super().__init__(parent)
         self.message_display = message_display
         self.message_display.message_display_signal.connect(self.message_display_signal.emit)
         self.message_display.clear_requested.connect(self.clear_requested.emit)
 
     def clear_messages(self) -> None:
-        """清除所有消息"""
+        """清除所有消息。
+        
+        发送清除消息信号。
+        """
         # 发送清除消息信号
         self.clear_requested.emit()
     
     def cleanup(self) -> None:
-        """清理资源"""
+        """清理资源。"""
         super().cleanup() 
         

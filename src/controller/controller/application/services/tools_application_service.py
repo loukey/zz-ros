@@ -8,15 +8,19 @@ import numpy as np
 
 
 class ToolsApplicationService(QObject):
-    """
-    工具应用服务
+    """工具应用服务。
     
     职责：
-    1. 接收6个关节角度
-    2. 调用KinematicDomainService计算正运动学
+    1. 接收 6 个关节角度
+    2. 调用 KinematicDomainService 计算正运动学
     3. 格式化结果并发射信号
     4. 获取当前机械臂关节角度
     5. 计算逆运动学
+    
+    Attributes:
+        calculation_result_signal (pyqtSignal): 发送正运动学计算结果。
+        current_angles_signal (pyqtSignal): 发送当前关节角度。
+        inverse_result_signal (pyqtSignal): 发送逆运动学计算结果。
     """
     
     # 信号
@@ -25,16 +29,21 @@ class ToolsApplicationService(QObject):
     inverse_result_signal = pyqtSignal(dict)  # 发送逆运动学计算结果
     
     def __init__(self, kinematic_service: KinematicDomainService, robot_state_service: RobotStateDomainService):
+        """初始化工具应用服务。
+        
+        Args:
+            kinematic_service (KinematicDomainService): 运动学服务。
+            robot_state_service (RobotStateDomainService): 机械臂状态服务。
+        """
         super().__init__()
         self.kinematic_service = kinematic_service
         self.robot_state_service = robot_state_service
     
     def calculate_forward_kinematics(self, joint_angles: List[float]):
-        """
-        计算正运动学
+        """计算正运动学。
         
         Args:
-            joint_angles: 6个关节角度（弧度）
+            joint_angles (List[float]): 6个关节角度（弧度）。
             
         Emits:
             calculation_result_signal 包含：
@@ -74,11 +83,10 @@ class ToolsApplicationService(QObject):
             self.calculation_result_signal.emit(error_result)
     
     def get_current_joint_angles(self):
-        """
-        获取当前机械臂关节角度
+        """获取当前机械臂关节角度。
         
         Emits:
-            current_angles_signal: List[float] - 6个关节角度（弧度）
+            current_angles_signal: List[float] - 6个关节角度（弧度）。
         """
         try:
             # 从机械臂状态服务获取当前角度
@@ -90,13 +98,12 @@ class ToolsApplicationService(QObject):
             self.current_angles_signal.emit([0.0] * 6)
     
     def calculate_inverse_kinematics(self, rotation_matrix: List[List[float]], position: List[float], initial_theta: List[float] = None):
-        """
-        计算逆运动学
+        """计算逆运动学。
         
         Args:
-            rotation_matrix: 3x3 旋转矩阵
-            position: [x, y, z] 位置（米）
-            initial_theta: 初始关节角度（用于选择最接近的解）
+            rotation_matrix (List[List[float]]): 3x3 旋转矩阵。
+            position (List[float]): [x, y, z] 位置（米）。
+            initial_theta (List[float], optional): 初始关节角度（用于选择最接近的解）. Defaults to None.
             
         Emits:
             inverse_result_signal 包含：

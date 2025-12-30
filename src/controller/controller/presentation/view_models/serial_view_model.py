@@ -9,11 +9,26 @@ from controller.application import SerialApplicationService, CommandHubService
 
 
 class SerialViewModel(BaseViewModel):
-    """串口视图模型 - 纯信号转发层"""
+    """串口视图模型。
+    
+    纯信号转发层，不包含业务逻辑，负责 UI 与串口服务的交互。
+    
+    Attributes:
+        port_list_updated (pyqtSignal): 端口列表更新信号，携带端口列表。
+        serial_service (SerialApplicationService): 串口应用服务。
+        command_hub_service (CommandHubService): 命令中心服务。
+    """
+    
     port_list_updated = pyqtSignal(list)
     
     def __init__(self, serial_service: SerialApplicationService, command_hub_service: CommandHubService, parent=None):
-        """初始化视图模型"""
+        """初始化视图模型。
+        
+        Args:
+            serial_service (SerialApplicationService): 串口应用服务。
+            command_hub_service (CommandHubService): 命令中心服务。
+            parent (QObject, optional): 父对象. Defaults to None.
+        """
         super().__init__(parent)
 
         self.serial_service = serial_service
@@ -23,44 +38,68 @@ class SerialViewModel(BaseViewModel):
     # ===== UI命令方法 - 纯转发 =====
     
     def refresh_ports(self) -> None:
-        """刷新端口列表命令 - 直接转发到Service"""
+        """刷新端口列表命令 - 直接转发到Service。"""
         self.serial_service.refresh_ports()
     
     def connect_serial(self, port: str, config: Dict[str, Any]) -> None:
-        """连接串口命令 - 直接转发到Service"""
+        """连接串口命令 - 直接转发到Service。
+        
+        Args:
+            port (str): 端口名称。
+            config (Dict[str, Any]): 配置参数。
+        """
         self.serial_service.connect_serial(port, config)
     
     def disconnect_serial(self) -> None:
-        """断开连接命令 - 直接转发到Service"""
+        """断开连接命令 - 直接转发到Service。"""
         self.serial_service.disconnect_serial()
     
     # ===== UI状态查询 - 委托给Service =====
     
     def get_available_ports(self) -> List[str]:
-        """获取可用端口列表 - 委托给Service"""
+        """获取可用端口列表 - 委托给Service。
+        
+        Returns:
+            List[str]: 端口列表。
+        """
         return self.serial_service.get_available_ports()
     
     def get_current_port(self) -> Optional[str]:
-        """获取当前连接的端口 - 委托给Service"""
+        """获取当前连接的端口 - 委托给Service。
+        
+        Returns:
+            Optional[str]: 端口名称。
+        """
         return self.serial_service.get_current_port()
     
     def get_connection_status(self) -> bool:
-        """获取连接状态 - 委托给Service"""
+        """获取连接状态 - 委托给Service。
+        
+        Returns:
+            bool: 是否已连接。
+        """
         return self.serial_service.is_connected()
     
     def get_port_info(self, port_name: str) -> Optional[Dict[str, str]]:
-        """获取端口信息 - 委托给Service"""
+        """获取端口信息 - 委托给Service。
+        
+        Args:
+            port_name (str): 端口名称。
+            
+        Returns:
+            Optional[Dict[str, str]]: 端口信息。
+        """
         return self.serial_service.get_port_info(port_name)
     
     # ===== 私有方法 - 纯信号转发 =====
     
     def _connect_service_signals(self) -> None:
-        """连接Service信号到ViewModel信号 - 纯转发"""
+        """连接Service信号到ViewModel信号 - 纯转发。"""
         self.serial_service.connection_status_changed.connect(self.connection_status_changed.emit)
         self.serial_service.port_list_updated.connect(self.port_list_updated.emit)
     
     def _disconnect_service_signals(self) -> None:
-        """断开Service信号连接"""
+        """断开Service信号连接。"""
         try:
             self.serial_service.connection_status_changed.disconnect(self.connection_status_changed.emit)
             self.serial_service.port_list_updated.disconnect(self.port_list_updated.emit)
@@ -69,7 +108,7 @@ class SerialViewModel(BaseViewModel):
             pass
     
     def cleanup(self) -> None:
-        """清理视图模型 - 断开信号连接"""
+        """清理视图模型 - 断开信号连接。"""
         self._disconnect_service_signals()
         super().cleanup() 
         

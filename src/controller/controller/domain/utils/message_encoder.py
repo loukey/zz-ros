@@ -58,7 +58,23 @@ class StructFormatter(BaseFormatter):
         return ''.join(f"{b:02X}" for b in packed)
 
 class MessageEncoder:
+    """消息编码器。
+    
+    基于 YAML 配置文件动态生成十六进制消息。
+    
+    Attributes:
+        config (dict): 加载的配置字典。
+        robot_utils (RobotUtils): 工具类实例。
+        formatters (Dict[str, BaseFormatter]): 已注册的格式化器字典。
+        Message (type): 动态创建的消息数据类。
+    """
+    
     def __init__(self, config_path = "controller/config/message_encoder_config.yaml"):
+        """初始化消息编码器。
+        
+        Args:
+            config_path (str, optional): 配置文件路径. Defaults to "controller/config/message_encoder_config.yaml".
+        """
         # 使用 ROS2 包资源管理方式查找配置文件
         if _HAS_AMENT_INDEX:
             try:
@@ -77,6 +93,7 @@ class MessageEncoder:
         self.Message = self._create_message_class()
     
     def _register_formatters(self) -> Dict[str, BaseFormatter]:
+        """注册可用的格式化器。"""
         return {
             'hex_formatter': HexFormatter(),
             'list_formatter': ListFormatter(), 
@@ -84,7 +101,7 @@ class MessageEncoder:
         }
     
     def _create_message_class(self):
-        """动态创建MessageOut类"""
+        """动态创建 MessageOut 数据类。"""
         fields_config = self.config['message_formats']['message_out']['fields']
         fields = []
         
@@ -104,6 +121,7 @@ class MessageEncoder:
         return make_dataclass('MessageOut', fields)
     
     def _parse_type(self, type_str: str):
+        """解析类型字符串为 Python 类型。"""
         if type_str == "int":
             return int
         elif type_str == "float":
@@ -113,12 +131,26 @@ class MessageEncoder:
         else:
             raise ValueError(f"Unsupported type: {type_str}")
     
-    def create_message(self, **kwargs):
-        """创建MessageOut实例"""
+    def create_message(self, **kwargs: Any) -> Any:
+        """创建 MessageOut 实例。
+        
+        Args:
+            **kwargs: 消息字段值。
+            
+        Returns:
+            Any: 消息对象 (MessageOut)。
+        """
         return self.Message(**kwargs)
     
-    def interpret_message(self, message) -> str:
-        """根据配置动态解释消息"""
+    def interpret_message(self, message: Any) -> str:
+        """根据配置动态将消息对象编码为字符串。
+        
+        Args:
+            message (Any): MessageOut 对象。
+            
+        Returns:
+            str: 编码后的十六进制字符串。
+        """
         protocol_config = self.config['protocol']
         fields_config = self.config['message_formats']['message_out']['fields']
         
@@ -141,7 +173,7 @@ class MessageEncoder:
         return command
     
     def _format_field(self, value: Any, config: Dict[str, Any]) -> str:
-        """通用字段格式化方法"""
+        """通用字段格式化方法。"""
         formatter_name = config['formatter']
         formatter_config = self.config['formatters'][formatter_name] 
         handler_name = formatter_config['handler']

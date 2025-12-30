@@ -6,14 +6,18 @@ from PyQt5.QtCore import QObject, QTimer, pyqtSignal
 
 
 class TeachRecordDomainService(QObject):
-    """
-    示教记录领域服务 - Domain层
+    """示教记录领域服务 - Domain层。
     
     职责：
     1. 管理示教记录数据（内存中）
     2. 控制记录的开始/停止
     3. 提供记录的增删改查操作
     4. 生成记录名称
+    
+    Attributes:
+        recording_state_changed (pyqtSignal): 记录状态变化信号，携带是否正在记录。
+        record_added (pyqtSignal): 记录添加信号，携带新增的记录名称。
+        record_deleted (pyqtSignal): 记录删除信号，携带删除的记录名称。
     """
     
     # 记录状态变化信号
@@ -22,6 +26,7 @@ class TeachRecordDomainService(QObject):
     record_deleted = pyqtSignal(str)  # 参数：删除的记录名称
     
     def __init__(self):
+        """初始化示教记录服务。"""
         super().__init__()
         
         # 记录数据 {记录名: 角度列表}
@@ -42,7 +47,7 @@ class TeachRecordDomainService(QObject):
     # ════════════════════════════════════════════════════════
     
     def start_recording(self):
-        """开始记录"""
+        """开始记录。"""
         if not self._is_recording:
             self._is_recording = True
             self._current_record_angles = []
@@ -51,11 +56,10 @@ class TeachRecordDomainService(QObject):
             self.recording_state_changed.emit(True)
     
     def stop_recording(self) -> Optional[str]:
-        """
-        停止记录并保存
+        """停止记录并保存。
         
-        返回:
-            新生成的记录名称，如果没有数据则返回 None
+        Returns:
+            Optional[str]: 新生成的记录名称，如果没有数据则返回 None。
         """
         if self._is_recording:
             self._is_recording = False
@@ -73,30 +77,36 @@ class TeachRecordDomainService(QObject):
         return None
     
     def is_recording(self) -> bool:
-        """查询是否正在记录"""
+        """查询是否正在记录。
+        
+        Returns:
+            bool: 是否正在记录。
+        """
         return self._is_recording
     
     def add_angle_to_current_record(self, angles: List[float]):
-        """
-        添加角度到当前记录
+        """添加角度到当前记录。
         
-        参数:
-            angles: 6维关节角度
+        Args:
+            angles (List[float]): 6维关节角度。
         """
         if self._is_recording and len(angles) == 6:
             self._current_record_angles.append(angles.copy())
             self._record_counter += 1
     
     def _on_record_timer_timeout(self):
-        """
-        记录定时器超时回调
+        """记录定时器超时回调。
         
-        这个方法会在 ViewModel 中被连接到实际的数据源
+        这个方法会在 ViewModel 中被连接到实际的数据源。
         """
         pass
     
     def get_record_timer(self) -> QTimer:
-        """获取记录定时器（用于外部连接）"""
+        """获取记录定时器（用于外部连接）。
+        
+        Returns:
+            QTimer: 记录定时器。
+        """
         return self._record_timer
     
     # ════════════════════════════════════════════════════════
@@ -104,34 +114,40 @@ class TeachRecordDomainService(QObject):
     # ════════════════════════════════════════════════════════
     
     def get_all_records(self) -> Dict[str, List[List[float]]]:
-        """获取所有记录"""
+        """获取所有记录。
+        
+        Returns:
+            Dict[str, List[List[float]]]: 所有记录字典。
+        """
         return self._records.copy()
     
     def get_record_names(self) -> List[str]:
-        """获取所有记录名称"""
+        """获取所有记录名称。
+        
+        Returns:
+            List[str]: 记录名称列表。
+        """
         return list(self._records.keys())
     
     def get_record(self, name: str) -> Optional[List[List[float]]]:
-        """
-        获取指定记录
+        """获取指定记录。
         
-        参数:
-            name: 记录名称
+        Args:
+            name (str): 记录名称。
             
-        返回:
-            角度列表，如果不存在返回 None
+        Returns:
+            Optional[List[List[float]]]: 角度列表，如果不存在返回 None。
         """
         return self._records.get(name)
     
     def delete_record(self, name: str) -> bool:
-        """
-        删除指定记录
+        """删除指定记录。
         
-        参数:
-            name: 记录名称
+        Args:
+            name (str): 记录名称。
             
-        返回:
-            是否删除成功
+        Returns:
+            bool: 是否删除成功。
         """
         if name in self._records:
             del self._records[name]
@@ -140,14 +156,13 @@ class TeachRecordDomainService(QObject):
         return False
     
     def reverse_record(self, name: str) -> Optional[str]:
-        """
-        反转指定记录并另存为新记录
+        """反转指定记录并另存为新记录。
         
-        参数:
-            name: 原记录名称
+        Args:
+            name (str): 原记录名称。
             
-        返回:
-            新记录名称，如果失败返回 None
+        Returns:
+            Optional[str]: 新记录名称，如果失败返回 None。
         """
         if name not in self._records:
             return None
@@ -173,16 +188,15 @@ class TeachRecordDomainService(QObject):
             return None
     
     def load_records(self, records: Dict[str, List[List[float]]]):
-        """
-        加载记录数据（从Repository）
+        """加载记录数据（从Repository）。
         
-        参数:
-            records: 记录数据字典
+        Args:
+            records (Dict[str, List[List[float]]]): 记录数据字典。
         """
         self._records = records.copy()
     
     def clear_all_records(self):
-        """清空所有记录"""
+        """清空所有记录。"""
         self._records.clear()
     
     # ════════════════════════════════════════════════════════
@@ -190,11 +204,10 @@ class TeachRecordDomainService(QObject):
     # ════════════════════════════════════════════════════════
     
     def _generate_record_name(self) -> str:
-        """
-        生成唯一的记录名称
+        """生成唯一的记录名称。
         
-        返回:
-            记录名称（如 record1, record2...）
+        Returns:
+            str: 记录名称（如 record1, record2...）。
         """
         base_name = "record"
         counter = len(self._records) + 1

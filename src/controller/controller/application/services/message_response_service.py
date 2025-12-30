@@ -18,8 +18,9 @@ from PyQt5.QtCore import pyqtSignal
 
 
 class MessageResponseService(BaseService):
-    """
-    消息响应服务
+    """消息响应服务 - Application层。
+    
+    处理串口接收的数据，解码并更新状态服务。
     
     职责：
     1. 接收串口数据
@@ -27,6 +28,10 @@ class MessageResponseService(BaseService):
     3. 解码消息
     4. 更新状态服务（统一入口）
     5. 根据操作模式分发处理（执行/保存/预览）
+    
+    Attributes:
+        get_current_position_signal (pyqtSignal): 获取当前位置信号（用于UI显示）。
+        trajectory_preview_signal (pyqtSignal): 轨迹预览数据信号。
     """
     
     # 信号：获取当前位置（用于UI显示等非运动场景）
@@ -45,6 +50,7 @@ class MessageResponseService(BaseService):
         trajectory_planner: TrajectoryPlanningService,
         trajectory_repository: TrajectoryRepository
     ):
+        """初始化消息响应服务。"""
         super().__init__(message_display)
         self.serial_domain_service = serial_domain_service
         self.message_domain_service = message_domain_service
@@ -69,8 +75,7 @@ class MessageResponseService(BaseService):
         self.serial_domain_service.data_received.connect(self.handle_message)
 
     def handle_message(self, message_in: str):
-        """
-        处理接收到的消息
+        """处理接收到的消息。
         
         流程：
         1. 拼接缓冲
@@ -78,6 +83,9 @@ class MessageResponseService(BaseService):
         3. 解码消息
         4. 更新状态服务
         5. 处理运动消息
+        
+        Args:
+            message_in (str): 输入的原始串口数据。
         """
         self.message_buffer += message_in
         if "0D0A" in self.message_buffer:
@@ -117,15 +125,14 @@ class MessageResponseService(BaseService):
                     pass
 
     def handle_motion_message(self, current_position):
-        """
-        处理运动消息（获取当前位置的回复）
+        """处理运动消息（获取当前位置的回复）。
         
         根据状态决定行为：
         1. 有待处理的操作 → 调用对应的处理器
         2. 无操作 → 仅发射信号供UI显示
         
         Args:
-            current_position: 当前关节位置（编码器值）
+            current_position (list[float]): 当前关节位置（编码器值）。
         """
         if self.motion_constructor.has_pending_operation():
             # 获取操作模式
@@ -145,11 +152,10 @@ class MessageResponseService(BaseService):
             self.get_current_position_signal.emit(current_position)
     
     def _handle_execute(self, start_position):
-        """
-        处理执行运动
+        """处理执行运动。
         
         Args:
-            start_position: 起始位置（当前关节角度）
+            start_position (list[float]): 起始位置（当前关节角度）。
         """
         try:
             self.motion_constructor.execute_motion(start_position)
@@ -159,11 +165,10 @@ class MessageResponseService(BaseService):
             self.motion_constructor.clear_operation()
     
     def _handle_save(self, start_position):
-        """
-        处理保存轨迹
+        """处理保存轨迹。
         
         Args:
-            start_position: 起始位置（当前关节角度）
+            start_position (list[float]): 起始位置（当前关节角度）。
         """
         try:
             tasks = self.motion_constructor.get_pending_tasks()
@@ -204,11 +209,10 @@ class MessageResponseService(BaseService):
             self.motion_constructor.clear_operation()
     
     def _handle_preview(self, start_position):
-        """
-        处理预览轨迹（显示曲线）
+        """处理预览轨迹（显示曲线）。
         
         Args:
-            start_position: 起始位置（当前关节角度）
+            start_position (list[float]): 起始位置（当前关节角度）。
         """
         try:
             tasks = self.motion_constructor.get_pending_tasks()

@@ -11,13 +11,21 @@ from controller.domain import SerialDomainService
 
 
 class SerialApplicationService(BaseService):
-    """串口应用服务 - 只负责串口连接管理，不处理数据收发"""
+    """串口应用服务。
+    
+    只负责串口连接管理和状态协调，不处理数据收发。
+    数据收发由各个Domain服务直接使用SerialDomainService。
+    
+    Attributes:
+        connection_status_changed (pyqtSignal): 串口连接状态变化信号。
+        port_list_updated (pyqtSignal): 端口列表更新信号。
+    """
 
     connection_status_changed = pyqtSignal(bool)
     port_list_updated = pyqtSignal(list)
     
     def __init__(self, message_display: MessageDisplay, serial_domain_service: SerialDomainService):
-        """初始化串口服务"""
+        """初始化串口应用服务。"""
         super().__init__(message_display)
         
         self.serial_domain_service = serial_domain_service
@@ -26,11 +34,10 @@ class SerialApplicationService(BaseService):
         self._connect_domain_signals()
     
     def refresh_ports(self) -> List[str]:
-        """
-        刷新可用端口列表
+        """刷新可用端口列表。
         
-        返回:
-            List[str]: 可用端口名称列表
+        Returns:
+            List[str]: 可用端口名称列表。
         """
         try:
             ports = self.serial_domain_service.scan_available_ports()
@@ -42,14 +49,13 @@ class SerialApplicationService(BaseService):
             return []
     
     def get_port_info(self, port_name: str) -> Optional[Dict[str, str]]:
-        """
-        获取指定端口信息
+        """获取指定端口信息。
         
-        参数:
-            port_name: 端口名称
+        Args:
+            port_name (str): 端口名称。
             
-        返回:
-            Optional[Dict[str, str]]: 端口信息字典，失败时返回None
+        Returns:
+            Optional[Dict[str, str]]: 端口信息字典，失败时返回None。
         """
         try:
             return self.serial_domain_service.get_port_info(port_name)
@@ -58,11 +64,10 @@ class SerialApplicationService(BaseService):
             return None
     
     def get_available_ports(self) -> List[str]:
-        """
-        获取当前可用端口列表（不刷新）
+        """获取当前可用端口列表（不刷新）。
         
-        返回:
-            List[str]: 可用端口名称列表
+        Returns:
+            List[str]: 可用端口名称列表。
         """
         try:
             return self.serial_domain_service.scan_available_ports()
@@ -71,24 +76,22 @@ class SerialApplicationService(BaseService):
             return []
     
     def get_current_port(self) -> Optional[str]:
-        """
-        获取当前连接的端口名称
+        """获取当前连接的端口名称。
         
-        返回:
-            Optional[str]: 端口名称，未连接时返回None
+        Returns:
+            Optional[str]: 端口名称，未连接时返回None。
         """
         return self.serial_domain_service.get_current_port()
     
     def connect_serial(self, port: str, config: Dict[str, Any]) -> bool:
-        """
-        连接串口
+        """连接串口。
         
-        参数:
-            port: 串口名称
-            config: 串口配置参数
+        Args:
+            port (str): 串口名称。
+            config (Dict[str, Any]): 串口配置参数。
             
-        返回:
-            bool: 连接是否成功
+        Returns:
+            bool: 连接是否成功。
         """
         self._display_message(f"连接串口: {port}, 配置: {config}", "系统")
         try:
@@ -101,11 +104,10 @@ class SerialApplicationService(BaseService):
             return False
     
     def disconnect_serial(self) -> bool:
-        """
-        断开串口连接
+        """断开串口连接。
         
-        返回:
-            bool: 断开是否成功
+        Returns:
+            bool: 断开是否成功。
         """
         try:
             success = self.serial_domain_service.disconnect_port()
@@ -117,11 +119,10 @@ class SerialApplicationService(BaseService):
             return False
     
     def is_connected(self) -> bool:
-        """
-        检查串口是否已连接
+        """检查串口是否已连接。
         
-        返回:
-            bool: 是否已连接
+        Returns:
+            bool: 是否已连接。
         """
         return self.serial_domain_service.is_connected()
     
@@ -142,7 +143,7 @@ class SerialApplicationService(BaseService):
         self.connection_status_changed.emit(connected)
     
     def cleanup(self) -> None:
-        """清理资源"""
+        """清理资源。"""
         try:
             self._disconnect_domain_signals()
             self.serial_domain_service.cleanup()

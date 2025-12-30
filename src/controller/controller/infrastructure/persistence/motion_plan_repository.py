@@ -7,19 +7,31 @@ from typing import List, Dict
 
 
 class MotionPlanRepository:
-    """
-    运动方案持久化仓库
+    """运动方案持久化仓库。
     
     职责：
     1. 保存/加载方案到JSON文件
     2. 管理文件系统操作
+    
+    Attributes:
+        file_path (Path): 方案文件路径。
     """
     
     def __init__(self, file_path: str = "./motion_planning_plans.json"):
+        """初始化仓库。
+        
+        Args:
+            file_path (str, optional): 文件路径. Defaults to "./motion_planning_plans.json".
+        """
         self.file_path = Path(file_path)
     
     def save(self, plans_data: List[Dict], current_index: int):
-        """保存到文件"""
+        """保存方案数据到文件。
+        
+        Args:
+            plans_data (List[Dict]): 方案数据列表。
+            current_index (int): 当前选中方案索引。
+        """
         data = {
             "current_index": current_index,
             "plans": plans_data
@@ -31,10 +43,11 @@ class MotionPlanRepository:
             pass
     
     def load(self) -> tuple[List[Dict], int]:
-        """从文件加载
+        """从文件加载方案数据。
         
         Returns:
-            (plans_data, current_index)
+            tuple[List[Dict], int]: (plans_data, current_index)。
+                如果文件不存在或加载失败，返回默认方案。
         """
         if not self.file_path.exists():
             # 返回默认方案

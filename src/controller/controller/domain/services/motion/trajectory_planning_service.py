@@ -9,8 +9,7 @@ from ..algorithm import SCurve, SmoothDomainService, LinearMotionDomainService, 
 
 
 class TrajectoryPlanningService:
-    """
-    轨迹规划服务 - 领域服务
+    """轨迹规划服务 - 领域服务。
     
     职责：
     1. 根据任务类型规划轨迹点序列
@@ -18,6 +17,12 @@ class TrajectoryPlanningService:
     3. 返回纯数据，不执行任何副作用
     
     核心原则：纯函数，可测试，可复用
+    
+    Attributes:
+        s_curve (SCurve): S曲线算法服务。
+        smooth_service (SmoothDomainService): 平滑算法服务。
+        linear_motion_service (LinearMotionDomainService): 直线运动服务。
+        curve_motion_service (CurveMotionDomainService): 曲线运动服务。
     """
     
     def __init__(
@@ -27,6 +32,14 @@ class TrajectoryPlanningService:
         linear_motion_service: LinearMotionDomainService,
         curve_motion_service: CurveMotionDomainService
     ):
+        """初始化轨迹规划服务。
+        
+        Args:
+            s_curve (SCurve): S曲线算法服务。
+            smooth_service (SmoothDomainService): 平滑算法服务。
+            linear_motion_service (LinearMotionDomainService): 直线运动服务。
+            curve_motion_service (CurveMotionDomainService): 曲线运动服务。
+        """
         self.s_curve = s_curve
         self.smooth_service = smooth_service
         self.linear_motion_service = linear_motion_service
@@ -37,17 +50,16 @@ class TrajectoryPlanningService:
         tasks: List[Dict],
         start_position: List[float]
     ) -> List[List[float]]:
-        """
-        规划任务序列（仅返回位置）
+        """规划任务序列（仅返回位置）。
         
-        用于：执行运动、保存轨迹
+        用于：执行运动、保存轨迹。
         
         Args:
-            tasks: 任务列表
-            start_position: 起始位置
+            tasks (List[Dict]): 任务列表。
+            start_position (List[float]): 起始位置。
             
         Returns:
-            轨迹点序列 [[q1,...,q6], ...]
+            List[List[float]]: 轨迹点序列 [[q1,...,q6], ...]。
         """
         all_positions = []
         current_position = start_position
@@ -64,22 +76,20 @@ class TrajectoryPlanningService:
         tasks: List[Dict],
         start_position: List[float]
     ) -> Dict:
-        """
-        规划任务序列（返回位置、速度、加速度、时间）
+        """规划任务序列（返回位置、速度、加速度、时间）。
         
-        用于：预览轨迹曲线
+        用于：预览轨迹曲线。
         
         Args:
-            tasks: 任务列表
-            start_position: 起始位置
+            tasks (List[Dict]): 任务列表。
+            start_position (List[float]): 起始位置。
             
         Returns:
-            {
-                "time": [t0, t1, ...],
-                "positions": [[q1,...,q6], ...],
-                "velocities": [[qd1,...,qd6], ...],
-                "accelerations": [[qdd1,...,qdd6], ...]
-            }
+            Dict: 包含以下键的字典:
+                - time: [t0, t1, ...]
+                - positions: [[q1,...,q6], ...]
+                - velocities: [[qd1,...,qd6], ...]
+                - accelerations: [[qdd1,...,qdd6], ...]
         """
         all_time = []
         all_positions = []
@@ -116,15 +126,14 @@ class TrajectoryPlanningService:
         task: Dict, 
         start_position: List[float]
     ) -> Tuple[List[List[float]], List[float]]:
-        """
-        规划单个任务（仅返回位置）
+        """规划单个任务（仅返回位置）。
         
         Args:
-            task: 任务字典
-            start_position: 起始位置
+            task (Dict): 任务字典。
+            start_position (List[float]): 起始位置。
             
         Returns:
-            (轨迹点序列, 终点位置)
+            Tuple[List[List[float]], List[float]]: (轨迹点序列, 终点位置)。
         """
         task_type = task["type"]
         
@@ -146,20 +155,14 @@ class TrajectoryPlanningService:
         task: Dict,
         start_position: List[float]
     ) -> Dict:
-        """
-        规划单个任务（返回完整数据：时间、位置、速度、加速度）
+        """规划单个任务（返回完整数据：时间、位置、速度、加速度）。
         
         Args:
-            task: 任务字典
-            start_position: 起始位置
+            task (Dict): 任务字典。
+            start_position (List[float]): 起始位置。
             
         Returns:
-            {
-                "time": [...],
-                "positions": [...],
-                "velocities": [...],
-                "accelerations": [...]
-            }
+            Dict: 包含 time, positions, velocities, accelerations 的字典。
         """
         task_type = task["type"]
         
@@ -179,7 +182,7 @@ class TrajectoryPlanningService:
     # ========== 具体规划方法（位置版本） ==========
     
     def _plan_motion(self, task: Dict, start_position: List[float]) -> Tuple[List[List[float]], List[float]]:
-        """S曲线/直线运动规划（仅返回位置）"""
+        """S曲线/直线运动规划（仅返回位置）。"""
         end_position = task["target_angles"]
         curve_type = task.get("curve_type", "s_curve")
         frequency = task.get("frequency", 0.01)
@@ -204,7 +207,7 @@ class TrajectoryPlanningService:
         return (positions, end_position)
     
     def _plan_teach(self, task: Dict, start_position: List[float]) -> Tuple[List[List[float]], List[float]]:
-        """示教轨迹规划（仅返回位置）"""
+        """示教轨迹规划（仅返回位置）。"""
         teach_data = task["teach_data"]
         
         if not teach_data or len(teach_data) == 0:
@@ -243,7 +246,7 @@ class TrajectoryPlanningService:
         return (all_positions, teach_data[-1])
     
     def _plan_vector_motion(self, task: Dict, start_position: List[float]) -> Tuple[List[List[float]], List[float]]:
-        """向量直线运动规划（仅返回位置）"""
+        """向量直线运动规划（仅返回位置）。"""
         distance = task["distance"]
         direction = task["direction"]
         
@@ -257,7 +260,7 @@ class TrajectoryPlanningService:
         return (positions, end_position)
     
     def _plan_curve_motion(self, task: Dict, start_position: List[float]) -> Tuple[List[List[float]], List[float]]:
-        """曲线运动规划（仅返回位置）"""
+        """曲线运动规划（仅返回位置）。"""
         end_position = task["target_position"]
         mid_points = task["mid_points"]
         
@@ -287,7 +290,7 @@ class TrajectoryPlanningService:
     # ========== 具体规划方法（完整数据版本） ==========
     
     def _plan_motion_full(self, task: Dict, start_position: List[float]) -> Dict:
-        """S曲线/直线运动规划（完整数据）"""
+        """S曲线/直线运动规划（完整数据）。"""
         end_position = task["target_angles"]
         curve_type = task.get("curve_type", "s_curve")
         frequency = task.get("frequency", 0.01)
@@ -321,7 +324,7 @@ class TrajectoryPlanningService:
         }
     
     def _plan_teach_full(self, task: Dict, start_position: List[float]) -> Dict:
-        """示教轨迹规划（完整数据）"""
+        """示教轨迹规划（完整数据）。"""
         teach_data = task["teach_data"]
         
         if not teach_data or len(teach_data) == 0:
@@ -374,7 +377,7 @@ class TrajectoryPlanningService:
         }
     
     def _plan_vector_motion_full(self, task: Dict, start_position: List[float]) -> Dict:
-        """向量直线运动规划（完整数据）"""
+        """向量直线运动规划（完整数据）。"""
         distance = task["distance"]
         direction = task["direction"]
         
@@ -398,7 +401,7 @@ class TrajectoryPlanningService:
         }
     
     def _plan_curve_motion_full(self, task: Dict, start_position: List[float]) -> Dict:
-        """曲线运动规划（完整数据）"""
+        """曲线运动规划（完整数据）。"""
         end_position = task["target_position"]
         mid_points = task["mid_points"]
         

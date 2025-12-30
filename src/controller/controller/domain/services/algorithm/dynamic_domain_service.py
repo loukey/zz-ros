@@ -9,7 +9,17 @@ from ...value_objects import DHParam
 
 
 class DynamicDomainService:
-    """动力学领域服务 - 计算重力补偿力矩"""
+    """动力学领域服务 - 计算重力补偿力矩。
+    
+    Attributes:
+        link_masses (list[float]): 连杆质量列表 (kg)。
+        dh_matrix (list): 动力学 DH 参数矩阵。
+        link_com_positions (list[np.ndarray]): 连杆质心在本体坐标系下的位置 (m)。
+        g_vector (np.ndarray): 重力向量 (m/s²)。
+        n (int): 关节数量。
+        compensation_factor_front (float): 前3个关节的补偿系数。
+        compensation_factor_rear (float): 后3个关节的补偿系数。
+    """
     
     def __init__(self):
         # 连杆质量 (kg)
@@ -39,15 +49,17 @@ class DynamicDomainService:
         self.compensation_factor_front = 0.35  # 前3个关节
         self.compensation_factor_rear = 0.25   # 后3个关节
     
-    def compute_gravity_compensation(self, joint_angles):
-        """
-        计算重力补偿力矩
+    def compute_gravity_compensation(self, joint_angles: list[float]) -> list[float]:
+        """计算重力补偿力矩。
         
-        参数:
-            joint_angles: 当前关节角度（弧度），6维数组
+        Args:
+            joint_angles (list[float]): 当前关节角度（弧度），6维数组。
         
-        返回:
-            List[float]: 每个关节的重力补偿力矩（Nm），6维数组
+        Returns:
+            List[float]: 每个关节的重力补偿力矩（Nm），6维数组。
+            
+        Raises:
+            ValueError: 如果 joint_angles 的长度不等于 6。
         """
         if len(joint_angles) != 6:
             raise ValueError("关节角度必须是6维数组")
@@ -76,15 +88,14 @@ class DynamicDomainService:
         return (-tau_g).tolist()
     
     def _get_link_com_in_base(self, q, link_index):
-        """
-        计算第link_index个连杆的质心在基坐标系下的位置
+        """计算第link_index个连杆的质心在基坐标系下的位置。
         
-        参数:
-            q: 当前关节角度数组（单位：弧度）
-            link_index: 连杆编号（0~5）
+        Args:
+            q (np.ndarray): 当前关节角度数组（单位：弧度）。
+            link_index (int): 连杆编号（0~5）。
         
-        返回:
-            np.ndarray: 质心在基坐标系下的3维坐标
+        Returns:
+            np.ndarray: 质心在基坐标系下的3维坐标。
         """
         # 从基坐标系累乘到该连杆本体坐标系的齐次变换矩阵
         T = np.eye(4)
@@ -102,17 +113,16 @@ class DynamicDomainService:
         return com_base[:3]  # 返回前三个分量
     
     def _get_jacobian_column(self, q, link_index, com_base, joint_index):
-        """
-        计算质心对关节的雅可比列（旋转关节）
+        """计算质心对关节的雅可比列（旋转关节）。
         
-        参数:
-            q: 当前关节角度
-            link_index: 连杆编号
-            com_base: 该连杆质心在基坐标系下的位置
-            joint_index: 关节编号
+        Args:
+            q (np.ndarray): 当前关节角度。
+            link_index (int): 连杆编号。
+            com_base (np.ndarray): 该连杆质心在基坐标系下的位置。
+            joint_index (int): 关节编号。
         
-        返回:
-            np.ndarray: 该质心对joint_index关节的雅可比列（3维向量）
+        Returns:
+            np.ndarray: 该质心对joint_index关节的雅可比列（3维向量）。
         """
         # 计算joint_index关节的转动轴在基坐标系下的方向
         z_axis = self._get_joint_axis_in_base(q, joint_index)  # 3维向量
@@ -127,15 +137,14 @@ class DynamicDomainService:
         return np.cross(z_axis, r)
     
     def _get_joint_axis_in_base(self, q, joint_index):
-        """
-        返回第joint_index个关节的z轴（转动轴）在基坐标系下的方向
+        """返回第joint_index个关节的z轴（转动轴）在基坐标系下的方向。
         
-        参数:
-            q: 当前关节角度
-            joint_index: 关节编号
+        Args:
+            q (np.ndarray): 当前关节角度。
+            joint_index (int): 关节编号。
         
-        返回:
-            np.ndarray: 关节z轴在基坐标系下的方向（3维向量）
+        Returns:
+            np.ndarray: 关节z轴在基坐标系下的方向（3维向量）。
         """
         # 从基坐标系累乘到joint_index的变换矩阵
         T = np.eye(4)
@@ -150,15 +159,14 @@ class DynamicDomainService:
         return z_axis_base
     
     def _get_joint_position_in_base(self, q, joint_index):
-        """
-        返回第joint_index个关节的原点在基坐标系下的位置
+        """返回第joint_index个关节的原点在基坐标系下的位置。
         
-        参数:
-            q: 当前关节角度
-            joint_index: 关节编号
+        Args:
+            q (np.ndarray): 当前关节角度。
+            joint_index (int): 关节编号。
         
-        返回:
-            np.ndarray: 关节原点在基坐标系下的位置（3维向量）
+        Returns:
+            np.ndarray: 关节原点在基坐标系下的位置（3维向量）。
         """
         # 从基坐标系累乘到joint_index的变换矩阵
         T = np.eye(4)

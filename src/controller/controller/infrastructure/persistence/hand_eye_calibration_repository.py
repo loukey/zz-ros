@@ -16,19 +16,27 @@ from controller.domain.value_objects import (
 
 
 class HandEyeCalibrationRepository:
-    """
-    手眼标定配置仓储
+    """手眼标定配置仓储 - Infrastructure层。
+    
+    负责从文件系统读取配置。
     
     职责：
     - 从 JSON 文件加载配置
     - 转换为 Domain 层的值对象
     - 处理文件不存在等异常
+    
+    Attributes:
+        config_path (Path): 配置文件路径。
     """
     
     def __init__(self, config_path: str = None):
-        """
+        """初始化配置仓储。
+        
         Args:
-            config_path: 配置文件路径，默认为 controller/config/hand_eye_calibration.json
+            config_path (str, optional): 配置文件路径. Defaults to None.
+                如果为 None，则按以下优先级查找：
+                1. ROS2 share 目录 (controller/config/hand_eye_calibration.json)
+                2. 开发环境相对路径 (../../config/hand_eye_calibration.json)
         """
         if config_path is None:
             # 使用 ROS2 包资源管理方式查找配置文件
@@ -45,15 +53,14 @@ class HandEyeCalibrationRepository:
         self.config_path = Path(config_path)
     
     def load(self) -> HandEyeCalibrationConfig:
-        """
-        加载手眼标定配置
+        """加载手眼标定配置。
         
         Returns:
-            HandEyeCalibrationConfig: 配置值对象
+            HandEyeCalibrationConfig: 配置值对象。
             
         Raises:
-            FileNotFoundError: 配置文件不存在
-            ValueError: 配置格式错误
+            FileNotFoundError: 配置文件不存在。
+            ValueError: 配置格式错误。
         """
         if not self.config_path.exists():
             raise FileNotFoundError(
@@ -103,11 +110,10 @@ class HandEyeCalibrationRepository:
         )
     
     def save(self, config: HandEyeCalibrationConfig):
-        """
-        保存配置到文件（可选功能，用于标定工具）
+        """保存配置到文件（可选功能，用于标定工具）。
         
         Args:
-            config: 手眼标定配置对象
+            config (HandEyeCalibrationConfig): 手眼标定配置对象。
         """
         # 确保目录存在
         self.config_path.parent.mkdir(parents=True, exist_ok=True)

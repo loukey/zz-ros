@@ -13,9 +13,19 @@ from PyQt5.QtCore import QObject, pyqtSignal
 
 
 class DetectionSubscriberNode(Node):
-    """检测结果订阅节点"""
+    """检测结果订阅节点。
+    
+    Attributes:
+        callback (callable): 检测结果回调函数。
+        subscription (Subscription): ROS 订阅对象。
+    """
     
     def __init__(self, callback):
+        """初始化检测结果订阅节点。
+        
+        Args:
+            callback (callable): 检测结果回调函数。
+        """
         super().__init__('detection_subscriber')
         self.callback = callback
         
@@ -28,7 +38,11 @@ class DetectionSubscriberNode(Node):
         )
         
     def detection_callback(self, msg):
-        """检测结果回调函数"""
+        """检测结果回调函数。
+        
+        Args:
+            msg (DetectionResult): ROS 检测结果消息。
+        """
         try:
             # 将ROS消息转换为字典格式
             detection_result = {
@@ -49,14 +63,18 @@ class DetectionSubscriberNode(Node):
 
 
 class RecognitionDomainService(QObject):
-    """
-    零件识别领域服务
+    """零件识别领域服务。
     
     职责：
-    - 订阅recognition_result ROS话题
+    - 订阅 recognition_result ROS 话题
     - 维护最新检测结果（线程安全）
     - 独立于摄像头服务运行
     - 发射检测结果信号
+    
+    Attributes:
+        detection_result_received (pyqtSignal): 检测结果接收信号，携带结果字典。
+        detection_status_changed (pyqtSignal): 检测状态变更信号，携带 (is_running, message)。
+        error_occurred (pyqtSignal): 错误信号，携带错误信息。
     """
     
     # ========== 信号定义 ==========
@@ -65,6 +83,7 @@ class RecognitionDomainService(QObject):
     error_occurred = pyqtSignal(str)  # 错误信号
     
     def __init__(self):
+        """初始化零件识别领域服务。"""
         super().__init__()
         
         # ROS节点和执行器
@@ -82,7 +101,11 @@ class RecognitionDomainService(QObject):
     # ========== 核心方法 ==========
     
     def start_detection(self) -> bool:
-        """开始检测（启动ROS订阅）"""
+        """开始检测（启动 ROS 订阅）。
+        
+        Returns:
+            bool: 启动成功返回 True，失败返回 False。
+        """
         try:
             if self.is_running:
                 return True
@@ -119,7 +142,11 @@ class RecognitionDomainService(QObject):
             return False
     
     def stop_detection(self) -> bool:
-        """停止检测（关闭ROS订阅）"""
+        """停止检测（关闭 ROS 订阅）。
+        
+        Returns:
+            bool: 停止成功返回 True，失败返回 False。
+        """
         try:
             if not self.is_running:
                 return True
@@ -154,25 +181,37 @@ class RecognitionDomainService(QObject):
             return False
     
     def get_latest_result(self) -> Optional[Dict]:
-        """获取最新检测结果（线程安全）"""
+        """获取最新检测结果（线程安全）。
+        
+        Returns:
+            Optional[Dict]: 检测结果字典，无结果返回 None。
+        """
         with self.detection_lock:
             if self.latest_detection_result:
                 return copy.deepcopy(self.latest_detection_result)
             return None
     
     def is_detection_running(self) -> bool:
-        """检查检测是否正在运行"""
+        """检查检测是否正在运行。
+        
+        Returns:
+            bool: 是否正在运行。
+        """
         return self.is_running
     
     def clear_result(self):
-        """清除检测结果"""
+        """清除检测结果。"""
         with self.detection_lock:
             self.latest_detection_result = {}
     
     # ========== 私有方法 ==========
     
     def _on_detection_received(self, detection_dict: Dict):
-        """检测结果接收回调（ROS线程调用）"""
+        """检测结果接收回调（ROS 线程调用）。
+        
+        Args:
+            detection_dict (Dict): 检测结果字典。
+        """
         # 保存结果（线程安全）
         with self.detection_lock:
             self.latest_detection_result = detection_dict
@@ -181,7 +220,7 @@ class RecognitionDomainService(QObject):
         self.detection_result_received.emit(detection_dict)
     
     def _ros_spin_worker(self):
-        """ROS执行器工作线程"""
+        """ROS 执行器工作线程。"""
         try:
             self.ros_executor.spin()
         except Exception as e:

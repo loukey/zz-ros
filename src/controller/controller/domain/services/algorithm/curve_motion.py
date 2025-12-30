@@ -11,6 +11,18 @@ from .kinematic_domain_service import KinematicDomainService
 
 
 class CurveMotionDomainService:
+    """曲线运动规划服务。
+    
+    提供基于弧长参数化的空间曲线规划、姿态平滑插值以及基于 TOPPRA 的时间参数化功能。
+    
+    Attributes:
+        v_max (np.ndarray): 各关节最大速度 (rad/s)。
+        a_max (np.ndarray): 各关节最大加速度 (rad/s²)。
+        j_max (np.ndarray): 各关节最大加加速度 (rad/s³)。
+        dt (float): 时间步长 (s)。
+        kinematic_solver (KinematicDomainService): 运动学求解器实例。
+    """
+
     def __init__(
         self, 
         kinematic_solver: KinematicDomainService,
@@ -19,6 +31,15 @@ class CurveMotionDomainService:
         j_max=[pi / 16] * 6, 
         dt=0.01,
     ):
+        """初始化曲线运动服务。
+
+        Args:
+            kinematic_solver: 运动学求解器服务实例。
+            v_max (list[float], optional): 最大速度列表. Defaults to [pi/4]*6.
+            a_max (list[float], optional): 最大加速度列表. Defaults to [pi/8]*6.
+            j_max (list[float], optional): 最大加加速度列表. Defaults to [pi/16]*6.
+            dt (float, optional): 采样时间步长. Defaults to 0.01.
+        """
         self.v_max = np.asarray(v_max, dtype=float)
         self.a_max = np.asarray(a_max, dtype=float)
         self.j_max = np.asarray(j_max, dtype=float)
@@ -27,6 +48,7 @@ class CurveMotionDomainService:
         self.nearest_position = None
 
     def clamp(self, x, low, high):
+        """将值 x 限制在 [low, high] 区间内。"""
         return max(low, min(x, high))
 
     def curve_motion(
@@ -34,14 +56,38 @@ class CurveMotionDomainService:
             pos_fun,  # callable u -> (3,)
             u0: float,
             u1: float,
-            start_position,  # 起点关节角，用于确定起始姿态/IK 近邻
-            end_position,  # 可选：给终点姿态（用于 slerp）
+            start_position: list[float],
+            end_position: list[float] | None,
             ds: float = 0.002,
             include_end: bool = True,
-            orientation_mode: str = "slerp",  # 'fixed' | 'slerp' | 'tangent'
+            orientation_mode: str = "slerp",
             tool_axis: str = "z",
             up_hint: np.ndarray = np.array([0, 0, 1.0])
-    ):
+    ) -> tuple[list[float], list[list[float]], list[list[float]], list[list[float]]]:
+        """执行曲线运动规划。
+        
+        Args:
+            pos_fun (callable): 位置函数，接受参数 u 返回 (3,) 坐标。
+            u0 (float): 参数起始值。
+            u1 (float): 参数终止值。
+            start_position (list[float]): 起点关节角度。
+            end_position (list[float] | None): 终点关节角度。
+            ds (float, optional): 采样弧长步长. Defaults to 0.002.
+            include_end (bool, optional): 是否包含终点. Defaults to True.
+            orientation_mode (str, optional): 姿态插值模式 ('fixed'|'slerp'|'tangent'). Defaults to "slerp".
+            tool_axis (str, optional): 工具轴方向 ('x'|'y'|'z'). Defaults to "z".
+            up_hint (np.ndarray, optional): 向上向量提示，用于切向跟随模式. Defaults to [0, 0, 1.0].
+        
+        Returns:
+            tuple: (t_list, positions, qd, qdd)
+                - t_list: 时间戳列表
+                - positions: 关节角度轨迹列表
+                - qd: 关节速度轨迹列表
+                - qdd: 关节加速度轨迹列表
+        
+        Raises:
+            ValueError: 如果 orientation_mode 无效或 slerp 模式下未提供 end_position。
+        """
         # 起点姿态来自起点关节角的正解
         start_quat, start_pos_fk = self.kinematic_solver.get_gripper2base(start_position)
         # 1) 等弧长采样
@@ -71,13 +117,25 @@ class CurveMotionDomainService:
 
     def make_pos_fun_spline(
         self, 
-        start_position,
-        end_position,
-        mid_points, 
-        bc_type="natural"):
-        """
-        points: (N,3) 或 (N,2) 控制点，按轨迹顺序排列
-        返回:  pos_fun(u)  支持 u 标量或一维数组，定义域 [0,1]
+        start_position: list[float],
+        end_position: list[float],
+        mid_points: list, 
+        bc_type: str = "natural") -> tuple[callable, np.ndarray]:
+        """构造基于三次样条的位置函数。
+        
+        Args:
+            start_position (list[float]): 起点关节角度。
+            end_position (list[float]): 终点关节角度。
+            mid_points (list): 中间点坐标列表 (N, 3)。
+            bc_type (str, optional): 边界条件类型. Defaults to "natural".
+        
+        Returns:
+            tuple: (pos_fun, s)
+                - pos_fun: 位置函数 callable
+                - s: 累积弦长数组
+        
+        Raises:
+            ValueError: 如果点集形状不正确。
         """
         _, start_pos = self.kinematic_solver.get_gripper2base(start_position)
         _, end_pos = self.kinematic_solver.get_gripper2base(end_position)
@@ -141,10 +199,23 @@ class CurveMotionDomainService:
             u1: float,
             ds: float = 0.002,
             include_end: bool = True,
-            dense: int = 4000  # 先密采样用于构建弧长映射
-    ):
-        """
-        对参数曲线 r(u) 做等弧长采样，返回 pos_list (M,3)、u_eq (M,) 和总弧长 L
+            dense: int = 4000
+    ) -> tuple[np.ndarray, np.ndarray, int]:
+        """对参数曲线 r(u) 做等弧长采样。
+        
+        Args:
+            pos_fun (callable): 参数曲线函数 r(u)。
+            u0 (float): 参数起始值。
+            u1 (float): 参数终止值。
+            ds (float, optional): 目标弧长采样间隔. Defaults to 0.002.
+            include_end (bool, optional): 结果是否必须包含终点. Defaults to True.
+            dense (int, optional): 初始密采样的点数. Defaults to 4000.
+        
+        Returns:
+            tuple: (pos_list, u_eq, n_seg)
+                - pos_list: 等弧长采样后的坐标列表 (M, 3)
+                - u_eq: 对应的参数值列表 (M,)
+                - n_seg: 分段数
         """
         # 1) 先在参数上做均匀密采样，估算弧长
         u_dense = np.linspace(u0, u1, max(1000, int(abs(u1 - u0) * dense)))
@@ -255,7 +326,27 @@ class CurveMotionDomainService:
                                  a_max: np.ndarray | float,
                                  dt: float = 0.01,
                                  grid_n: int = 400,
-                                 ):
+                                 ) -> tuple[list[float], list[list[float]], list[list[float]], list[list[float]]]:
+        """使用 TOPPRA 对路径进行时间参数化。
+        
+        Args:
+            waypoints (np.ndarray): 路径点数组 (N, dof)。
+            v_max (np.ndarray | float): 最大速度约束。
+            a_max (np.ndarray | float): 最大加速度约束。
+            dt (float, optional): 输出轨迹的时间步长. Defaults to 0.01.
+            grid_n (int, optional): TOPPRA 离散化网格点数. Defaults to 400.
+        
+        Returns:
+            tuple: (t, q, qd, qdd)
+                - t: 时间戳列表
+                - q: 关节位置列表
+                - qd: 关节速度列表
+                - qdd: 关节加速度列表
+        
+        Raises:
+            ValueError: 如果 waypoints 维度不正确或约束格式错误。
+            RuntimeError: 如果 TOPPRA 求解失败。
+        """
         waypoints = np.asarray(waypoints, dtype=float)
         if waypoints.ndim != 2 or waypoints.shape[1] != 6 or waypoints.shape[0] < 2:
             raise ValueError("waypoints 必须是 (N,6) 且 N>=2")

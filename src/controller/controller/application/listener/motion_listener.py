@@ -2,23 +2,42 @@ from controller.domain import MotionRunner, RobotUtils
 from ..commands import MessageDisplay
 
 
-class MotionListener():
+class MotionListener:
+    """运动消息监听器。
+    
+    负责监听运动执行器发送的消息，解码位置数据并显示。
+    
+    Attributes:
+        motion_runner (MotionRunner): 运动执行器。
+        message_display (MessageDisplay): 消息显示服务。
+        robot_utils (RobotUtils): 机器人工具类，用于坐标转换。
+    """
 
     def __init__(self, motion_runner: MotionRunner, message_display: MessageDisplay):
+        """初始化运动监听器。
+        
+        Args:
+            motion_runner (MotionRunner): 运动执行器。
+            message_display (MessageDisplay): 消息显示服务。
+        """
         self.motion_runner = motion_runner
         self.message_display = message_display
         self.robot_utils = RobotUtils()
         self._connect_signals()
 
     def _connect_signals(self):
+        """连接信号。"""
         self.motion_runner.motion_msg_signal.connect(self.handle_motion_msg)
 
     def handle_motion_msg(self, message, message_type):
-        """
-        处理运动消息，手动解析位置数据
+        """处理运动消息，手动解析位置数据。
         
         消息格式：AA55 + control(1) + mode(1) + joint_angles(24) + ... + CRC(2) + 0D0A
         编码过程：弧度 -> radian2position -> 位置值(32位) -> 大端序16进制
+        
+        Args:
+            message (str): 原始16进制消息字符串。
+            message_type (str): 消息类型。
         """
         try:
             # 手动解析位置数据
@@ -42,8 +61,7 @@ class MotionListener():
             self.message_display.display_message(str(message), message_type)
     
     def _extract_joint_angles(self, message: str) -> list:
-        """
-        从16进制消息中提取关节角度（反向解码）
+        """从16进制消息中提取关节角度（反向解码）。
         
         编码流程：
         1. 弧度值 -> radian2position() 转换为位置值（无符号32位整数）
@@ -54,10 +72,10 @@ class MotionListener():
         2. 位置值列表 -> position2radian() 转换为弧度
         
         Args:
-            message: 16进制消息字符串
+            message (str): 16进制消息字符串。
             
         Returns:
-            关节角度列表（弧度），解析失败返回空列表
+            list: 关节角度列表（弧度），解析失败返回空列表。
         """
         try:
             # 检查消息是否以AA55开头

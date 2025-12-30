@@ -15,9 +15,20 @@ from PyQt5.QtCore import QObject, pyqtSignal
 
 
 class ColorImageSubscriber(Node):
-    """彩色图像订阅节点"""
+    """彩色图像订阅节点。
+    
+    Attributes:
+        callback (callable): 图像接收回调函数。
+        bridge (CvBridge): CV 桥接器。
+        subscription (Subscription): ROS 订阅对象。
+    """
     
     def __init__(self, callback):
+        """初始化彩色图像订阅节点。
+        
+        Args:
+            callback (callable): 图像接收回调函数。
+        """
         super().__init__('color_image_subscriber')
         self.callback = callback
         self.bridge = CvBridge()
@@ -31,7 +42,11 @@ class ColorImageSubscriber(Node):
         )
         
     def image_callback(self, msg):
-        """图像回调函数"""
+        """图像回调函数。
+        
+        Args:
+            msg (Image): ROS 图像消息。
+        """
         try:
             # 转换为OpenCV格式（BGR）
             cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
@@ -45,9 +60,20 @@ class ColorImageSubscriber(Node):
 
 
 class DepthImageSubscriber(Node):
-    """深度图像订阅节点"""
+    """深度图像订阅节点。
+    
+    Attributes:
+        callback (callable): 图像接收回调函数。
+        bridge (CvBridge): CV 桥接器。
+        subscription (Subscription): ROS 订阅对象。
+    """
     
     def __init__(self, callback):
+        """初始化深度图像订阅节点。
+        
+        Args:
+            callback (callable): 图像接收回调函数。
+        """
         super().__init__('depth_image_subscriber')
         self.callback = callback
         self.bridge = CvBridge()
@@ -61,7 +87,11 @@ class DepthImageSubscriber(Node):
         )
         
     def image_callback(self, msg):
-        """图像回调函数"""
+        """图像回调函数。
+        
+        Args:
+            msg (Image): ROS 图像消息。
+        """
         try:
             # 处理不同的深度图编码格式
             if msg.encoding == 'mono16' or msg.encoding == '16UC1':
@@ -83,14 +113,19 @@ class DepthImageSubscriber(Node):
 
 
 class CameraDomainService(QObject):
-    """
-    摄像头领域服务
+    """摄像头领域服务。
     
     职责：
-    - 管理ROS2摄像头订阅节点的生命周期
+    - 管理 ROS2 摄像头订阅节点的生命周期
     - 维护最新的彩色/深度图像数据（线程安全）
     - 发射图像接收信号
     - 深度图可视化处理
+    
+    Attributes:
+        color_image_received (pyqtSignal): 彩色图像接收信号，携带图像数据 (np.ndarray)。
+        depth_image_received (pyqtSignal): 深度图像接收信号，携带图像数据 (np.ndarray)。
+        connection_status_changed (pyqtSignal): 连接状态变更信号，携带 (connected, message)。
+        error_occurred (pyqtSignal): 错误信号，携带错误信息。
     """
     
     # ========== 信号定义 ==========
@@ -100,6 +135,7 @@ class CameraDomainService(QObject):
     error_occurred = pyqtSignal(str)  # 错误信号
     
     def __init__(self):
+        """初始化摄像头领域服务。"""
         super().__init__()
         
         # ROS节点和执行器
@@ -125,7 +161,11 @@ class CameraDomainService(QObject):
     # ========== 核心方法 ==========
     
     def connect(self) -> bool:
-        """连接摄像头（启动ROS订阅）"""
+        """连接摄像头（启动 ROS 订阅）。
+        
+        Returns:
+            bool: 连接成功返回 True，失败返回 False。
+        """
         try:
             if self.is_connected:
                 return True
@@ -161,7 +201,11 @@ class CameraDomainService(QObject):
             return False
     
     def disconnect(self) -> bool:
-        """断开摄像头（关闭ROS订阅）"""
+        """断开摄像头（关闭 ROS 订阅）。
+        
+        Returns:
+            bool: 断开成功返回 True，失败返回 False。
+        """
         try:
             if not self.is_connected:
                 return True
@@ -203,32 +247,47 @@ class CameraDomainService(QObject):
             return False
     
     def get_latest_color_image(self) -> Optional[np.ndarray]:
-        """获取最新彩色图像（线程安全）"""
+        """获取最新彩色图像（线程安全）。
+        
+        Returns:
+            Optional[np.ndarray]: 图像数据，无数据返回 None。
+        """
         with self.color_image_lock:
             return self.latest_color_image.copy() if self.latest_color_image is not None else None
     
     def get_latest_depth_image(self) -> Optional[np.ndarray]:
-        """获取最新深度图像（线程安全）"""
+        """获取最新深度图像（线程安全）。
+        
+        Returns:
+            Optional[np.ndarray]: 图像数据，无数据返回 None。
+        """
         with self.depth_image_lock:
             return self.latest_depth_image.copy() if self.latest_depth_image is not None else None
     
     def is_color_available(self) -> bool:
-        """检查彩色图像是否可用"""
+        """检查彩色图像是否可用。
+        
+        Returns:
+            bool: 是否可用。
+        """
         return self.color_connected and self.latest_color_image is not None
     
     def is_depth_available(self) -> bool:
-        """检查深度图像是否可用"""
+        """检查深度图像是否可用。
+        
+        Returns:
+            bool: 是否可用。
+        """
         return self.depth_connected and self.latest_depth_image is not None
     
     def visualize_depth_image(self, depth_image: np.ndarray) -> np.ndarray:
-        """
-        深度图可视化为伪彩色图
+        """深度图可视化为伪彩色图。
         
         Args:
-            depth_image: 原始深度图（16位或32位浮点）
+            depth_image (np.ndarray): 原始深度图（16位或32位浮点）。
             
         Returns:
-            伪彩色深度图（BGR, uint8）
+            np.ndarray: 伪彩色深度图（BGR, uint8）。
         """
         try:
             # 过滤无效值（depth <= 0 或 nan）
@@ -261,7 +320,11 @@ class CameraDomainService(QObject):
     # ========== 私有方法（回调） ==========
     
     def _on_color_image_received(self, cv_image: np.ndarray):
-        """彩色图像接收回调（ROS线程调用）"""
+        """彩色图像接收回调（ROS 线程调用）。
+        
+        Args:
+            cv_image (np.ndarray): 接收到的图像。
+        """
         with self.color_image_lock:
             self.latest_color_image = cv_image.copy()
             if not self.color_connected:
@@ -272,7 +335,11 @@ class CameraDomainService(QObject):
         self.color_image_received.emit(cv_image)
     
     def _on_depth_image_received(self, cv_image: np.ndarray):
-        """深度图像接收回调（ROS线程调用）"""
+        """深度图像接收回调（ROS 线程调用）。
+        
+        Args:
+            cv_image (np.ndarray): 接收到的图像。
+        """
         with self.depth_image_lock:
             self.latest_depth_image = cv_image.copy()
             if not self.depth_connected:
@@ -283,7 +350,7 @@ class CameraDomainService(QObject):
         self.depth_image_received.emit(cv_image)
     
     def _ros_spin_worker(self):
-        """ROS执行器工作线程"""
+        """ROS 执行器工作线程。"""
         try:
             self.ros_executor.spin()
         except Exception as e:

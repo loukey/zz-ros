@@ -10,14 +10,28 @@ from ..utils import RobotUtils
 
 @dataclass(frozen=True)
 class RobotStateSnapshot:
-    """
-    机械臂状态快照 - 不可变数据载体
+    """机械臂状态快照 - 不可变数据载体。
     
     特点：
     - frozen=True: 不可变，线程安全
     - 包含完整的机械臂状态
     - 可以保存历史快照序列
+    
+    Attributes:
+        init_status (int): 初始化状态。
+        control (int): 当前命令 0x06/0x07...。
+        mode (int): 运行模式 0x08/0x0A...。
+        joint_positions (Tuple[int, ...]): 编码器位置（原始值，6个关节）。
+        joint_angles (Tuple[float, ...]): 关节角度（弧度，6个关节）。
+        joint_speeds (Tuple[int, ...]): 关节速度。
+        joint_torques (Tuple[int, ...]): 关节力矩。
+        joint_status (Tuple[int, ...]): 关节状态码。
+        double_encoder_interpolations (Tuple[int, ...]): 双编码器插值。
+        errors (Tuple[int, ...]): 错误码。
+        effector_data (Any): 夹爪数据。
+        timestamp (float): 接收时间戳。
     """
+    
     # 基本信息
     init_status: int              # 初始化状态
     control: int                  # 当前命令 0x06/0x07...
@@ -39,19 +53,19 @@ class RobotStateSnapshot:
     timestamp: float                      # 接收时间
     
     @classmethod
-    def from_decoded_message(cls, decoded_msg):
-        """
-        从解码消息创建快照
+    def from_decoded_message(cls, decoded_msg: Any) -> 'RobotStateSnapshot':
+        """从解码消息创建快照。
         
         Args:
-            decoded_msg: 解码后的消息对象
+            decoded_msg (Any): 解码后的消息对象，应包含 positions(弧度), speeds, torques 等字段。
             
         Returns:
-            RobotStateSnapshot: 状态快照
+            RobotStateSnapshot: 创建的状态快照实例。
             
-        注意：
-            decoded_msg.positions 已经通过 position2radian 转换为弧度值
-            所以不需要再次转换
+        Note:
+            decoded_msg.positions 已经通过 position2radian 转换为弧度值，
+            所以 joint_angles 直接使用该值。
+            joint_positions 会通过反向计算还原为原始编码器值。
         """        
         robot_utils = RobotUtils()
         

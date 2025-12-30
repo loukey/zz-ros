@@ -3,13 +3,31 @@ from math import pi
 
 
 class SCurve():
+    """S曲线速度规划算法。
+    
+    实现基于加加速度(Jerk)限制的S型速度曲线规划。
+    
+    Attributes:
+        v_max (np.ndarray): 最大速度限制。
+        acc_max (np.ndarray): 最大加速度限制。
+        t_j (float): 加加减速段时间。
+    """
+    
     def __init__(self, v_max=[pi/4] * 6, acc_max=[pi/8] * 6, t_j=0.5):
+        """初始化 S 曲线规划器。
+        
+        Args:
+            v_max (list[float], optional): 最大速度. Defaults to [pi/4]*6.
+            acc_max (list[float], optional): 最大加速度. Defaults to [pi/8]*6.
+            t_j (float, optional): Jerk 时间参数. Defaults to 0.5.
+        """
         self.v_max = np.array(v_max)
         self.acc_max = np.array(acc_max)
         self.t_j = t_j
 
     @staticmethod
     def solve_cubic_numeric(a, b, c, d, tol = 1e-8):
+        """求解三次方程实根。"""
         roots = np.roots([a, b, c, d])
         real_mask = np.isclose(roots.imag, 0, atol=tol)
         real_roots = roots[real_mask].real
@@ -18,6 +36,7 @@ class SCurve():
     
     @staticmethod
     def solve_quadratic(a, b, c, tol=1e-8):
+        """求解二次方程实根。"""
         coeffs = [a, b, c]
         roots = np.roots(coeffs)
         real_mask = np.isclose(roots.imag, 0, atol=tol)
@@ -26,11 +45,17 @@ class SCurve():
         return real_roots
     
     @staticmethod
-    def base_method(t, jerk, a_start, v_start, s_start):
+    def base_method(t: float, jerk: float, a_start: float, v_start: float, s_start: float) -> tuple[float, float, float]:
+        """基础运动学方程计算。
+        
+        Returns:
+            tuple: (a, v, s) 当前时刻的加速度、速度、位移。
+        """
         a = jerk * t + a_start
         v = jerk * t**2 / 2 + a_start * t + v_start
         s = jerk * t**3 / 6 + a_start * t**2 / 2 + v_start * t + s_start
         return a, v, s
+
 
     def get_boundary_1(self, jerk, a_start, v_start, s_start, v_max, acc_max):
         # boundary stage 6
@@ -128,7 +153,18 @@ class SCurve():
         positions[-1, :] = target_angles        
         return accelerations, velocities, positions
 
-    def planning(self, start_angles, target_angles, v_start=[0] * 6, dt=0.01):
+    def planning(self, start_angles: list[float], target_angles: list[float], v_start: list[float] = [0] * 6, dt: float = 0.01) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """规划从起点到终点的S曲线轨迹。
+        
+        Args:
+            start_angles (list[float]): 起点角度。
+            target_angles (list[float]): 终点角度。
+            v_start (list[float], optional): 起始速度. Defaults to [0]*6.
+            dt (float, optional): 时间步长. Defaults to 0.01.
+            
+        Returns:
+            tuple: (times, accelerations, velocities, positions) 规划结果。
+        """
         start_angles = np.array(start_angles)
         target_angles = np.array(target_angles)
         displacements = target_angles - start_angles

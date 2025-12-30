@@ -1,5 +1,6 @@
 from ..commands import MessageDisplay
 from .base_service import BaseService
+from typing import Any
 from controller.domain import (
     MessageDomainService, 
     MotionRunner, 
@@ -10,13 +11,18 @@ from controller.domain import (
 
 
 class CommandHubService(BaseService):
-    """
-    命令中心服务 - Application层
+    """命令中心服务 - Application层。
     
     职责：
     1. 分发用户命令到不同的处理逻辑
     2. 协调运动任务的准备和执行
     3. 管理消息显示
+    
+    Attributes:
+        message_domain_service: 消息领域服务。
+        motion_runner: 运动执行器。
+        serial_domain_service: 串口领域服务。
+        motion_constructor: 运动构造器。
     """
 
     def __init__(self, 
@@ -25,14 +31,22 @@ class CommandHubService(BaseService):
     serial_domain_service: SerialDomainService, 
     message_display: MessageDisplay,
     motion_constructor: MotionConstructor):
+        """初始化命令中心服务。"""
         super().__init__(message_display)
         self.message_domain_service = message_domain_service
         self.motion_runner = motion_runner
         self.serial_domain_service = serial_domain_service
         self.motion_constructor = motion_constructor
 
-    def single_send_command(self, **kwargs):
-        """发送单个命令"""
+    def single_send_command(self, **kwargs: Any) -> bool:
+        """发送单个命令。
+        
+        Args:
+            **kwargs: 命令参数，将被编码为消息帧。
+            
+        Returns:
+            bool: 是否发送成功。
+        """
         try:
             msg = self.message_domain_service.encode_message(**kwargs)
             self._display_message(msg, "发送")
@@ -45,6 +59,11 @@ class CommandHubService(BaseService):
             return False
 
     def command_distribution(self, config_dict: dict):
+        """分发用户命令到对应的处理逻辑。
+        
+        Args:
+            config_dict (dict): 配置字典，包含 control, mode 等参数。
+        """
         control = config_dict.get('control')
         mode = config_dict.get('mode')
         
@@ -61,8 +80,8 @@ class CommandHubService(BaseService):
         elif control == 0x07:
             if mode == 0x0A:
                 self._display_message("开启示教模式", "动力学")
-                self.single_send_command(**config_dict)
-            else:
+            self.single_send_command(**config_dict)
+            if mode != 0x0A:
                 self.get_current_position()
                 
         elif control == 0x06:
@@ -92,13 +111,13 @@ class CommandHubService(BaseService):
         
 
     def get_current_position(self):
+        """请求获取当前位置。"""
         self.message_display.clear_messages()
         self._display_message("正在获取当前位置...", "控制")
         self.single_send_command(control=0x07)
     
     def run_teach_record(self, angles_list: list):
-        """
-        运行示教记录（播放示教轨迹）
+        """运行示教记录（播放示教轨迹）。
         
         流程：
         1. 准备示教运动任务
@@ -106,7 +125,7 @@ class CommandHubService(BaseService):
         3. 异步回调时自动构建平滑轨迹并执行
         
         Args:
-            angles_list: 示教记录的角度列表 [[θ1,...,θ6], ...]
+            angles_list (list[list[float]]): 示教记录的角度列表 [[θ1,...,θ6], ...]。
         """
         task = {
             "type": "teach",
@@ -120,8 +139,7 @@ class CommandHubService(BaseService):
         self.get_current_position()
     
     def run_motion_sequence(self):
-        """
-        开始执行运动序列（用于运动规划方案）
+        """开始执行运动序列（用于运动规划方案）。
         
         流程：
         1. 查询当前位置
@@ -129,4 +147,3 @@ class CommandHubService(BaseService):
         """
         self._display_message("开始执行运动规划方案...", "运动规划")
         self.get_current_position()
- 

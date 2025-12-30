@@ -7,16 +7,43 @@ from scipy.spatial.transform import Rotation as R
 
 
 class KinematicDomainService:
+    """运动学领域服务。
+    
+    提供机械臂正逆运动学解算功能，包括DH参数管理、坐标变换矩阵计算等。
+    
+    Attributes:
+        dh_param (DHParam): 机械臂 DH 参数对象。
+        kinematic_dh (np.ndarray): 运动学 DH 参数矩阵。
+        kinematic_utils (KinematicUtils): 运动学工具类实例。
+        gripper2base (np.ndarray): 当前末端到基座的变换矩阵。
+    """
+
     def __init__(self):
+        """初始化运动学服务。"""
         self.dh_param = DHParam()
         self.kinematic_dh = self.dh_param.get_kinematic_dh()
         self.kinematic_utils = KinematicUtils()
         self.gripper2base = self.get_gripper2base(self.kinematic_dh[:, 3])
 
-    def get_kinematic_dh(self):
+    def get_kinematic_dh(self) -> np.ndarray:
+        """获取运动学 DH 参数矩阵。
+        
+        Returns:
+            np.ndarray: DH 参数矩阵。
+        """
         return self.kinematic_dh
 
-    def get_gripper2base(self, theta_list=None):
+    def get_gripper2base(self, theta_list: list[float] | np.ndarray = None) -> tuple[np.ndarray, np.ndarray]:
+        """计算末端执行器相对于基座的位姿（四元数 + 位置）。
+        
+        Args:
+            theta_list (list[float] | np.ndarray, optional): 关节角度列表（弧度）。如果不传则使用当前内部状态。
+        
+        Returns:
+            tuple: (quat, pos)
+                - quat (np.ndarray): 姿态四元数 [x, y, z, w]。
+                - pos (np.ndarray): 位置坐标 [x, y, z]。
+        """
         if theta_list is not None:
             self.kinematic_dh[:, 3] = theta_list
             rm_list = []
@@ -26,15 +53,14 @@ class KinematicDomainService:
         quat = R.from_matrix(self.gripper2base[:3, :3]).as_quat()
         return quat, self.gripper2base[:3, 3]
     
-    def get_gripper2base_rm(self, theta_list):
-        """
-        获取末端执行器相对于基座的变换矩阵
+    def get_gripper2base_rm(self, theta_list: list[float]) -> np.ndarray:
+        """获取末端执行器相对于基座的变换矩阵。
         
         Args:
-            theta_list: 关节角度列表（弧度）
+            theta_list (list[float]): 关节角度列表（弧度）。
         
         Returns:
-            4x4 齐次变换矩阵
+            np.ndarray: 4x4 齐次变换矩阵。
         """
         self.kinematic_dh[:, 3] = theta_list
         rm_list = []
@@ -43,7 +69,20 @@ class KinematicDomainService:
         self.gripper2base = reduce(lambda x, y: x @ y, rm_list, np.eye(4))
         return self.gripper2base
 
-    def inverse_kinematic(self, rm, pos, initial_theta=None):
+    def inverse_kinematic(self, rm: np.ndarray, pos: np.ndarray, initial_theta: list[float] | None = None) -> list[float]:
+        """机械臂逆运动学求解。
+        
+        Args:
+            rm (np.ndarray): 目标姿态旋转矩阵 (3x3)。
+            pos (np.ndarray): 目标位置坐标 [x, y, z]。
+            initial_theta (list[float] | None, optional): 初始关节角度猜测值，用于选择最优解。
+        
+        Returns:
+            list[float]: 最优关节角度解（弧度）。
+        
+        Raises:
+            ValueError: 如果未找到有效的逆运动学解。
+        """
         if not initial_theta:
             initial_theta = self.kinematic_dh[:, 3]
         valid_solutions = []
@@ -166,7 +205,16 @@ class KinematicDomainService:
 
         return final_solution
 
-    def verify_solution(self, theta_list, target_pos):
+    def verify_solution(self, theta_list: list[float], target_pos: np.ndarray) -> bool:
+        """验证逆运动学解的准确性。
+        
+        Args:
+            theta_list (list[float]): 待验证的关节角度解。
+            target_pos (np.ndarray): 目标位置坐标。
+        
+        Returns:
+            bool: 如果正解位置与目标位置误差小于 1e-5 则返回 True。
+        """
         self.get_gripper2base(theta_list)
         current_pos = self.gripper2base[:3, 3]
         error = np.linalg.norm(current_pos - target_pos)

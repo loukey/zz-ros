@@ -8,7 +8,27 @@ from scipy.spatial.transform import Rotation as R
     
 
 class LinearMotionDomainService:
+    """直线运动规划服务。
+    
+    提供空间直线插值运动规划功能，支持指定起点终点或指定方向距离的规划。
+    
+    Attributes:
+        v_max (np.ndarray): 各关节最大速度。
+        a_max (np.ndarray): 各关节最大加速度。
+        j_max (np.ndarray): 各关节最大加加速度。
+        dt (float): 时间步长。
+        kinematic_solver (KinematicDomainService): 运动学求解器。
+    """
+
     def __init__(self, v_max=[pi/4] * 6, a_max=[pi/8] * 6, j_max=[pi/16] * 6, dt=0.01):
+        """初始化直线运动服务。
+        
+        Args:
+            v_max (list[float], optional): 最大速度列表. Defaults to [pi/4]*6.
+            a_max (list[float], optional): 最大加速度列表. Defaults to [pi/8]*6.
+            j_max (list[float], optional): 最大加加速度列表. Defaults to [pi/16]*6.
+            dt (float, optional): 时间步长. Defaults to 0.01.
+        """
         self.v_max = np.asarray(v_max,dtype=float)
         self.a_max = np.asarray(a_max,dtype=float)
         self.j_max = np.asarray(j_max,dtype=float)
@@ -17,9 +37,19 @@ class LinearMotionDomainService:
         self.nearest_position = []
 
     def clamp(self, x, low, high):
+        """限制数值范围。"""
         return max(low, min(x, high))
 
-    def linear_motion(self, start_position, end_position):
+    def linear_motion(self, start_position: list[float], end_position: list[float]) -> tuple[list[float], list[list[float]], list[list[float]], list[list[float]]]:
+        """规划两点间的直线运动。
+        
+        Args:
+            start_position (list[float]): 起点关节角度。
+            end_position (list[float]): 终点关节角度。
+            
+        Returns:
+            tuple: (t_list, positions, qd, qdd) 轨迹数据。
+        """
         self.nearest_position = start_position
         start_quat, start_pos = self.kinematic_solver.get_gripper2base(start_position)
         end_quat, end_pos = self.kinematic_solver.get_gripper2base(end_position)
@@ -27,7 +57,24 @@ class LinearMotionDomainService:
         t_list, positions, qd, qdd = self.smooth(quat_list, pos_list, n_seg)
         return t_list, positions, qd, qdd
 
-    def linear_motion_z_axis(self, start_position, distance, direction, ds=0.002, include_end=True):
+    def linear_motion_z_axis(self, start_position: list[float], distance: float, direction: list[float], ds: float = 0.002, include_end: bool = True) -> tuple[list[float], list[list[float]], list[list[float]], list[list[float]]]:
+        """沿指定方向矢量进行直线运动规划。
+        
+        注意：此模式下末端姿态保持不变，仅位置发生位移。
+        
+        Args:
+            start_position (list[float]): 起点关节角度。
+            distance (float): 移动距离 (m)。
+            direction (list[float]): 方向矢量 [x, y, z]。
+            ds (float, optional): 空间采样步长. Defaults to 0.002.
+            include_end (bool, optional): 是否包含终点. Defaults to True.
+            
+        Returns:
+            tuple: (t_list, positions, qd, qdd) 轨迹数据。
+            
+        Raises:
+            ValueError: 如果方向向量模长过小。
+        """
         self.nearest_position = start_position
         start_quat, start_pos = self.kinematic_solver.get_gripper2base(start_position)
         # todo: 按照distance计算终点位置
@@ -59,8 +106,8 @@ class LinearMotionDomainService:
 
         return t_list, positions, qd, qdd
 
-    def _q_slerp(self, q0, q1, t):
-        """四元数最短弧 SLERP，t in [0,1]"""
+    def _q_slerp(self, q0, q1, t) -> np.ndarray:
+        """四元数最短弧 SLERP，t in [0,1]。"""
         q0 = self._q_normalize(q0)
         q1 = self._q_normalize(q1)
         dot = np.dot(q0, q1)
@@ -81,7 +128,20 @@ class LinearMotionDomainService:
         s1 = np.sin(t * theta0) / sin_theta0
         return s0 * q0 + s1 * q1
 
-    def sampling(self, start_quat, start_pos, end_quat, end_pos, sampling_dis=0.002,include_end=True):
+    def sampling(self, start_quat: np.ndarray, start_pos: np.ndarray, end_quat: np.ndarray, end_pos: np.ndarray, sampling_dis: float = 0.002, include_end: bool = True) -> tuple[np.ndarray, np.ndarray, int]:
+        """对起点和终点进行空间线性插值采样。
+        
+        Args:
+            start_quat (np.ndarray): 起点四元数。
+            start_pos (np.ndarray): 起点位置。
+            end_quat (np.ndarray): 终点四元数。
+            end_pos (np.ndarray): 终点位置。
+            sampling_dis (float, optional): 采样间距. Defaults to 0.002.
+            include_end (bool, optional): 是否包含终点. Defaults to True.
+            
+        Returns:
+            tuple: (quat_list, pos_list, n_seg)
+        """
         quat_list = []
         pos_list = []
         # todo: 按照起始四元数+位置和终点四元数+位置以及采样间隔0.02m，进行采样
@@ -117,7 +177,17 @@ class LinearMotionDomainService:
      
         return quat_list, pos_list, n_seg
 
-    def smooth(self, quat_list, pos_list, n_seg):
+    def smooth(self, quat_list: np.ndarray, pos_list: np.ndarray, n_seg: int) -> tuple[list[float], list[list[float]], list[list[float]], list[list[float]]]:
+        """对采样点序列进行逆运动学求解和时间参数化平滑。
+        
+        Args:
+            quat_list (np.ndarray): 四元数序列。
+            pos_list (np.ndarray): 位置序列。
+            n_seg (int): 分段数。
+            
+        Returns:
+            tuple: (t_list, positions, qd, qdd) 
+        """
         positions = []
         for quat, pos in zip(quat_list, pos_list):
             position = self.inverse_kinematic(quat, pos)
@@ -131,12 +201,14 @@ class LinearMotionDomainService:
         return t_list, positions, qd, qdd
 
     def inverse_kinematic(self, quat, pos):
+        """单点逆运动学求解（利用上一位置作为初值）。"""
         rm = R.from_quat(quat).as_matrix()
         inverse_position = self.kinematic_solver.inverse_kinematic(rm, pos, initial_theta=self.nearest_position)
         self.nearest_position = inverse_position
         return inverse_position
 
     def _q_normalize(self,q):
+        """归一化四元数。"""
         q = np.asarray(q, dtype=float)
         n = np.linalg.norm(q)
         if n == 0:
@@ -151,10 +223,8 @@ class LinearMotionDomainService:
         """
         将输入转换为二维数组 (N, dof) 并做基本校验。
 
-        Raises
-        ------
-        ValueError
-            当路标数少于 2（缺少起点或终点）时抛出。
+        Raises:
+            ValueError: 当路标数少于 2（缺少起点或终点）时抛出。
         """
         q = np.asarray(arr, dtype=float)
         if q.ndim == 1:
@@ -169,7 +239,23 @@ class LinearMotionDomainService:
     a_max: np.ndarray | float,
     dt: float = 0.01,
     grid_n: int = 800
-    ):
+    ) -> tuple[list[float], list[list[float]], list[list[float]], list[list[float]]]:
+        """使用 TOPPRA 进行时间参数化。
+        
+        Args:
+            waypoints (np.ndarray): 路径点 (N, dof)。
+            v_max (np.ndarray | float): 最大速度。
+            a_max (np.ndarray | float): 最大加速度。
+            dt (float, optional): 时间步长. Defaults to 0.01.
+            grid_n (int, optional): 网格点数. Defaults to 800.
+            
+        Returns:
+            tuple: (t, q, qd, qdd).
+            
+        Raises:
+            ValueError: 如果参数形状不正确。
+            RuntimeError: 如果求解失败。
+        """
         waypoints = np.asarray(waypoints, dtype=float)
         if waypoints.ndim != 2 or waypoints.shape[1] != 6 or waypoints.shape[0] < 2:
             raise ValueError("waypoints 必须是 (N,6) 且 N>=2")

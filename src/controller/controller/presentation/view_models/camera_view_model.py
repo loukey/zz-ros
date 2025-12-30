@@ -10,18 +10,29 @@ from controller.application import CameraApplicationService
 
 
 class CameraViewModel(BaseViewModel):
-    """
-    摄像头视图模型
+    """摄像头视图模型。
     
     职责：
-    - 连接UI和Application Service
+    - 连接 UI 和 Application Service
     - 管理图像显示状态（定时刷新）
     - 管理检测状态
-    - 通过Application Service获取图像和检测结果
+    - 通过 Application Service 获取图像和检测结果
     
     架构原则：
-    - 只依赖Application层，不直接访问Domain层
-    - 所有Domain层调用通过Application Service转发
+    - 只依赖 Application 层，不直接访问 Domain 层
+    - 所有 Domain 层调用通过 Application Service 转发
+    
+    Attributes:
+        image_display_requested (pyqtSignal): 图像显示请求信号，携带 (image, image_type)。
+        status_updated (pyqtSignal): 状态文本更新信号。
+        image_info_updated (pyqtSignal): 图像信息更新信号。
+        connection_status_changed (pyqtSignal): 摄像头连接状态信号。
+        button_states_changed (pyqtSignal): 按钮状态变更信号，携带 (color_active, depth_active)。
+        clear_display_requested (pyqtSignal): 清除显示请求信号。
+        detection_status_changed (pyqtSignal): 检测状态变更信号。
+        detection_result_updated (pyqtSignal): 检测结果更新信号。
+        app_service (CameraApplicationService): 摄像头应用服务。
+        display_timer (QTimer): 图像刷新定时器。
     """
     
     # ========== 信号定义 ==========
@@ -39,6 +50,12 @@ class CameraViewModel(BaseViewModel):
         app_service: CameraApplicationService,
         parent=None
     ):
+        """初始化摄像头视图模型。
+        
+        Args:
+            app_service (CameraApplicationService): 摄像头应用服务。
+            parent (QObject, optional): 父对象. Defaults to None.
+        """
         super().__init__(parent)
         self.app_service = app_service
         
@@ -55,11 +72,11 @@ class CameraViewModel(BaseViewModel):
     # ========== 用户操作方法 ==========
     
     def connect_camera(self):
-        """连接摄像头"""
+        """连接摄像头。"""
         self.app_service.connect_camera()
     
     def disconnect_camera(self):
-        """断开摄像头"""
+        """断开摄像头。"""
         # 先停止显示
         if self.current_display_mode is not None:
             self.stop_display()
@@ -68,7 +85,7 @@ class CameraViewModel(BaseViewModel):
         self.app_service.disconnect_camera()
     
     def start_color_display(self):
-        """开始显示彩色图"""
+        """开始显示彩色图。"""
         # ✅ 通过Application层检查摄像头是否连接
         if not self.app_service.is_camera_connected():
             self.status_updated.emit("请先连接摄像头")
@@ -85,7 +102,7 @@ class CameraViewModel(BaseViewModel):
         self.button_states_changed.emit(True, False)
     
     def start_depth_display(self):
-        """开始显示深度图"""
+        """开始显示深度图。"""
         # ✅ 通过Application层检查摄像头是否连接
         if not self.app_service.is_camera_connected():
             self.status_updated.emit("请先连接摄像头")
@@ -102,7 +119,7 @@ class CameraViewModel(BaseViewModel):
         self.button_states_changed.emit(False, True)
     
     def stop_display(self):
-        """停止显示"""
+        """停止显示。"""
         # 停止定时器
         self.display_timer.stop()
         
@@ -118,25 +135,24 @@ class CameraViewModel(BaseViewModel):
         self.image_info_updated.emit({})
     
     def start_detection(self):
-        """开始检测"""
+        """开始检测。"""
         self.app_service.start_detection()
     
     def stop_detection(self):
-        """停止检测"""
+        """停止检测。"""
         self.app_service.stop_detection()
     
     def move_to_detected_part(self):
-        """
-        运动到检测到的零件位置
+        """运动到检测到的零件位置。
         
-        职责：仅转发到 Application 层
+        职责：仅转发到 Application 层。
         """
         self.app_service.move_to_detected_part()
     
     # ========== 私有方法 ==========
     
     def _update_display(self):
-        """定时器回调，刷新图像显示"""
+        """定时器回调，刷新图像显示。"""
         if self.current_display_mode == 'color':
             # ✅ 通过Application层检查彩色图像是否可用
             if self.app_service.is_color_available():
@@ -170,7 +186,12 @@ class CameraViewModel(BaseViewModel):
                 self.status_updated.emit("等待深度图像数据...")
     
     def _update_image_info(self, image: np.ndarray, image_type: str):
-        """更新图像信息"""
+        """更新图像信息。
+        
+        Args:
+            image (np.ndarray): 图像数据。
+            image_type (str): 图像类型。
+        """
         try:
             height, width = image.shape[:2]
             channels = image.shape[2] if len(image.shape) == 3 else 1
@@ -188,7 +209,7 @@ class CameraViewModel(BaseViewModel):
             pass
     
     def _connect_signals(self):
-        """连接Application Service信号"""
+        """连接Application Service信号。"""
         # 摄像头连接状态
         self.app_service.connection_status_changed.connect(
             self.connection_status_changed.emit
@@ -207,13 +228,18 @@ class CameraViewModel(BaseViewModel):
         # 可以通过 Application Service 中转 Domain 层信号
     
     def _on_connection_status_changed(self, connected: bool):
-        """处理连接状态变化"""
-        # 如果断开连接，自动停止显示
+        """处理连接状态变化。
+        
+        如果断开连接，自动停止显示。
+        
+        Args:
+            connected (bool): 是否已连接。
+        """
         if not connected and self.current_display_mode is not None:
             self.stop_display()
     
     def cleanup(self):
-        """清理资源"""
+        """清理资源。"""
         try:
             # 停止检测（✅ 通过Application层）
             if self.app_service.is_detection_running():

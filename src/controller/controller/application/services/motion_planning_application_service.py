@@ -16,8 +16,7 @@ from pathlib import Path
 
 
 class MotionPlanningApplicationService(QObject):
-    """
-    运动规划应用服务
+    """运动规划应用服务。
     
     职责：
     1. 协调Domain和Infrastructure
@@ -25,6 +24,13 @@ class MotionPlanningApplicationService(QObject):
     3. 发送UI更新信号
     4. 执行运动规划（单点和整体方案）
     5. 处理"获取位置"功能
+
+    Attributes:
+        plan_list_changed (pyqtSignal): 方案列表变化信号。
+        current_plan_changed (pyqtSignal): 当前方案切换信号。
+        point_list_changed (pyqtSignal): 节点列表变化信号。
+        current_position_received (pyqtSignal): 当前位置数据信号（弧度值）。
+        trajectory_preview_signal (pyqtSignal): 轨迹预览数据信号（轨迹数据，上下文）。
     """
     
     # 信号
@@ -55,6 +61,16 @@ class MotionPlanningApplicationService(QObject):
         message_response: MessageResponseService,
         trajectory_repository: TrajectoryRepository
     ):
+        """初始化运动规划应用服务。
+        
+        Args:
+            domain_service: 运动规划领域服务。
+            repository: 运动方案仓储。
+            motion_constructor: 运动构造器。
+            command_hub: 命令中心服务。
+            message_response: 消息响应服务。
+            trajectory_repository: 轨迹仓储。
+        """
         super().__init__()
         self.domain_service = domain_service
         self.repository = repository
@@ -97,7 +113,11 @@ class MotionPlanningApplicationService(QObject):
     # ========== 方案操作 ==========
     
     def create_plan(self, name: str):
-        """创建方案"""
+        """创建方案。
+        
+        Args:
+            name (str): 方案名称。
+        """
         new_index = self.domain_service.create_plan(name)
         self._save_data()
         self.plan_list_changed.emit()
@@ -105,11 +125,13 @@ class MotionPlanningApplicationService(QObject):
         self.point_list_changed.emit()
     
     def delete_plan(self, index: int) -> bool:
-        """
-        删除方案
+        """删除方案。
+        
+        Args:
+            index (int): 方案索引。
         
         Returns:
-            True=删除成功, False=删除失败（违反业务规则）
+            bool: True=删除成功, False=删除失败（违反业务规则）。
         """
         if self.domain_service.delete_plan(index):
             self._save_data()
@@ -120,14 +142,23 @@ class MotionPlanningApplicationService(QObject):
         return False
     
     def switch_plan(self, index: int):
-        """切换方案"""
+        """切换方案。
+        
+        Args:
+            index (int): 目标方案索引。
+        """
         if self.domain_service.set_current_index(index):
             self._save_data()
             self.current_plan_changed.emit(index)
             self.point_list_changed.emit()
     
     def rename_plan(self, index: int, new_name: str):
-        """重命名方案"""
+        """重命名方案。
+        
+        Args:
+            index (int): 方案索引。
+            new_name (str): 新名称。
+        """
         if self.domain_service.rename_plan(index, new_name):
             self._save_data()
             self.plan_list_changed.emit()
@@ -165,13 +196,13 @@ class MotionPlanningApplicationService(QObject):
         self.point_list_changed.emit()
     
     def get_single_point(self, index: int) -> dict:
-        """获取单个节点数据
+        """获取单个节点数据。
         
         Args:
-            index: 节点索引
+            index (int): 节点索引。
             
         Returns:
-            节点数据字典，如果索引无效则返回None
+            dict: 节点数据字典，如果索引无效则返回None。
         """
         points = self.domain_service.get_all_points()
         if 0 <= index < len(points):
@@ -181,8 +212,7 @@ class MotionPlanningApplicationService(QObject):
     # ========== 执行操作 ==========
     
     def execute_single_point(self, index: int):
-        """
-        执行单个节点
+        """执行单个节点。
         
         流程：
         1. 获取节点数据
@@ -191,7 +221,7 @@ class MotionPlanningApplicationService(QObject):
         4. 查询当前位置
         
         Args:
-            index: 节点索引
+            index (int): 节点索引。
         """
         tasks = self._get_node_tasks(index)
         if not tasks:
@@ -207,8 +237,7 @@ class MotionPlanningApplicationService(QObject):
         self.command_hub.get_current_position()
     
     def execute_motion_plan(self):
-        """
-        执行整个运动规划方案
+        """执行整个运动规划方案。
         
         流程：
         1. 获取所有节点的任务
@@ -229,8 +258,7 @@ class MotionPlanningApplicationService(QObject):
         self.command_hub.run_motion_sequence()
     
     def _parse_point_to_tasks(self, point: Dict) -> List[Dict]:
-        """
-        将节点数据解析为任务列表
+        """将节点数据解析为任务列表。
         
         注意：每个节点只会生成一个任务，不会同时有运动和夹爪
         - 如果是示教节点，只返回示教任务
@@ -238,7 +266,7 @@ class MotionPlanningApplicationService(QObject):
         - 如果是夹爪节点，只返回夹爪任务
         
         Args:
-            point: 节点数据字典，包含：
+            point (Dict): 节点数据字典，包含：
                 - mode: 模式（"运动点"、"示教-xxx"、"夹爪"等）
                 - joint_angles: 关节角度
                 - curve_type: 曲线类型（"S曲线"、"直线"）
@@ -248,7 +276,7 @@ class MotionPlanningApplicationService(QObject):
                 - teach_data: 示教数据（示教模式节点）
                 
         Returns:
-            任务列表，每个节点只返回一个任务
+            List[Dict]: 任务列表，每个节点只返回一个任务。
         """
         mode = point.get("mode", "")
         
@@ -346,22 +374,20 @@ class MotionPlanningApplicationService(QObject):
         }]
     
     def _parse_gripper_command(self, gripper_str: str) -> int:
-        """
-        解析夹爪命令字符串为 effector_mode
+        """解析夹爪命令字符串为 effector_mode。
         
         Args:
-            gripper_str: 夹爪命令字符串，如 "02: 设置夹爪目标位置"
+            gripper_str (str): 夹爪命令字符串，如 "02: 设置夹爪目标位置"。
             
         Returns:
-            effector_mode (int)
+            int: effector_mode.
         """
         return self.GRIPPER_MODE_MAP.get(gripper_str, 0x00)
     
     # ========== 获取位置功能 ==========
     
     def request_current_position(self):
-        """
-        请求获取当前位置（仅用于UI显示）
+        """请求获取当前位置（仅用于UI显示）。
         
         流程：
         1. 发送 0x07 命令查询位置
@@ -375,8 +401,7 @@ class MotionPlanningApplicationService(QObject):
     # ========== 保存轨迹功能 ==========
     
     def save_node_trajectory(self, node_index: int) -> bool:
-        """
-        保存单个节点的轨迹
+        """保存单个节点的轨迹。
         
         流程：
         1. 获取节点任务
@@ -385,11 +410,10 @@ class MotionPlanningApplicationService(QObject):
         4. MessageResponseService 自动完成保存
         
         Args:
-            node_index: 节点索引
+            node_index (int): 节点索引。
             
         Returns:
-            True: 准备成功
-            False: 准备失败
+            bool: True: 准备成功, False: 准备失败。
         """
         try:
             tasks = self._get_node_tasks(node_index)

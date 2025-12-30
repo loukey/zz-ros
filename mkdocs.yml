@@ -1,0 +1,137 @@
+site_name: 镇中科技机械臂控制系统文档
+site_url: https://loukey.github.io/zz-ros/
+repo_url: https://github.com/loukey/zz-ros/
+repo_name: loukey/zz-ros
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  language: zh
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: 切换到深色模式
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: 切换到浅色模式
+  features:
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - toc.integrate
+    - search.suggest
+    - search.highlight
+    - content.tabs.link
+    - content.code.copy
+  icon:
+    repo: fontawesome/brands/github
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src/controller] # 指定Python源码路径
+          options:
+            docstring_style: google # 使用Google Style
+            show_root_heading: true
+            show_object_full_path: false
+            show_category_heading: false    # 禁用分类标题（如 "Classes", "Functions"）
+            show_symbol_type_heading: false # 禁用符号类型标题
+            show_symbol_type_toc: true      # 在目录中保留类型提示（可选）
+            show_if_no_docstring: false
+            show_signature_annotations: true
+            separate_signature: true
+            merge_init_into_class: true
+            show_bases: true
+            show_source: true
+            group_by_category: false        # 不按类别分组，直接平铺显示
+            members_order: source           # 按源码顺序显示（比字母顺序更符合逻辑）
+
+markdown_extensions:
+  - pymdownx.arithmatex:
+      generic: true
+
+extra_javascript:
+  - javascripts/mathjax.js
+  - https://polyfill.io/v3/polyfill.min.js?features=es6
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
+
+nav:
+  - Index: 
+    - 项目结构概览: index/index.md
+    - 快速开始: index/quick_start.md
+    - 配置: 
+      - 消息配置: index/config/message_config.md
+      - 运动学配置: index/config/kinematic_config.md
+      - 动力学配置: index/config/dynamic_config.md
+      - 手眼标定配置: index/config/hand_eye_config.md
+      - 轨迹保存设置: index/config/save_config.md
+  - Introduction:
+    - 机械臂DH设置: introduction/dh_setting.md
+    - 手眼标定: introduction/hand_eye_calibration.md
+    - 基础知识: introduction/base.md
+  - API Reference:
+      - Application:
+          - Services:
+              - Camera Service: api/application/services/camera.md
+              - Serial Service: api/application/services/serial.md
+              - Motion Planning Service: api/application/services/motion_planning.md
+              - Tools Service: api/application/services/tools.md
+              - Base Service: api/application/services/base.md
+              - Command Hub Service: api/application/services/command_hub.md
+              - Message Response Service: api/application/services/message_response.md
+          - Commands:
+              - Message Display: api/application/commands/message_display.md
+          - Listeners:
+              - Motion Listener: api/application/listeners/motion_listener.md
+      - Domain:
+          - Entities: api/domain/entities.md
+          - Services:
+              - Algorithm: api/domain/algorithm.md
+              - Communication: api/domain/communication.md
+              - Motion: api/domain/motion.md
+              - Planning: api/domain/planning.md
+              - State: api/domain/state.md
+              - Vision: api/domain/vision.md
+          - Utils: api/domain/utils.md
+          - Value Objects: api/domain/value_objects.md
+      - Infrastructure:
+          - Communication:
+              - Serial Adapter: api/infrastructure/communication/adapter.md
+              - Serial Reader: api/infrastructure/communication/reader.md
+              - Serial Writer: api/infrastructure/communication/writer.md
+              - Port Scanner: api/infrastructure/communication/scanner.md
+          - Persistence:
+              - Trajectory Repository: api/infrastructure/persistence/trajectory.md
+              - Record Repository: api/infrastructure/persistence/record.md
+              - Motion Plan Repository: api/infrastructure/persistence/motion_plan.md
+              - Calibration Repository: api/infrastructure/persistence/calibration.md
+      - Presentation:
+          - Core:
+              - Main ViewModel: api/presentation/core/main.md
+              - Base ViewModel: api/presentation/core/base.md
+              - Display ViewModel: api/presentation/core/display.md
+          - Device Control:
+              - Serial ViewModel: api/presentation/device/serial.md
+              - Control ViewModel: api/presentation/device/control.md
+              - Status ViewModel: api/presentation/device/status.md
+              - Effector ViewModel: api/presentation/device/effector.md
+          - Features:
+              - Camera ViewModel: api/presentation/features/camera.md
+              - Dynamics ViewModel: api/presentation/features/dynamics.md
+              - Motion Planning ViewModel: api/presentation/features/motion_planning.md
+              - Tools ViewModel: api/presentation/features/tools.md
+              - Trajectory ViewModel: api/presentation/features/trajectory.md
+      - Shared:
+          - Configuration:
+              - DI Container: api/shared/config/di_container.md
+              - Service Registry: api/shared/config/service_registry.md

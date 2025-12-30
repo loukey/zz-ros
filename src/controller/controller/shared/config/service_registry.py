@@ -10,7 +10,11 @@ from controller.infrastructure import *
 
 
 def register_infrastructure_services(container: DIContainer) -> None:
-    """注册Infrastructure层服务"""
+    """注册 Infrastructure 层服务。
+    
+    Args:
+        container (DIContainer): DI 容器实例。
+    """
     # 记录数据持久化仓库
     container.register_singleton(RecordRepository)
     # 运动规划方案持久化仓库
@@ -21,7 +25,11 @@ def register_infrastructure_services(container: DIContainer) -> None:
     container.register_singleton(TrajectoryRepository)
 
 def register_domain_services(container: DIContainer) -> None:
-    """注册Domain层服务"""
+    """注册 Domain 层服务。
+    
+    Args:
+        container (DIContainer): DI 容器实例。
+    """
     container.register_singleton(SerialDomainService)
     container.register_singleton(MessageEncoder)
     container.register_singleton(MessageDecoder)
@@ -62,7 +70,11 @@ def register_domain_services(container: DIContainer) -> None:
     container.register_singleton(HandEyeTransformDomainService)
     
 def register_application_services(container: DIContainer) -> None:
-    """注册Application层服务"""
+    """注册 Application 层服务。
+    
+    Args:
+        container (DIContainer): DI 容器实例。
+    """
     container.register_singleton(MessageDisplay)
     container.register_singleton(SerialApplicationService)
     container.register_singleton(CommandHubService)
@@ -76,7 +88,11 @@ def register_application_services(container: DIContainer) -> None:
     container.register_singleton(ToolsApplicationService)
 
 def register_presentation_services(container: DIContainer) -> None:
-    """注册Presentation层服务"""
+    """注册 Presentation 层服务。
+    
+    Args:
+        container (DIContainer): DI 容器实例。
+    """
     
     container.register_singleton(DisplayViewModel)
     container.register_singleton(SerialViewModel)
@@ -95,7 +111,13 @@ def register_presentation_services(container: DIContainer) -> None:
     container.register_singleton(MainViewModel)
 
 def configure_services() -> DIContainer:
-    """配置所有服务"""
+    """配置所有服务。
+    
+    按层次注册所有依赖服务。
+    
+    Returns:
+        DIContainer: 配置好的容器实例。
+    """
     container = get_container()
     
     # 按层次注册服务
@@ -108,24 +130,44 @@ def configure_services() -> DIContainer:
 
 
 def get_main_view_model() -> MainViewModel:
-    """便捷方法：获取主视图模型"""
+    """便捷方法：获取主视图模型。
+    
+    Returns:
+        MainViewModel: 主视图模型实例。
+    """
     return resolve(MainViewModel)
 
 
 def get_serial_service() -> SerialApplicationService:
-    """便捷方法：获取串口服务"""
+    """便捷方法：获取串口服务。
+    
+    Returns:
+        SerialApplicationService: 串口应用服务实例。
+    """
     return resolve(SerialApplicationService)
 
 
 def get_serial_view_model() -> SerialViewModel:
-    """便捷方法：获取串口视图模型"""
+    """便捷方法：获取串口视图模型。
+    
+    Returns:
+        SerialViewModel: 串口视图模型实例。
+    """
     return resolve(SerialViewModel)
 
 
 def get_display_view_model() -> DisplayViewModel:
-    """便捷方法：获取显示视图模型"""
+    """便捷方法：获取显示视图模型。
+    
+    Returns:
+        DisplayViewModel: 显示视图模型实例。
+    """
     return resolve(DisplayViewModel)
 
 def get_listener_service() -> MotionListener:
-    """便捷方法：获取监听服务"""
+    """便捷方法：获取监听服务。
+    
+    Returns:
+        MotionListener: 监听服务实例。
+    """
     return resolve(MotionListener)

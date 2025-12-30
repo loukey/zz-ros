@@ -7,44 +7,98 @@ import inspect
 
 
 class ServiceLifetime:
-    """服务生命周期"""
+    """服务生命周期枚举。
+    
+    Attributes:
+        SINGLETON: 单例模式，整个容器生命周期内只创建一个实例。
+        TRANSIENT: 瞬时模式，每次请求都创建新的实例。
+    """
     SINGLETON = "singleton"
     TRANSIENT = "transient"
 
 
 class ServiceDescriptor:
-    """服务描述符"""
+    """服务描述符。
+    
+    用于存储服务的注册信息。
+    
+    Attributes:
+        service_type (Type): 服务类型（接口或基类）。
+        implementation_type (Type): 实现类型（具体类）。
+        lifetime (str): 服务生命周期。
+    """
     
     def __init__(self, service_type: Type, implementation_type: Type = None, 
                  lifetime: str = ServiceLifetime.SINGLETON):
+        """初始化服务描述符。
+        
+        Args:
+            service_type (Type): 服务类型。
+            implementation_type (Type, optional): 实现类型. Defaults to None.
+            lifetime (str, optional): 生命周期. Defaults to ServiceLifetime.SINGLETON.
+        """
         self.service_type = service_type
         self.implementation_type = implementation_type or service_type
         self.lifetime = lifetime
 
 
 class DIContainer:
-    """依赖注入容器"""
+    """依赖注入容器。
+    
+    简洁的 DI 容器实现，只支持单例和瞬时服务。
+    
+    Attributes:
+        _services (Dict[Type, ServiceDescriptor]): 已注册的服务描述符字典。
+        _instances (Dict[Type, Any]): 已创建的单例实例字典。
+    """
     
     def __init__(self):
+        """初始化容器。"""
         self._services: Dict[Type, ServiceDescriptor] = {}
         self._instances: Dict[Type, Any] = {}
     
     def register_singleton(self, service_type: Type, implementation_type: Type = None) -> 'DIContainer':
-        """注册单例服务"""
+        """注册单例服务。
+        
+        Args:
+            service_type (Type): 服务类型。
+            implementation_type (Type, optional): 实现类型. Defaults to None.
+            
+        Returns:
+            DIContainer: 容器实例本身（支持链式调用）。
+        """
         self._services[service_type] = ServiceDescriptor(
             service_type, implementation_type, lifetime=ServiceLifetime.SINGLETON
         )
         return self
     
     def register_transient(self, service_type: Type, implementation_type: Type = None) -> 'DIContainer':
-        """注册瞬时服务"""
+        """注册瞬时服务。
+        
+        Args:
+            service_type (Type): 服务类型。
+            implementation_type (Type, optional): 实现类型. Defaults to None.
+            
+        Returns:
+            DIContainer: 容器实例本身（支持链式调用）。
+        """
         self._services[service_type] = ServiceDescriptor(
             service_type, implementation_type, lifetime=ServiceLifetime.TRANSIENT
         )
         return self
     
     def get_service(self, service_type: Type) -> Any:
-        """获取服务实例"""
+        """获取服务实例。
+        
+        Args:
+            service_type (Type): 服务类型。
+            
+        Returns:
+            Any: 服务实例。
+            
+        Raises:
+            ValueError: 如果服务未注册。
+        """
         if service_type not in self._services:
             raise ValueError(f"服务 {service_type.__name__} 未注册")
         
@@ -64,7 +118,14 @@ class DIContainer:
         return instance
     
     def _create_with_constructor(self, implementation_type: Type) -> Any:
-        """使用构造函数创建实例"""
+        """使用构造函数创建实例，自动解析依赖。
+        
+        Args:
+            implementation_type (Type): 实现类型。
+            
+        Returns:
+            Any: 创建的实例。
+        """
         # 使用inspect.signature获取构造函数参数，避免类级别属性干扰
         sig = inspect.signature(implementation_type.__init__)
         kwargs = {}
@@ -111,11 +172,21 @@ class DIContainer:
         return implementation_type(**kwargs)
     
     def is_registered(self, service_type: Type) -> bool:
-        """检查服务是否已注册"""
+        """检查服务是否已注册。
+        
+        Args:
+            service_type (Type): 服务类型。
+            
+        Returns:
+            bool: 是否已注册。
+        """
         return service_type in self._services
     
     def clear(self) -> None:
-        """清空容器"""
+        """清空容器。
+        
+        清理所有注册的服务和已创建的单例实例。
+        """
         # 清理单例实例
         for instance in self._instances.values():
             if hasattr(instance, 'cleanup'):
@@ -133,7 +204,13 @@ _container: Optional[DIContainer] = None
 
 
 def get_container() -> DIContainer:
-    """获取全局DI容器"""
+    """获取全局DI容器。
+    
+    如果容器不存在，则创建一个新实例。
+    
+    Returns:
+        DIContainer: 全局容器实例。
+    """
     global _container
     if _container is None:
         _container = DIContainer()
@@ -141,5 +218,14 @@ def get_container() -> DIContainer:
 
 
 def resolve(service_type: Type) -> Any:
-    """便捷方法：解析服务"""
+    """便捷方法：解析服务。
+    
+    从全局容器中获取指定类型的服务实例。
+    
+    Args:
+        service_type (Type): 服务类型。
+        
+    Returns:
+        Any: 服务实例。
+    """
     return get_container().get_service(service_type) 

@@ -9,15 +9,17 @@ from typing import List, Dict, Optional
 
 
 class PortScanner:
-    """串口端口扫描器"""
+    """串口端口扫描器。
+    
+    负责扫描可用的串口端口，包含真实串口和虚拟串口。
+    """
     
     @staticmethod
     def scan_ports() -> List[str]:
-        """
-        扫描可用的串口端口（包含真实串口和虚拟串口）
+        """扫描可用的串口端口（包含真实串口和虚拟串口）。
         
-        返回:
-            List[str]: 可用端口名称列表
+        Returns:
+            List[str]: 可用端口名称列表。
         """
         all_ports = []
         
@@ -52,14 +54,13 @@ class PortScanner:
     
     @staticmethod
     def _is_accessible(device: str) -> bool:
-        """
-        检查设备是否可访问
+        """检查设备是否可访问。
         
-        参数:
-            device: 设备路径
+        Args:
+            device (str): 设备路径。
             
-        返回:
-            bool: 是否可访问
+        Returns:
+            bool: 是否可访问。
         """
         try:
             # 尝试以非阻塞方式打开设备
@@ -76,14 +77,13 @@ class PortScanner:
     
     @staticmethod
     def get_port_info(port_name: str) -> Optional[Dict[str, str]]:
-        """
-        获取指定端口的详细信息（支持真实串口和虚拟串口）
+        """获取指定端口的详细信息（支持真实串口和虚拟串口）。
         
-        参数:
-            port_name: 端口名称
+        Args:
+            port_name (str): 端口名称。
             
-        返回:
-            Dict[str, str]: 端口信息字典，包含description和hwid
+        Returns:
+            Optional[Dict[str, str]]: 端口信息字典，包含 description 和 hwid。如果端口不可用则返回 None。
         """
         try:
             # 1. 先尝试从真实硬件串口获取信息
@@ -120,11 +120,10 @@ class PortScanner:
     
     @staticmethod
     def get_all_port_info() -> List[Dict[str, str]]:
-        """
-        获取所有可用端口的详细信息（包含真实串口和虚拟串口）
+        """获取所有可用端口的详细信息（包含真实串口和虚拟串口）。
         
-        返回:
-            List[Dict[str, str]]: 所有端口信息列表
+        Returns:
+            List[Dict[str, str]]: 所有端口信息列表。
         """
         try:
             all_port_info = []

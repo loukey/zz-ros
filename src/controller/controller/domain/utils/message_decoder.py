@@ -89,7 +89,23 @@ class EffectorParser(BaseParser):
 
 
 class MessageDecoder:
+    """消息解码器。
+    
+    基于 YAML 配置文件动态解析十六进制消息。
+    
+    Attributes:
+        config (dict): 加载的配置字典。
+        robot_utils (RobotUtils): 工具类实例。
+        parsers (Dict[str, BaseParser]): 已注册的解析器字典。
+        MessageIn (type): 动态创建的消息数据类。
+    """
+    
     def __init__(self, config_path = "controller/config/message_decoder_config.yaml"):
+        """初始化消息解码器。
+        
+        Args:
+            config_path (str, optional): 配置文件路径. Defaults to "controller/config/message_decoder_config.yaml".
+        """
         # 使用 ROS2 包资源管理方式查找配置文件
         if _HAS_AMENT_INDEX:
             try:
@@ -108,6 +124,7 @@ class MessageDecoder:
         self.MessageIn = self._create_message_class()
     
     def _register_parsers(self) -> Dict[str, BaseParser]:
+        """注册可用的解析器。"""
         return {
             'hex_parser': HexParser(),
             'int_parser': IntParser(),
@@ -116,7 +133,7 @@ class MessageDecoder:
         }
     
     def _create_message_class(self):
-        """动态创建MessageIn类"""
+        """动态创建 MessageIn 数据类。"""
         fields_config = self.config['message_formats']['message_in']['fields']
         fields = []
         
@@ -143,6 +160,7 @@ class MessageDecoder:
         return make_dataclass('MessageIn', fields)
     
     def _parse_type(self, type_str: str):
+        """解析类型字符串为 Python 类型。"""
         if type_str == "int":
             return int
         elif type_str == "float":
@@ -158,8 +176,18 @@ class MessageDecoder:
         else:
             raise ValueError(f"Unsupported type: {type_str}")
     
-    def decode_message(self, hex_message: str):
-        """解码十六进制消息"""
+    def decode_message(self, hex_message: str) -> Any:
+        """解码十六进制消息。
+        
+        Args:
+            hex_message (str): 原始十六进制字符串。
+            
+        Returns:
+            Any: 解码后的消息对象 (MessageIn)。
+            
+        Raises:
+            ValueError: 如果消息格式错误或校验失败。
+        """
         # 移除空格和换行符
         hex_message = hex_message.replace(' ', '').replace('\n', '').replace('\r', '')
         
@@ -214,7 +242,7 @@ class MessageDecoder:
         return self.MessageIn(**parsed_data)
     
     def _parse_field(self, hex_data: str, config: Dict[str, Any]) -> Any:
-        """通用字段解析方法"""
+        """通用字段解析方法。"""
         parser_name = config['parser']
         parser_config = self.config['parsers'][parser_name]
         handler_name = parser_config['handler']
@@ -224,7 +252,14 @@ class MessageDecoder:
         return parser.parse(hex_data, params, self.robot_utils)
     
     def decode_message_detailed(self, hex_message: str) -> Dict[str, Any]:
-        """解码消息并返回详细信息（包括原始十六进制值）"""
+        """解码消息并返回详细信息（包括原始十六进制值）。
+        
+        Args:
+            hex_message (str): 原始十六进制字符串。
+            
+        Returns:
+            Dict[str, Any]: 包含详细信息的字典。
+        """
         message_in = self.decode_message(hex_message)
         
         # 创建详细信息字典
