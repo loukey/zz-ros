@@ -67,7 +67,7 @@ extra_javascript:
 
 nav:
   - Index: 
-    - 项目结构概览: index/index.md
+    - 项目结构概览: index.md
     - 快速开始: index/quick_start.md
     - 配置: 
       - 消息配置: index/config/message_config.md

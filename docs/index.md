@@ -114,4 +114,4 @@
 *   **config (`shared/config`)**: 全局代码配置。
     *   `di_container.py`: 依赖注入 (DI) 容器实现。
     *   `service_registry.py`: 服务注册与组装逻辑。
-
+    

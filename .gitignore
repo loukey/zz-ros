@@ -202,3 +202,9 @@ teach_record.json
 *.sh
 runs/
 virtual_serial/
+
+# Allow docs images
+!docs/images/
+!docs/images/*.png
+!docs/images/*.jpg
+!docs/images/*.jpeg
