@@ -25,6 +25,7 @@ class MotionRunner(QObject):
     """
     
     motion_msg_signal = pyqtSignal(str, str)
+    motion_finished = pyqtSignal()  # 运动完成信号
 
     def __init__(
         self, 
@@ -101,6 +102,7 @@ class MotionRunner(QObject):
         """定时器回调函数，负责单步发送或延迟等待。"""
         if self.data_index >= len(self.data_list):
             self.timer.stop()
+            self.motion_finished.emit()  # 发送完成信号
             return
         current_item = self.data_list[self.data_index]
         if hasattr(current_item, 'is_delay'):

@@ -216,6 +216,11 @@ class CameraApplicationService(QObject):
             self._on_detection_result_received
         )
         self.recognition_service.error_occurred.connect(self._on_detection_error)
+        
+        # MotionConstructor 信号
+        self.motion_constructor.detection_requested.connect(
+            self._on_motion_detection_requested
+        )
     
     def _on_camera_connection_status_changed(self, connected: bool, message: str):
         """处理摄像头连接状态变化"""
@@ -262,6 +267,65 @@ class CameraApplicationService(QObject):
     def _on_detection_error(self, error_msg: str):
         """处理检测错误"""
         self._display_message(error_msg, "错误")
+        
+    def _on_motion_detection_requested(self, current_position: list):
+        """处理运动过程中的检测请求。
+        
+        当运动规划执行到"检测节点"时触发。
+        流程：
+        1. 获取最新检测结果
+        2. 手眼标定计算目标位置
+        3. 恢复运动规划（注入目标位置）
+        
+        Args:
+            current_position (list): 机器人当前物理位置（关节角度）。
+        """
+        self._display_message("已到达检测点，正在进行识别...", "检测")
+        
+        # 1. 确保检测正在运行
+        if not self.recognition_service.is_detection_running():
+            # 如果没运行，尝试启动
+            self._display_message("检测未运行，尝试自动启动...", "检测")
+            if not self.recognition_service.start_detection():
+                self._display_message("无法启动检测，流程中断", "错误")
+                return
+        
+        # TODO: 这里可能需要一点延时等待检测结果稳定？
+        # 目前假设检测是持续运行的，直接取最新结果
+        
+        # 2. 获取检测结果
+        detection_result = self.recognition_service.get_latest_result()
+        
+        if not detection_result:
+            self._display_message("未检测到目标，流程中断", "警告")
+            return
+            
+        # 3. 手眼标定计算
+        try:
+            target_angles = self.hand_eye_service.calculate_target_joint_angles(
+                central_center=detection_result['central_center'],
+                depth=detection_result['depth'],
+                real_center=detection_result['real_center'],
+                real_depth=detection_result['real_depth'],
+                angle=detection_result['angle'],
+                current_joint_angles=current_position
+            )
+            
+            if target_angles is None:
+                self._display_message("逆运动学无解，无法到达目标位置", "错误")
+                return
+                
+            self._display_message(
+                f"识别成功，计算出目标位姿。角度: {np.degrees(detection_result['angle']):.1f}°",
+                "检测"
+            )
+            
+            self.recognition_service.stop_detection()
+            # 4. 恢复运动规划
+            self.motion_constructor.resume_after_detection(target_angles)
+            
+        except Exception as e:
+            self._display_message(f"计算目标位姿失败: {str(e)}", "错误")
     
     def _display_message(self, message: str, msg_type: str = "摄像头"):
         """显示消息的统一接口"""

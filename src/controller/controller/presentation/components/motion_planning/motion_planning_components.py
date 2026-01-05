@@ -855,6 +855,10 @@ class MotionPointDialog(QDialog):
         self.mode_group.addButton(self.gripper_radio, 1)
         radio_layout.addWidget(self.gripper_radio)
         
+        self.detect_radio = QRadioButton("检测")
+        self.mode_group.addButton(self.detect_radio, 2)
+        radio_layout.addWidget(self.detect_radio)
+        
         radio_layout.addStretch()
         layout.addLayout(radio_layout)
         
@@ -1059,6 +1063,8 @@ class MotionPointDialog(QDialog):
         mode = data.get("mode", "运动")
         if mode == "夹爪":
             self.gripper_radio.setChecked(True)
+        elif mode == "检测":
+            self.detect_radio.setChecked(True)
         else:
             self.motion_radio.setChecked(True)
         
@@ -1130,6 +1136,8 @@ class MotionPointDialog(QDialog):
         # 获取模式选择
         if self.gripper_radio.isChecked():
             data["mode"] = "夹爪"
+        elif self.detect_radio.isChecked():
+            data["mode"] = "检测"
         else:
             data["mode"] = "运动"
         

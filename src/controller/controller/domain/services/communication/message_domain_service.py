@@ -1,4 +1,5 @@
 from ...utils import MessageEncoder, MessageDecoder
+from typing import Any
 
 
 class MessageDomainService:

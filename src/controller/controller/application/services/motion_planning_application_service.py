@@ -288,8 +288,14 @@ class MotionPlanningApplicationService(QObject):
                 "type": "teach",
                 "teach_data": teach_data
             }]
+            
+        # 2. 判断是否为检测节点
+        if mode == "检测":
+            return [{
+                "type": "detect"
+            }]
         
-        # 2. 判断是否为夹爪节点
+        # 3. 判断是否为夹爪节点
         gripper_command = point.get("gripper_command", "00: 不进行任何操作")
         if gripper_command != "00: 不进行任何操作":
             effector_mode = self._parse_gripper_command(gripper_command)
@@ -305,7 +311,7 @@ class MotionPlanningApplicationService(QObject):
                 "post_delay": post_delay
             }]
         
-        # 3. 判断是否为向量运动节点
+        # 4. 判断是否为向量运动节点
         curve_type = point.get("curve_type", "S曲线")
         if curve_type == "向量":
             direction = [
@@ -322,7 +328,7 @@ class MotionPlanningApplicationService(QObject):
                 "frequency": point.get("frequency", 0.01)
             }]
         
-        # 4. 判断是否为曲线运动节点
+        # 5. 判断是否为曲线运动节点
         if curve_type == "曲线":
             # 提取中间点坐标
             mid_points = [
@@ -355,7 +361,7 @@ class MotionPlanningApplicationService(QObject):
                 "frequency": point.get("frequency", 0.01)
             }]
         
-        # 5. 默认为普通运动点
+        # 7. 默认为普通运动点
         # 从 UI 字段名 (joint1-joint6) 构建角度列表
         target_angles = [
             point.get("joint1", 0.0),
