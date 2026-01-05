@@ -140,6 +140,8 @@ class MotionConstructor:
                     pre_delay=pre_delay,
                     post_delay=post_delay
                 )
+            elif task["type"] == "detect":
+                pass
             else:
                 # 运动任务：规划轨迹并添加
                 positions, end_position = self.trajectory_planner._plan_single_task(
