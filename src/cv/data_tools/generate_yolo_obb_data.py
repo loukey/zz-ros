@@ -19,8 +19,8 @@ from typing import List, Tuple, Dict, Any
 
 
 class YOLO11OBBDataGenerator:
-    def __init__(self, annotations_dir="./data/annotations", 
-                 output_dir="./data/yolo11_obb_dataset", 
+    def __init__(self, annotations_dir="../data/raw", 
+                 output_dir="../data/datasets/yolo_obb", 
                  target_count=500,
                  class_mapping=None,
                  auto_discover_classes=True,

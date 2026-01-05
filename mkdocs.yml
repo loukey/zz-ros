@@ -39,7 +39,7 @@ plugins:
   - mkdocstrings:
       handlers:
         python:
-          paths: [src/controller] # 指定Python源码路径
+          paths: [src/controller, src/cv] # 指定Python源码路径 (Added src/cv)
           options:
             docstring_style: google # 使用Google Style
             show_root_heading: true
@@ -79,6 +79,11 @@ nav:
     - 机械臂DH设置: introduction/dh_setting.md
     - 手眼标定: introduction/hand_eye_calibration.md
     - 基础知识: introduction/base.md
+  - Computer Vision:
+    - 模块概述: cv/index.md
+    - 快速开始: cv/quick_start.md
+    - 检测器架构: cv/detectors.md
+    - 数据工具: cv/data_tools.md
   - API Reference:
       - Application:
           - Services:
