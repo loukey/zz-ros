@@ -87,6 +87,7 @@ class MessageResponseService(BaseService):
         Args:
             message_in (str): 输入的原始串口数据。
         """
+        
         self.message_buffer += message_in
         if "0D0A" in self.message_buffer:
             if self.message_buffer.startswith("AA55") and len(self.message_buffer) < 120:
