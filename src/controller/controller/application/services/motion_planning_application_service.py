@@ -236,6 +236,15 @@ class MotionPlanningApplicationService(QObject):
         if not tasks:
             return
         
+        # 预先扫描：如果包含检测任务，处理检测服务的生命周期
+        has_detection = any(task.get("type") == "detect" for task in tasks)
+        if has_detection:
+            # 1. 启动检测服务，并标记是由我们自动开启的
+            self.detection_service_requested.emit(True)
+            self._auto_started_detection = True
+        else:
+            self._auto_started_detection = False
+
         # 准备执行操作
         self.motion_constructor.prepare_operation(
             MotionOperationMode.EXECUTE,
