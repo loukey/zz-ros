@@ -206,6 +206,9 @@ class MotionConstructor(QObject):
 
     def _on_motion_finished(self):
         """当MotionRunner完成一组运动时触发。"""
+        # 清理已执行的数据，防止重复执行
+        self.motion_runner.clear_data()
+
         # 检查是否是因为遇到检测节点而暂停的
         if self._is_waiting_for_detection:
             # 确认队首确实是检测任务（双重保险）
