@@ -3,8 +3,8 @@
 协调摄像头Domain服务、检测服务和消息显示
 提供统一的查询接口，避免ViewModel直接访问Domain层
 """
-from PyQt5.QtCore import QObject, pyqtSignal
-from typing import Optional, Dict
+from PyQt5.QtCore import QObject, pyqtSignal, QTimer
+from typing import Optional, Dict, List
 import numpy as np
 from controller.domain import (
     CameraDomainService,
@@ -58,6 +58,13 @@ class CameraApplicationService(QObject):
         
         # 连接Domain Service信号
         self._connect_signals()
+        
+        # 异步等待相关的状态
+        self._is_waiting_for_motion_result = False
+        self._pending_motion_position = None
+        self._wait_timer = QTimer()
+        self._wait_timer.setSingleShot(True)
+        self._wait_timer.timeout.connect(self._on_detection_wait_timeout)
     
     # ========== 核心方法 ==========
     
@@ -257,7 +264,23 @@ class CameraApplicationService(QObject):
     
     def _on_detection_result_received(self, detection: dict):
         """处理检测结果"""
-        # 格式化检测结果并显示
+        # 1. 检查是否正在等待运动所需的检测结果
+        if self._is_waiting_for_motion_result:
+            # 停止超时定时器
+            self._wait_timer.stop()
+            self._is_waiting_for_motion_result = False
+            
+            self._display_message("已收到检测结果，继续执行流程", "检测")
+            
+            # 使用保存的上下文（当前位置）继续处理
+            if self._pending_motion_position:
+                self._process_detection_result_for_motion(
+                    detection, 
+                    self._pending_motion_position
+                )
+                self._pending_motion_position = None
+        
+        # 2. 格式化检测结果并显示（原有逻辑）
         try:
             angle = detection.get('angle', 0.0)
             depth = detection.get('depth', 0.0)
@@ -292,14 +315,45 @@ class CameraApplicationService(QObject):
                 self._display_message("无法启动检测，流程中断", "错误")
                 return
         
-        # 2. 获取检测结果
+        # 2. 尝试获取检测结果
         detection_result = self.recognition_service.get_latest_result()
         
         if not detection_result:
-            self._display_message("未检测到目标，流程中断", "警告")
+            # === 异步等待逻辑开始 ===
+            self._display_message("暂无检测结果，等待更新...", "检测")
+            
+            # 设置等待状态
+            self._is_waiting_for_motion_result = True
+            self._pending_motion_position = current_position
+            
+            # 启动超时定时器（例如 3 秒）
+            self._wait_timer.start(3000)
+            
+            # 暂时退出，等待 _on_detection_result_received 回调
             return
+            # === 异步等待逻辑结束 ===
+            
         else:
             self._display_message(f"检测结果: {detection_result}", "检测")
+            
+            # 有结果，直接处理
+            self._process_detection_result_for_motion(detection_result, current_position)
+
+    def _on_detection_wait_timeout(self):
+        """处理检测结果等待超时"""
+        if self._is_waiting_for_motion_result:
+            self._is_waiting_for_motion_result = False
+            self._pending_motion_position = None
+            self._display_message("等待检测结果超时，流程中断", "错误")
+            # 这里可能需要通知 MotionConstructor 终止或报错，目前只是打印日志
+
+    def _process_detection_result_for_motion(self, detection_result: dict, current_position: list):
+        """处理用于运动的检测结果（复用逻辑）。
+        
+        Args:
+            detection_result (dict): 检测结果。
+            current_position (list): 机器人当前物理位置。
+        """
         # 3. 手眼标定计算
         try:
             target_angles = self.hand_eye_service.calculate_target_joint_angles(
