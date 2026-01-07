@@ -298,7 +298,8 @@ class CameraApplicationService(QObject):
         if not detection_result:
             self._display_message("未检测到目标，流程中断", "警告")
             return
-            
+        else:
+            self._display_message(f"检测结果: {detection_result}", "检测")
         # 3. 手眼标定计算
         try:
             target_angles = self.hand_eye_service.calculate_target_joint_angles(

@@ -89,8 +89,8 @@ def register_application_services(container: DIContainer) -> None:
     
     # 手动连接应用服务之间的信号
     # MotionPlanningApplicationService -> CameraApplicationService (检测服务启停)
-    motion_planning_app = container.resolve(MotionPlanningApplicationService)
-    camera_app = container.resolve(CameraApplicationService)
+    motion_planning_app = resolve(MotionPlanningApplicationService)
+    camera_app = resolve(CameraApplicationService)
     camera_app.set_start_stop_detection_signal(motion_planning_app.detection_service_requested)
 
 def register_presentation_services(container: DIContainer) -> None:
