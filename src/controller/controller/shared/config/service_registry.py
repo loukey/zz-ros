@@ -86,6 +86,12 @@ def register_application_services(container: DIContainer) -> None:
     container.register_singleton(CameraApplicationService)
     # 工具应用服务
     container.register_singleton(ToolsApplicationService)
+    
+    # 手动连接应用服务之间的信号
+    # MotionPlanningApplicationService -> CameraApplicationService (检测服务启停)
+    motion_planning_app = container.resolve(MotionPlanningApplicationService)
+    camera_app = container.resolve(CameraApplicationService)
+    camera_app.set_start_stop_detection_signal(motion_planning_app.detection_service_requested)
 
 def register_presentation_services(container: DIContainer) -> None:
     """注册 Presentation 层服务。

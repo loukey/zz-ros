@@ -221,6 +221,17 @@ class CameraApplicationService(QObject):
         self.motion_constructor.detection_requested.connect(
             self._on_motion_detection_requested
         )
+        
+    def set_start_stop_detection_signal(self, detection_service_requested: pyqtSignal):
+        """设置来自MotionPlanningApplicationService的信号连接"""
+        detection_service_requested.connect(self._on_detection_service_requested)
+    
+    def _on_detection_service_requested(self, start: bool):
+        """处理检测服务启停请求"""
+        if start:
+            self.start_detection()
+        else:
+            self.stop_detection()
     
     def _on_camera_connection_status_changed(self, connected: bool, message: str):
         """处理摄像头连接状态变化"""
@@ -252,15 +263,6 @@ class CameraApplicationService(QObject):
             depth = detection.get('depth', 0.0)
             real_depth = detection.get('real_depth', 0.0)
             central_center = detection.get('central_center', (0, 0))
-            
-            info_msg = (
-                f"检测结果 - "
-                f"中心点: ({central_center[0]:.1f}, {central_center[1]:.1f}), "
-                f"角度: {angle:.2f}rad, "
-                f"深度: {depth:.3f}m, "
-                f"实际深度: {real_depth:.3f}m"
-            )
-            self._display_message(info_msg, "检测")
         except Exception as e:
             self._display_message(f"检测结果格式错误: {e}", "错误")
     
@@ -290,9 +292,6 @@ class CameraApplicationService(QObject):
                 self._display_message("无法启动检测，流程中断", "错误")
                 return
         
-        # TODO: 这里可能需要一点延时等待检测结果稳定？
-        # 目前假设检测是持续运行的，直接取最新结果
-        
         # 2. 获取检测结果
         detection_result = self.recognition_service.get_latest_result()
         
@@ -320,7 +319,6 @@ class CameraApplicationService(QObject):
                 "检测"
             )
             
-            self.recognition_service.stop_detection()
             # 4. 恢复运动规划
             self.motion_constructor.resume_after_detection(target_angles)
             

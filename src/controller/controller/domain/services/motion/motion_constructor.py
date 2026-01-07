@@ -24,6 +24,7 @@ class MotionConstructor(QObject):
     """
     
     detection_requested = pyqtSignal(list)
+    motion_plan_finished = pyqtSignal() # 整个运动方案执行完成信号
     
     def __init__(
         self, 
@@ -201,6 +202,7 @@ class MotionConstructor(QObject):
         # 如果队列空了，清理操作状态
         if not self._pending_tasks:
             self.clear_operation()
+            self.motion_plan_finished.emit() # 发射方案完成信号
 
     def _on_motion_finished(self):
         """当MotionRunner完成一组运动时触发。"""

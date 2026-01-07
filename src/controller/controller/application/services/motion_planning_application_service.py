@@ -39,6 +39,7 @@ class MotionPlanningApplicationService(QObject):
     point_list_changed = pyqtSignal()  # 节点列表变化
     current_position_received = pyqtSignal(list)  # 当前位置数据（弧度值）
     trajectory_preview_signal = pyqtSignal(dict, dict)  # 轨迹预览数据（轨迹数据，上下文）
+    detection_service_requested = pyqtSignal(bool)  # 检测服务控制请求 True=Start, False=Stop
     
     # 夹爪命令映射表：从字符串转为 effector_mode
     GRIPPER_MODE_MAP = {
@@ -88,6 +89,14 @@ class MotionPlanningApplicationService(QObject):
         self.message_response.trajectory_preview_signal.connect(
             self.trajectory_preview_signal.emit
         )
+        
+        # 监听方案完成信号，用于自动停止检测
+        self.motion_constructor.motion_plan_finished.connect(
+            self._on_motion_plan_finished_stop_detection
+        )
+        
+        # 标记是否由本服务自动开启了检测
+        self._auto_started_detection = False
         
         self._load_data()
     
@@ -241,12 +250,22 @@ class MotionPlanningApplicationService(QObject):
         
         流程：
         1. 获取所有节点的任务
-        2. 准备执行操作
-        3. 查询当前位置，触发执行
+        2. 预先扫描任务，若有检测节点则提前启动检测服务并监听结束信号
+        3. 准备执行操作
+        4. 查询当前位置，触发执行
         """
         tasks = self._get_plan_tasks()
         if not tasks:
             return
+        
+        # 预先扫描：如果包含检测任务，处理检测服务的生命周期
+        has_detection = any(task.get("type") == "detect" for task in tasks)
+        if has_detection:
+            # 1. 启动检测服务，并标记是由我们自动开启的
+            self.detection_service_requested.emit(True)
+            self._auto_started_detection = True
+        else:
+            self._auto_started_detection = False
         
         # 准备执行操作
         self.motion_constructor.prepare_operation(
@@ -256,6 +275,13 @@ class MotionPlanningApplicationService(QObject):
         
         # 查询当前位置，触发执行
         self.command_hub.run_motion_sequence()
+
+    def _on_motion_plan_finished_stop_detection(self):
+        """当包含检测的方案执行完毕后，停止检测服务。"""
+        # 只有当我们之前自动开启了检测时，才负责关闭
+        if self._auto_started_detection:
+            self.detection_service_requested.emit(False)
+            self._auto_started_detection = False
     
     def _parse_point_to_tasks(self, point: Dict) -> List[Dict]:
         """将节点数据解析为任务列表。
