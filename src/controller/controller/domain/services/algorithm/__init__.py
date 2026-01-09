@@ -5,6 +5,7 @@ from .smooth_domain_service import SmoothDomainService
 from .linear_motion_domain_service import LinearMotionDomainService
 from .hand_eye_transform_domain_service import HandEyeTransformDomainService
 from .curve_motion import CurveMotionDomainService
+from .linear_motion_blend_domain_service import LinearMotionBlendDomainService
 
 __all__ = [
     'KinematicDomainService',
@@ -14,4 +15,5 @@ __all__ = [
     'LinearMotionDomainService',
     'HandEyeTransformDomainService',
     'CurveMotionDomainService',
+    'LinearMotionBlendDomainService',
 ]

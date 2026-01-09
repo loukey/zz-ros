@@ -41,6 +41,7 @@ def register_domain_services(container: DIContainer) -> None:
     container.register_singleton(KinematicDomainService)
     container.register_singleton(LinearMotionDomainService)  # 依赖 KinematicDomainService
     container.register_singleton(CurveMotionDomainService)  # 依赖 KinematicDomainService
+    container.register_singleton(LinearMotionBlendDomainService)  # 依赖 KinematicDomainService
     # S曲线算法
     container.register_singleton(SCurve)
     # 轨迹规划服务（依赖 SCurve, SmoothDomainService, LinearMotionDomainService, CurveMotionDomainService）
