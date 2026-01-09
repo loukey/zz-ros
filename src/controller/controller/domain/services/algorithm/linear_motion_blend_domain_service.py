@@ -439,6 +439,7 @@ class LinearMotionBlendDomainService:
         qd  = jnt_traj.evald(t)
         qdd = jnt_traj.evaldd(t)
         return t.tolist(), q.tolist(), qd.tolist(), qdd.tolist()
+
     # =========================================================
     # 5) 主接口：blend + 等距采样 + 姿态（四元数）输出
     #    你要的 n_seg = 最终点数（TOPP-RA 输入点数）

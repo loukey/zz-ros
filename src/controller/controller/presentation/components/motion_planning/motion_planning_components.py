@@ -5,7 +5,7 @@ from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
                             QTableWidget, QTableWidgetItem, QDialog, QLabel, 
                             QDoubleSpinBox, QComboBox, QFormLayout, QDialogButtonBox,
                             QHeaderView, QMessageBox, QLineEdit, QCheckBox, QRadioButton, 
-                            QButtonGroup, QInputDialog)
+                            QButtonGroup, QInputDialog, QListWidget)
 from PyQt5.QtCore import Qt, pyqtSignal
 from ..base_component import BaseComponent
 from .trajectory_plot_dialog import TrajectoryPlotDialog
@@ -676,6 +676,8 @@ class MotionPlanningTable(QTableWidget):
         # 曲线类型 (第8列)
         curve_item = QTableWidgetItem(motion_data["curve_type"])
         curve_item.setTextAlignment(Qt.AlignCenter)
+        if "blend_points" in motion_data:
+            curve_item.setData(Qt.UserRole, motion_data["blend_points"])
         self.setItem(row_position, 8, curve_item)
         
         # 夹爪命令 (第9列)
@@ -741,6 +743,10 @@ class MotionPlanningTable(QTableWidget):
             # 曲线类型 (第8列)
             curve_item = self.item(row, 8)
             point_data["curve_type"] = curve_item.text() if curve_item else "直线"
+            if point_data["curve_type"] == "混合" and curve_item:
+                blend_points = curve_item.data(Qt.UserRole)
+                if blend_points:
+                    point_data["blend_points"] = blend_points
             
             # 夹爪命令 (第9列)
             gripper_cmd_item = self.item(row, 9)
@@ -795,6 +801,8 @@ class MotionPlanningTable(QTableWidget):
         # 曲线类型 (第8列)
         curve_item = QTableWidgetItem(new_data["curve_type"])
         curve_item.setTextAlignment(Qt.AlignCenter)
+        if "blend_points" in new_data:
+            curve_item.setData(Qt.UserRole, new_data["blend_points"])
         self.setItem(row, 8, curve_item)
         
         # 夹爪命令 (第9列)
@@ -830,6 +838,8 @@ class MotionPointDialog(QDialog):
         super(MotionPointDialog, self).__init__(parent)
         self.setWindowTitle("编辑运动点")
         self.resize(400, 300)
+        self.blend_points_data = []  # 存储混合运动点
+        self._is_adding_blend_point = False  # 标记是否正在添加混合点
         self.init_ui()
         
         # 如果提供了数据，则填充到界面
@@ -885,7 +895,7 @@ class MotionPointDialog(QDialog):
         
         # 曲线类型选择
         self.curve_type_combo = QComboBox()
-        self.curve_type_combo.addItems(["S曲线", "直线", "向量", "曲线"])
+        self.curve_type_combo.addItems(["S曲线", "直线", "向量", "曲线", "混合"])
         self.curve_type_combo.currentTextChanged.connect(self._on_curve_type_changed)
         form_layout.addRow("曲线类型:", self.curve_type_combo)
         
@@ -983,6 +993,30 @@ class MotionPointDialog(QDialog):
         self.curve_params_widget.setVisible(False)
         form_layout.addRow(self.curve_params_widget)
         
+        # 混合运动参数容器（默认隐藏）
+        self.blend_params_widget = QWidget()
+        blend_layout = QVBoxLayout(self.blend_params_widget)
+
+        # 按钮区
+        blend_btn_layout = QHBoxLayout()
+        self.add_blend_point_btn = QPushButton("添加当前位置")
+        self.add_blend_point_btn.clicked.connect(self.add_blend_point)
+        blend_btn_layout.addWidget(self.add_blend_point_btn)
+
+        self.clear_blend_points_btn = QPushButton("清空")
+        self.clear_blend_points_btn.clicked.connect(self.clear_blend_points)
+        blend_btn_layout.addWidget(self.clear_blend_points_btn)
+        
+        blend_layout.addLayout(blend_btn_layout)
+
+        # 列表区
+        self.blend_point_list = QListWidget()
+        self.blend_point_list.setMaximumHeight(150)
+        blend_layout.addWidget(self.blend_point_list)
+
+        self.blend_params_widget.setVisible(False)
+        form_layout.addRow(self.blend_params_widget)
+        
         # 夹爪命令选择
         self.gripper_command_combo = QComboBox()
         self.gripper_command_combo.addItems([
@@ -1054,9 +1088,21 @@ class MotionPointDialog(QDialog):
         """曲线类型变化时，显示/隐藏向量参数和曲线参数"""
         is_vector = (curve_type == "向量")
         is_curve = (curve_type == "曲线")
+        is_blend = (curve_type == "混合")
         self.vector_params_widget.setVisible(is_vector)
         self.curve_params_widget.setVisible(is_curve)
+        self.blend_params_widget.setVisible(is_blend)
     
+    def add_blend_point(self):
+        """添加混合运动点请求"""
+        self._is_adding_blend_point = True
+        self.only_get_current_position_send_signal.emit()
+
+    def clear_blend_points(self):
+        """清空混合运动点"""
+        self.blend_points_data = []
+        self.blend_point_list.clear()
+
     def fill_data(self, data):
         """使用提供的数据填充界面"""
         # 填充模式选择
@@ -1109,6 +1155,14 @@ class MotionPointDialog(QDialog):
             if "mid_point2_z" in data:
                 self.mid_point2_z_spin.setValue(data["mid_point2_z"])
         
+        # 填充混合参数
+        if data.get("curve_type") == "混合" and "blend_points" in data:
+            self.blend_points_data = data["blend_points"]
+            self.blend_point_list.clear()
+            for i, pos in enumerate(self.blend_points_data):
+                point_str = f"点 {i+1}: {[round(p, 2) for p in pos]}"
+                self.blend_point_list.addItem(point_str)
+
         # 填充夹爪命令
         if "gripper_command" in data:
             index = self.gripper_command_combo.findText(data["gripper_command"])
@@ -1167,6 +1221,13 @@ class MotionPointDialog(QDialog):
             data["mid_point2_y"] = self.mid_point2_y_spin.value()
             data["mid_point2_z"] = self.mid_point2_z_spin.value()
         
+        # 如果是混合类型，添加点列表
+        if data["curve_type"] == "混合":
+            data["blend_points"] = self.blend_points_data
+            # 如果备注为空，自动生成
+            if not self.note_input.text():
+                 data["note"] = f"混合路径: 共{len(self.blend_points_data)}个路点"
+
         # 获取夹爪命令
         data["gripper_command"] = self.gripper_command_combo.currentText()
         
@@ -1184,12 +1245,24 @@ class MotionPointDialog(QDialog):
     
     def get_current_position(self):
         """获取当前机械臂位置"""
+        self._is_adding_blend_point = False # 确保不是混合添加模式
         self.only_get_current_position_send_signal.emit()
         
     def display_current_position(self, positions):
         """显示当前机械臂位置"""
-        for i in range(6):
-            self.joint_spins[i].setValue(positions[i])
+        if self._is_adding_blend_point:
+            # 添加到混合点列表
+            self.blend_points_data.append(positions)
+            point_str = f"点 {len(self.blend_points_data)}: {[round(p, 2) for p in positions]}"
+            self.blend_point_list.addItem(point_str)
+            self._is_adding_blend_point = False # 重置标志
+            
+            # 同时更新主界面的坐标，方便用户看到最后一个点作为参考
+            for i in range(6):
+                self.joint_spins[i].setValue(positions[i])
+        else:
+            for i in range(6):
+                self.joint_spins[i].setValue(positions[i])
 
     def convert_to_radians(self):
         """将角度值转换为弧度值"""

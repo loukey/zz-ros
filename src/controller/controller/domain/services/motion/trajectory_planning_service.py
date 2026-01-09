@@ -5,7 +5,7 @@
 from typing import List, Dict, Tuple
 import numpy as np
 from math import pi
-from ..algorithm import SCurve, SmoothDomainService, LinearMotionDomainService, CurveMotionDomainService
+from ..algorithm import SCurve, SmoothDomainService, LinearMotionDomainService, CurveMotionDomainService, LinearMotionBlendDomainService
 
 
 class TrajectoryPlanningService:
@@ -30,7 +30,8 @@ class TrajectoryPlanningService:
         s_curve: SCurve,
         smooth_service: SmoothDomainService,
         linear_motion_service: LinearMotionDomainService,
-        curve_motion_service: CurveMotionDomainService
+        curve_motion_service: CurveMotionDomainService,
+        linear_motion_blend_service: LinearMotionBlendDomainService
     ):
         """初始化轨迹规划服务。
         
@@ -39,11 +40,13 @@ class TrajectoryPlanningService:
             smooth_service (SmoothDomainService): 平滑算法服务。
             linear_motion_service (LinearMotionDomainService): 直线运动服务。
             curve_motion_service (CurveMotionDomainService): 曲线运动服务。
+            linear_motion_blend_service (LinearMotionBlendDomainService): 直线混合运动服务。
         """
         self.s_curve = s_curve
         self.smooth_service = smooth_service
         self.linear_motion_service = linear_motion_service
         self.curve_motion_service = curve_motion_service
+        self.linear_motion_blend_service = linear_motion_blend_service
     
     def plan_task_sequence(
         self,
@@ -182,9 +185,17 @@ class TrajectoryPlanningService:
     # ========== 具体规划方法（位置版本） ==========
     
     def _plan_motion(self, task: Dict, start_position: List[float]) -> Tuple[List[List[float]], List[float]]:
-        """S曲线/直线运动规划（仅返回位置）。"""
-        end_position = task["target_angles"]
+        """S曲线/直线/混合运动规划（仅返回位置）。"""
         curve_type = task.get("curve_type", "s_curve")
+        
+        # 混合运动单独处理
+        if curve_type == "混合":
+            result_dict = self._plan_blend_motion(task, start_position)
+            positions = result_dict["positions"]
+            final_pos = positions[-1] if positions else start_position
+            return (positions, final_pos)
+            
+        end_position = task["target_angles"]
         frequency = task.get("frequency", 0.01)
         
         if curve_type == "linear":
@@ -290,9 +301,14 @@ class TrajectoryPlanningService:
     # ========== 具体规划方法（完整数据版本） ==========
     
     def _plan_motion_full(self, task: Dict, start_position: List[float]) -> Dict:
-        """S曲线/直线运动规划（完整数据）。"""
-        end_position = task["target_angles"]
+        """S曲线/直线/混合运动规划（完整数据）。"""
         curve_type = task.get("curve_type", "s_curve")
+        
+        # 混合运动单独处理
+        if curve_type == "混合":
+            return self._plan_blend_motion(task, start_position)
+            
+        end_position = task["target_angles"]
         frequency = task.get("frequency", 0.01)
         
         if curve_type == "linear":
@@ -438,3 +454,30 @@ class TrajectoryPlanningService:
             "accelerations": accelerations
         }
 
+    def _plan_blend_motion(self, task: Dict, start_position: List[float]) -> Dict:
+        """带交融半径的直线运动规划（完整数据）。"""
+        blend_data = task["blend_data"]
+        first_position = blend_data[0]
+        time, accelerations, velocities, positions = self.s_curve.planning(
+            start_position,
+            first_position,
+            dt=0.01
+        )
+        blend_times, blend_positions, blend_velocities, blend_accelerations = self.linear_motion_blend_service.move_with_blend(
+            blend_data,
+            step=0.02,
+            radii=0.03,
+            min_turn_angle_deg=2.0,
+            include_last=True
+        )
+        final_positions = positions + blend_positions
+        final_velocities = velocities + blend_velocities
+        final_accelerations = accelerations + blend_accelerations
+        final_times = time + blend_times
+        
+        return {
+            "time": final_times,
+            "positions": final_positions,
+            "velocities": final_velocities,
+            "accelerations": final_accelerations
+        }
