@@ -1,9 +1,11 @@
 import numpy as np
+from math import pi
 from dataclasses import dataclass
 from typing import List, Tuple, Optional, Union
 import toppra as ta
 import toppra.constraint as constraint
 import toppra.algorithm as algo
+from scipy.spatial.transform import Rotation as R
 from .kinematic_domain_service import KinematicDomainService
 
 
@@ -29,6 +31,12 @@ class LinearMotionBlendDomainService:
 
     def __init__(self, kinematic_solver: KinematicDomainService):
         self.kinematic_solver = kinematic_solver
+        # TOPPRA 参数
+        self.v_max = np.asarray([pi/4] * 6, dtype=float)
+        self.a_max = np.asarray([pi/8] * 6, dtype=float)
+        self.dt = 0.01
+        # 逆运动学初始猜测值
+        self.nearest_position = []
 
     # =========================================================
     # 0) 基础工具：向量、夹角、Rodrigues 旋转
@@ -376,10 +384,44 @@ class LinearMotionBlendDomainService:
 
         return np.vstack(pts), n_piece
 
+    def inverse_kinematic(self, quat, pos):
+        """单点逆运动学求解（利用上一位置作为初值）。
+        
+        Args:
+            quat: 四元数 [x, y, z, w]。
+            pos: 位置 [x, y, z]。
+            
+        Returns:
+            list[float]: 关节角度列表。
+        """
+        rm = R.from_quat(quat).as_matrix()
+        inverse_position = self.kinematic_solver.inverse_kinematic(rm, pos, initial_theta=self.nearest_position if self.nearest_position else None)
+        self.nearest_position = inverse_position
+        return inverse_position
+
+    def ensure_2d_array(self, arr: np.ndarray) -> np.ndarray:
+        """将输入转换为二维数组 (N, dof) 并做基本校验。
+        
+        Args:
+            arr (np.ndarray): 输入数组。
+            
+        Returns:
+            np.ndarray: 二维数组 (N, 6)。
+            
+        Raises:
+            ValueError: 当路标数少于 2 时抛出。
+        """
+        arr = np.asarray(arr, dtype=float)
+        if arr.ndim == 1:
+            arr = arr.reshape(1, -1)
+        if arr.shape[0] < 2:
+            raise ValueError("至少需要 2 个路点")
+        return arr
+
     def toppra_time_parameterize(self,
         waypoints: np.ndarray,
-        v_max: np.ndarray | float,
-        a_max: np.ndarray | float,
+        v_max: np.ndarray | float = np.asarray([pi/4] * 6, dtype=float),
+        a_max: np.ndarray | float = np.asarray([pi/8] * 6, dtype=float),
         dt: float = 0.01,
         grid_n: int = 800
         ) -> tuple[list[float], list[list[float]], list[list[float]], list[list[float]]]:
@@ -446,7 +488,7 @@ class LinearMotionBlendDomainService:
     # =========================================================
     def move_with_blend(
         self,
-        pos_wp,
+        input_positions,
         step: float = 0.02,
         radii: Union[float, np.ndarray] = 0.03,
         min_turn_angle_deg: float = 2.0,
@@ -459,10 +501,13 @@ class LinearMotionBlendDomainService:
         - pos_list : List[[x,y,z]]
         - n_seg    : int = len(pos_list) = len(quat_list)
         """
+        print(input_positions)
         quat_wp = []
-        for pos in pos_wp:
-            quat, _  = self.kinematic_solver.get_gripper2base(pos)
+        pos_wp = []
+        for position in input_positions:
+            quat, pos = self.kinematic_solver.get_gripper2base(position)
             quat_wp.append(quat)
+            pos_wp.append(pos)
         P = np.asarray(pos_wp, dtype=float)
         Q = np.asarray(quat_wp, dtype=float)
         if P.ndim != 2 or P.shape[1] != 3:
@@ -503,7 +548,7 @@ class LinearMotionBlendDomainService:
         quat_list = [q.tolist() for q in quat_samp]
         positions = []
         for quat, pos in zip(quat_list, pos_list):
-            position = self.kinematic_solver.inverse_kinematic(quat, pos)
+            position = self.inverse_kinematic(quat, pos)
             positions.append(position)
         positions = np.array(positions)
         # todo: 基于这个positions列表，规划rucking smooth

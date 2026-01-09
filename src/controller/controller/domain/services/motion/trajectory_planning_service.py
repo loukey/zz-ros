@@ -148,6 +148,11 @@ class TrajectoryPlanningService:
             return self._plan_vector_motion(task, start_position)
         elif task_type == "curve_motion":
             return self._plan_curve_motion(task, start_position)
+        elif task_type == "blend":
+            result_dict = self._plan_blend_motion(task, start_position)
+            positions = result_dict["positions"]
+            final_pos = positions[-1] if positions else start_position
+            return (positions, final_pos)
         elif task_type == "gripper":
             return ([], start_position)
         else:
@@ -177,6 +182,8 @@ class TrajectoryPlanningService:
             return self._plan_vector_motion_full(task, start_position)
         elif task_type == "curve_motion":
             return self._plan_curve_motion_full(task, start_position)
+        elif task_type == "blend":
+            return self._plan_blend_motion(task, start_position)
         elif task_type == "gripper":
             return {"time": [], "positions": [], "velocities": [], "accelerations": []}
         else:
@@ -464,16 +471,19 @@ class TrajectoryPlanningService:
             dt=0.01
         )
         blend_times, blend_positions, blend_velocities, blend_accelerations = self.linear_motion_blend_service.move_with_blend(
-            blend_data,
-            step=0.02,
-            radii=0.03,
-            min_turn_angle_deg=2.0,
-            include_last=True
+            blend_data
         )
-        final_positions = positions + blend_positions
-        final_velocities = velocities + blend_velocities
-        final_accelerations = accelerations + blend_accelerations
-        final_times = time + blend_times
+        
+        # 将 numpy 数组转换为列表后再拼接
+        time_list = time.tolist() if hasattr(time, 'tolist') else list(time)
+        positions_list = positions.tolist() if hasattr(positions, 'tolist') else list(positions)
+        velocities_list = velocities.tolist() if hasattr(velocities, 'tolist') else list(velocities)
+        accelerations_list = accelerations.tolist() if hasattr(accelerations, 'tolist') else list(accelerations)
+        
+        final_positions = positions_list + blend_positions
+        final_velocities = velocities_list + blend_velocities
+        final_accelerations = accelerations_list + blend_accelerations
+        final_times = time_list + blend_times
         
         return {
             "time": final_times,

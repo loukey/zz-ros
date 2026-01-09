@@ -330,12 +330,6 @@ class MotionPlanningApplicationService(QObject):
                 "type": "detect"
             }]
 
-        # 3. 带交融半径的直线运动
-        if mode == "混合":
-            return [{
-                "type": "blend",
-                "blend_data": point.get("blend_data", [])
-            }]
         
         # 4. 判断是否为夹爪节点
         gripper_command = point.get("gripper_command", "00: 不进行任何操作")
@@ -353,8 +347,14 @@ class MotionPlanningApplicationService(QObject):
                 "post_delay": post_delay
             }]
         
-        # 5. 判断是否为向量运动节点
         curve_type = point.get("curve_type", "S曲线")
+        # 4. 带交融半径的直线运动
+        if curve_type == "混合":
+            return [{
+                "type": "blend",
+                "blend_data": point.get("blend_points", [])
+            }]
+        # 5. 判断是否为向量运动节点
         if curve_type == "向量":
             direction = [
                 point.get("direction_x", 0.0),
