@@ -11,7 +11,7 @@ from ..components import *
 from ..view_models import *
 from ..features.recording.data_recording_widget import DataRecordingWidget
 from controller.shared.config.di_container import resolve
-from controller.application.services.data_recording_application_service import DataRecordingApplicationService
+from application import DataRecordingApplicationService
 import rclpy
 
 
