@@ -117,6 +117,8 @@ def register_presentation_services(container: DIContainer) -> None:
     container.register_singleton(MotionPlanningViewModel)
     # 工具ViewModel
     container.register_singleton(ToolsViewModel)
+    # 录制ViewModel
+    container.register_singleton(RecordingViewModel)
     container.register_singleton(MainViewModel)
 
 def configure_services() -> DIContainer:
