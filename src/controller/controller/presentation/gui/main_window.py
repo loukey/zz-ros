@@ -9,6 +9,9 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont
 from ..components import *
 from ..view_models import *
+from ..features.recording.data_recording_widget import DataRecordingWidget
+from controller.shared.config.di_container import resolve
+from controller.application.services.data_recording_application_service import DataRecordingApplicationService
 import rclpy
 
 
@@ -126,6 +129,9 @@ class MainWindow(QMainWindow):
         # 摄像头标签
         self._create_camera_tab()
         
+        # 录制标签
+        self._create_recording_tab()
+        
         # 工具标签
         self._create_tools_tab()
         
@@ -236,6 +242,13 @@ class MainWindow(QMainWindow):
         )
         
         self.left_tab_widget.addTab(self.camera_widget, "摄像头")
+    
+    def _create_recording_tab(self):
+        """创建录制标签"""
+        # 从DI容器获取服务
+        service = resolve(DataRecordingApplicationService)
+        recording_widget = DataRecordingWidget(recording_service=service)
+        self.left_tab_widget.addTab(recording_widget, "数据采集")
     
     def _create_tools_tab(self):
         """创建工具标签"""
