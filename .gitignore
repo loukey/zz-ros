@@ -210,3 +210,5 @@ virtual_serial/
 !docs/images/*.jpeg
 
 record_data/
+*.csv
+*.mp4
