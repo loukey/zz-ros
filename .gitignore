@@ -208,3 +208,5 @@ virtual_serial/
 !docs/images/*.png
 !docs/images/*.jpg
 !docs/images/*.jpeg
+
+record_data/
