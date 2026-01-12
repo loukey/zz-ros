@@ -212,50 +212,50 @@ class LinearMotionBlendDomainService:
                     pieces.append(Piece("line", current, Pi.copy()))
                     current = Pi.copy()
                 continue
+            if np.isscalar(radii):
+                r_des = float(radii)
+            else:
+                r_des = float(radii[i])
 
-            d1 = self._unit(Pm1 - Pi)  # 指向前一段
-            d2 = self._unit(Pp1 - Pi)  # 指向后一段
-            theta = self._angle_between(d1, d2, eps=eps)
+            if r_des <= 0:
+                pieces.append(Piece("line", current, Pi.copy()))
+                current = Pi.copy()
+                continue
+            u_in  = self._unit(Pi - Pm1)   # A -> B（入射方向）
+            u_out = self._unit(Pp1 - Pi)   # B -> C（出射方向）
 
-            # 近共线或近 180°：不做圆角
-            if theta < min_turn or abs(np.pi - theta) < min_turn:
+            phi = self._angle_between(u_in, u_out, eps=eps)  # 0..pi
+
+            # 几乎直行 或 近 180° 掉头：不做圆角
+            if phi < min_turn or abs(np.pi - phi) < min_turn:
                 if self._norm(Pi - current) > 1e-12:
                     pieces.append(Piece("line", current, Pi.copy()))
                     current = Pi.copy()
                 continue
 
-            r_des = float(max(0.0, r_corner[i]))
-            if r_des < eps:
-                if self._norm(Pi - current) > 1e-12:
-                    pieces.append(Piece("line", current, Pi.copy()))
-                    current = Pi.copy()
-                continue
-
-            tan_half = np.tan(theta * 0.5)
+            # === 以下是圆角几何（与方向定义必须保持一致） ===
+            tan_half = np.tan(phi * 0.5)
             if not np.isfinite(tan_half) or tan_half < eps:
                 if self._norm(Pi - current) > 1e-12:
                     pieces.append(Piece("line", current, Pi.copy()))
                     current = Pi.copy()
                 continue
 
-            # 切点距离 t = r * tan(theta/2)
+            # 期望切点距离
             t_des = r_des * tan_half
 
-            # t 必须小于两侧段长，否则缩小半径（k 防止贴边）
+            # 不允许切点超过两侧段长
             k = 0.9
             t_max = k * min(L1, L2)
-            if t_des > t_max:
-                t_use = t_max
-                r_use = t_use / tan_half
-            else:
-                t_use = t_des
-                r_use = r_des
+            t_use = min(t_des, t_max)
+            r_use = t_use / tan_half
 
-            T1 = Pi + d1 * t_use
-            T2 = Pi + d2 * t_use
+            # === 正确的切点（非常关键） ===
+            T1 = Pi - u_in  * t_use   # 从 B 沿 AB 方向“回退”
+            T2 = Pi + u_out * t_use   # 从 B 沿 BC 方向“前进”
 
-            # 圆心：在角平分线上
-            bis = d1 + d2
+            # === 内侧角平分线 ===
+            bis = u_in + u_out
             if self._norm(bis) < eps:
                 if self._norm(Pi - current) > 1e-12:
                     pieces.append(Piece("line", current, Pi.copy()))
@@ -263,7 +263,7 @@ class LinearMotionBlendDomainService:
                 continue
             b = self._unit(bis)
 
-            sin_half = np.sin(theta * 0.5)
+            sin_half = np.sin(phi * 0.5)
             if abs(sin_half) < eps:
                 if self._norm(Pi - current) > 1e-12:
                     pieces.append(Piece("line", current, Pi.copy()))
@@ -502,6 +502,7 @@ class LinearMotionBlendDomainService:
         - n_seg    : int = len(pos_list) = len(quat_list)
         """
         print(input_positions)
+        self.nearest_position = input_positions[0]
         quat_wp = []
         pos_wp = []
         for position in input_positions:
@@ -545,7 +546,9 @@ class LinearMotionBlendDomainService:
             quat_samp.append(qs)
 
         pos_list = pos_samp.tolist()
+        
         quat_list = [q.tolist() for q in quat_samp]
+        
         positions = []
         for quat, pos in zip(quat_list, pos_list):
             position = self.inverse_kinematic(quat, pos)
@@ -556,4 +559,14 @@ class LinearMotionBlendDomainService:
         q_wp = self.ensure_2d_array(positions)
         n_seg = len(pos_list)  # ✅ 按你定义：最终 TOPP-RA 输入点数
         t_list, positions, qd, qdd= self.toppra_time_parameterize(q_wp, self.v_max, self.a_max, self.dt, n_seg)
+
+        quat_t = []
+        pos_t = []
+        for position in positions:
+            quat, pos = self.kinematic_solver.get_gripper2base(position)
+            quat_t.append(quat)
+            pos_t.append(pos)
+        Pos_t = np.asarray(pos_t, dtype=float)
+
+        
         return t_list, positions, qd, qdd

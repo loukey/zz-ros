@@ -195,50 +195,50 @@ def build_blended_pieces_fillet(
                 pieces.append(Piece("line", current, Pi.copy()))
                 current = Pi.copy()
             continue
+        if np.isscalar(radii):
+            r_des = float(radii)
+        else:
+            r_des = float(radii[i])
 
-        d1 = _unit(Pm1 - Pi)  # 指向前一段
-        d2 = _unit(Pp1 - Pi)  # 指向后一段
-        theta = _angle_between(d1, d2, eps=eps)
+        if r_des <= 0:
+            pieces.append(Piece("line", current, Pi.copy()))
+            current = Pi.copy()
+            continue
+        u_in  = _unit(Pi - Pm1)   # A -> B（入射方向）
+        u_out = _unit(Pp1 - Pi)   # B -> C（出射方向）
 
-        # 近共线或近 180°：不做圆角
-        if theta < min_turn or abs(np.pi - theta) < min_turn:
+        phi = _angle_between(u_in, u_out, eps=eps)  # 0..pi
+
+        # 几乎直行 或 近 180° 掉头：不做圆角
+        if phi < min_turn or abs(np.pi - phi) < min_turn:
             if _norm(Pi - current) > 1e-12:
                 pieces.append(Piece("line", current, Pi.copy()))
                 current = Pi.copy()
             continue
 
-        r_des = float(max(0.0, r_corner[i]))
-        if r_des < eps:
-            if _norm(Pi - current) > 1e-12:
-                pieces.append(Piece("line", current, Pi.copy()))
-                current = Pi.copy()
-            continue
-
-        tan_half = np.tan(theta * 0.5)
+        # === 以下是圆角几何（与方向定义必须保持一致） ===
+        tan_half = np.tan(phi * 0.5)
         if not np.isfinite(tan_half) or tan_half < eps:
             if _norm(Pi - current) > 1e-12:
                 pieces.append(Piece("line", current, Pi.copy()))
                 current = Pi.copy()
             continue
 
-        # 切点距离 t = r * tan(theta/2)
+        # 期望切点距离
         t_des = r_des * tan_half
 
-        # t 必须小于两侧段长，否则缩小半径（k 防止贴边）
+        # 不允许切点超过两侧段长
         k = 0.9
         t_max = k * min(L1, L2)
-        if t_des > t_max:
-            t_use = t_max
-            r_use = t_use / tan_half
-        else:
-            t_use = t_des
-            r_use = r_des
+        t_use = min(t_des, t_max)
+        r_use = t_use / tan_half
 
-        T1 = Pi + d1 * t_use
-        T2 = Pi + d2 * t_use
+        # === 正确的切点（非常关键） ===
+        T1 = Pi - u_in  * t_use   # 从 B 沿 AB 方向“回退”
+        T2 = Pi + u_out * t_use   # 从 B 沿 BC 方向“前进”
 
-        # 圆心：在角平分线上
-        bis = d1 + d2
+        # === 内侧角平分线 ===
+        bis = u_in + u_out
         if _norm(bis) < eps:
             if _norm(Pi - current) > 1e-12:
                 pieces.append(Piece("line", current, Pi.copy()))
@@ -246,7 +246,7 @@ def build_blended_pieces_fillet(
             continue
         b = _unit(bis)
 
-        sin_half = np.sin(theta * 0.5)
+        sin_half = np.sin(phi * 0.5)
         if abs(sin_half) < eps:
             if _norm(Pi - current) > 1e-12:
                 pieces.append(Piece("line", current, Pi.copy()))
@@ -436,17 +436,16 @@ def blend_and_sample_cartesian_pose(
 # =========================================================
 if __name__ == "__main__":
     pos_wp = np.array([
-        [0.0,  0.0,  0.0],
-        [0.30, 0.0,  0.0],
-        [0.30, 0.20, 0.0],
-        [0.60, 0.20, 0.10],
+        [-0.122,  0.648,  0.219],
+        [0.286, 0.264,  0.209],
+        [0.597, 0.047, 0.189]
     ], dtype=float)
 
     quat_wp = np.array([
         [0.0, 0.0, 0.0, 1.0],
         [0.0, 0.0, 0.2, 0.98],
-        [0.0, 0.0, 0.4, 0.92],
-        [0.0, 0.0, 0.6, 0.80],
+        [0.0, 0.0, 0.4, 0.92]
+
     ], dtype=float)
     quat_wp = np.vstack([quat_normalize(q) for q in quat_wp])
 
