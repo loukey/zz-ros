@@ -502,6 +502,7 @@ class LinearMotionBlendDomainService:
         - n_seg    : int = len(pos_list) = len(quat_list)
         """
         print(input_positions)
+        self.nearest_position = input_positions[0]
         quat_wp = []
         pos_wp = []
         for position in input_positions:
@@ -545,8 +546,9 @@ class LinearMotionBlendDomainService:
             quat_samp.append(qs)
 
         pos_list = pos_samp.tolist()
-        print(pos_list)
+        
         quat_list = [q.tolist() for q in quat_samp]
+        
         positions = []
         for quat, pos in zip(quat_list, pos_list):
             position = self.inverse_kinematic(quat, pos)
@@ -557,11 +559,7 @@ class LinearMotionBlendDomainService:
         q_wp = self.ensure_2d_array(positions)
         n_seg = len(pos_list)  # ✅ 按你定义：最终 TOPP-RA 输入点数
         t_list, positions, qd, qdd= self.toppra_time_parameterize(q_wp, self.v_max, self.a_max, self.dt, n_seg)
-        np.savetxt(
-            "position.txt",
-            positions,
-            fmt="%.6f"
-        )
+
         quat_t = []
         pos_t = []
         for position in positions:
@@ -569,10 +567,6 @@ class LinearMotionBlendDomainService:
             quat_t.append(quat)
             pos_t.append(pos)
         Pos_t = np.asarray(pos_t, dtype=float)
-        np.savetxt(
-            "pos_t.txt",
-            Pos_t,
-            fmt="%.6f"
-        )
+
         
         return t_list, positions, qd, qdd
