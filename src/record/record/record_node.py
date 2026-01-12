@@ -118,7 +118,11 @@ class DataRecorderNode(Node):
             # 1. 转换图像
             cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
             
-            # 2. 获取当前时刻的关节状态
+            # 2. 延迟初始化 VideoWriter（根据实际分辨率）
+            if self.video_writer is None:
+                self._init_video_writer(cv_image)
+            
+            # 3. 获取当前时刻的关节状态
             current_joints = []
             with self.joint_state_lock:
                 if self.latest_joint_state:
@@ -126,7 +130,7 @@ class DataRecorderNode(Node):
                 else:
                     current_joints = [0.0] * 6
             
-            # 3. 写入数据
+            # 4. 写入数据
             timestamp = time.time()
             
             # Video
@@ -157,12 +161,10 @@ class DataRecorderNode(Node):
             n += 1
 
     def _init_writers(self, save_dir):
-        """初始化视频和CSV写入器"""
-        video_path = os.path.join(save_dir, 'video.mp4')
-        # mp4v 编码兼容性好
-        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-        # 假设分辨率 640x480, FPS 30 (应根据实际相机的输出调整)
-        self.video_writer = cv2.VideoWriter(video_path, fourcc, 30.0, (640, 480))
+        """初始化CSV写入器，VideoWriter延迟到第一帧时创建"""
+        self.save_dir = save_dir
+        self.video_writer = None  # 延迟初始化
+        self.video_path = os.path.join(save_dir, 'video.mp4')
         
         csv_path = os.path.join(save_dir, 'data.csv')
         self.csv_file = open(csv_path, 'w', newline='')
@@ -170,6 +172,13 @@ class DataRecorderNode(Node):
         self.csv_writer.writerow(['frame_index', 'timestamp', 'j1', 'j2', 'j3', 'j4', 'j5', 'j6'])
         
         self.frame_count = 0
+    
+    def _init_video_writer(self, frame):
+        """根据实际帧尺寸初始化VideoWriter"""
+        height, width = frame.shape[:2]
+        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+        self.video_writer = cv2.VideoWriter(self.video_path, fourcc, 30.0, (width, height))
+        self.get_logger().info(f'VideoWriter 初始化: {width}x{height}')
 
     def _cleanup(self):
         """释放资源"""
