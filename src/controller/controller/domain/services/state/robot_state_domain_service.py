@@ -9,6 +9,26 @@ from typing import Optional, List, Dict
 from PyQt5.QtCore import QObject, pyqtSignal
 from ...value_objects import RobotStateSnapshot
 
+# ROS2 Imports
+import rclpy
+from rclpy.node import Node
+from sensor_msgs.msg import JointState
+
+
+class RobotStatePublisherNode(Node):
+    """机械臂状态发布节点 (内部类)"""
+    def __init__(self):
+        super().__init__('robot_state_publisher')
+        self.publisher_ = self.create_publisher(JointState, '/robot/joint_states', 10)
+    
+    def publish_state(self, snapshot: RobotStateSnapshot):
+        msg = JointState()
+        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.name = ['joint_1', 'joint_2', 'joint_3', 'joint_4', 'joint_5', 'joint_6']
+        # RobotStateSnapshot.joint_angles 是弧度
+        msg.position = list(snapshot.joint_angles)
+        self.publisher_.publish(msg)
+
 
 class RobotStateDomainService(QObject):
     """机械臂状态领域服务 - 单一数据源。
@@ -81,6 +101,10 @@ class RobotStateDomainService(QObject):
         
         # 最后更新时间
         self._last_update_time = 0.0
+
+        # ROS2 发布相关
+        self._ros_publishing_enabled = False
+        self._publisher_node = None
     
     # ════════════════════════════════════════════════════════
     # 核心方法：更新状态
@@ -109,6 +133,13 @@ class RobotStateDomainService(QObject):
             if self._teaching_mode and len(self._position_history) >= 20:
                 self._calculate_friction_compensation()
         
+        # ROS 发布
+        if self._ros_publishing_enabled and self._publisher_node:
+            try:
+                self._publisher_node.publish_state(new_snapshot)
+            except Exception:
+                pass
+
         self.state_updated.emit(new_snapshot)
         
         if old_snapshot and self._angles_changed_significantly(old_snapshot, new_snapshot):
@@ -125,6 +156,29 @@ class RobotStateDomainService(QObject):
                 self.torque_compensation_requested.emit(adjusted_angles)
 
     
+    # ════════════════════════════════════════════════════════
+    # ROS 发布控制
+    # ════════════════════════════════════════════════════════
+    
+    def enable_ros_publishing(self, enabled: bool):
+        """启用或禁用 ROS 状态广播"""
+        if enabled == self._ros_publishing_enabled:
+            return
+
+        if enabled:
+            if not rclpy.ok():
+                try:
+                    rclpy.init()
+                except:
+                    pass
+            
+            if not self._publisher_node:
+                self._publisher_node = RobotStatePublisherNode()
+            
+            self._ros_publishing_enabled = True
+        else:
+            self._ros_publishing_enabled = False
+
     # ════════════════════════════════════════════════════════
     # 查询方法：获取状态
     # ════════════════════════════════════════════════════════

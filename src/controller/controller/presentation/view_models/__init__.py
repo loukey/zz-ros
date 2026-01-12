@@ -11,6 +11,7 @@ from .dynamics_view_model import DynamicsViewModel
 from .camera_view_model import CameraViewModel
 from .motion_planning_view_model import MotionPlanningViewModel
 from .tools_view_model import ToolsViewModel
+from .recording_view_model import RecordingViewModel
 
 __all__ = [
     'BaseViewModel',
@@ -25,4 +26,5 @@ __all__ = [
     'CameraViewModel',
     'MotionPlanningViewModel',
     'ToolsViewModel',
+    'RecordingViewModel',
 ]

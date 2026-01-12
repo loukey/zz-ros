@@ -87,6 +87,8 @@ def register_application_services(container: DIContainer) -> None:
     container.register_singleton(CameraApplicationService)
     # 工具应用服务
     container.register_singleton(ToolsApplicationService)
+    # 数据录制应用服务
+    container.register_singleton(DataRecordingApplicationService)
     
     # 手动连接应用服务之间的信号
     # MotionPlanningApplicationService -> CameraApplicationService (检测服务启停)
@@ -115,6 +117,8 @@ def register_presentation_services(container: DIContainer) -> None:
     container.register_singleton(MotionPlanningViewModel)
     # 工具ViewModel
     container.register_singleton(ToolsViewModel)
+    # 录制ViewModel
+    container.register_singleton(RecordingViewModel)
     container.register_singleton(MainViewModel)
 
 def configure_services() -> DIContainer:

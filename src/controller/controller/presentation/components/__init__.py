@@ -34,6 +34,8 @@ from .settings.serial_components import SerialConfigFrame
 # Status area
 from .status.status_component import StatusDisplayComponent, StatusSeparator
 
+from .recording.recording_components import DataRecordingWidget
+
 __all__ = [
     # Main
     "PortSelectionFrame",
@@ -60,4 +62,6 @@ __all__ = [
     # Status
     "StatusDisplayComponent",
     "StatusSeparator",
+    # Recording
+    "DataRecordingWidget",
 ]
