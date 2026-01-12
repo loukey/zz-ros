@@ -108,6 +108,6 @@ class MotionRunner(QObject):
         if hasattr(current_item, 'is_delay'):
             time.sleep(current_item.delay_s)
         else:
-            self.serial_domain_service.send_data(current_item)
+            #self.serial_domain_service.send_data(current_item)
             self.motion_msg_signal.emit(current_item, "发送")
         self.data_index += 1
