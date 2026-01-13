@@ -375,13 +375,13 @@ class LinearMotionBlendDomainService:
         Args:
             quat: 四元数 [x, y, z, w]。
             pos: 位置 [x, y, z]。
+            similar_position: 相似位置（用于逆运动学初始猜测）。
             
         Returns:
             list[float]: 关节角度列表。
         """
         rm = R.from_quat(quat).as_matrix()
-        inverse_position = self.kinematic_solver.inverse_kinematic(rm, pos, initial_theta=similar_position if similar_position else self.nearest_position)
-        self.nearest_position = inverse_position
+        inverse_position = self.kinematic_solver.inverse_kinematic(rm, pos, initial_theta=similar_position)
         return inverse_position
 
     def ensure_2d_array(self, arr: np.ndarray) -> np.ndarray:
@@ -539,12 +539,7 @@ class LinearMotionBlendDomainService:
             start_position = input_positions[position_index]
             end_position = input_positions[position_index + 1]
             _, _, _, positions = self.s_curve.planning(start_position, end_position)
-            
-            # 第一次迭代直接赋值，后续迭代去掉前一段的最后一个点再拼接
-            if len(s_curve_positions) == 0:
-                s_curve_positions = positions
-            else:
-                s_curve_positions = np.concatenate((s_curve_positions[:-1], positions), axis=0)
+            s_curve_positions = np.concatenate((s_curve_positions, positions), axis=0)
 
         # 对齐长度：对每一列分别进行线性插值重采样
         if len(s_curve_positions) != len(quat_list):
@@ -558,10 +553,9 @@ class LinearMotionBlendDomainService:
             else:
                 # 极端情况处理
                 s_curve_positions = np.tile(s_curve_positions[0], (len(quat_list), 1))
-
         positions = []
         for i in range(len(quat_list)):
-            position = self.inverse_kinematic(quat_list[i], pos_list[i], s_curve_positions[i])
+            position = self.inverse_kinematic(quat_list[i], pos_list[i], s_curve_positions[i].tolist())
             positions.append(position)
         positions = np.array(positions)
         # todo: 基于这个positions列表，规划rucking smooth
