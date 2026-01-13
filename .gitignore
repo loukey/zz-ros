@@ -212,3 +212,4 @@ virtual_serial/
 record_data/
 *.csv
 *.mp4
+*.txt

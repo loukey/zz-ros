@@ -7,6 +7,7 @@ import toppra.constraint as constraint
 import toppra.algorithm as algo
 from scipy.spatial.transform import Rotation as R
 from .kinematic_domain_service import KinematicDomainService
+from .trajectory_domain_service import SCurve
 
 
 @dataclass
@@ -29,8 +30,13 @@ class Piece:
 
 class LinearMotionBlendDomainService:
 
-    def __init__(self, kinematic_solver: KinematicDomainService):
+    def __init__(
+        self, 
+        kinematic_solver: KinematicDomainService,
+        s_curve: SCurve,
+        ):
         self.kinematic_solver = kinematic_solver
+        self.s_curve = s_curve
         # TOPPRA 参数
         self.v_max = np.asarray([pi/4] * 6, dtype=float)
         self.a_max = np.asarray([pi/8] * 6, dtype=float)
@@ -363,7 +369,7 @@ class LinearMotionBlendDomainService:
 
         return np.vstack(pts), n_piece
 
-    def inverse_kinematic(self, quat, pos):
+    def inverse_kinematic(self, quat, pos, similar_position=None):
         """单点逆运动学求解（利用上一位置作为初值）。
         
         Args:
@@ -374,7 +380,7 @@ class LinearMotionBlendDomainService:
             list[float]: 关节角度列表。
         """
         rm = R.from_quat(quat).as_matrix()
-        inverse_position = self.kinematic_solver.inverse_kinematic(rm, pos, initial_theta=self.nearest_position if self.nearest_position else None)
+        inverse_position = self.kinematic_solver.inverse_kinematic(rm, pos, initial_theta=similar_position if similar_position else self.nearest_position)
         self.nearest_position = inverse_position
         return inverse_position
 
@@ -528,9 +534,22 @@ class LinearMotionBlendDomainService:
         
         quat_list = [q.tolist() for q in quat_samp]
         
+        s_curve_positions = np.array([])
+        for position_index in range(len(input_positions) - 1):
+            start_position = input_positions[position_index]
+            end_position = input_positions[position_index + 1]
+            _, _, _, positions = self.s_curve.planning(start_position, end_position)
+            s_curve_positions = np.concatenate((s_curve_positions[:-1], positions))
+
+        # 对齐长度：使用线性插值重采样 s_curve_positions 以匹配 quat_list 的长度
+        if len(s_curve_positions) != len(quat_list) and len(s_curve_positions) > 1:
+            old_indices = np.linspace(0, 1, len(s_curve_positions))
+            new_indices = np.linspace(0, 1, len(quat_list))
+            s_curve_positions = np.interp(new_indices, old_indices, s_curve_positions)
+
         positions = []
-        for quat, pos in zip(quat_list, pos_list):
-            position = self.inverse_kinematic(quat, pos)
+        for i in range(len(quat_list)):
+            position = self.inverse_kinematic(quat_list[i], pos_list[i], s_curve_positions[i])
             positions.append(position)
         positions = np.array(positions)
         # todo: 基于这个positions列表，规划rucking smooth
@@ -538,7 +557,5 @@ class LinearMotionBlendDomainService:
         q_wp = self.ensure_2d_array(positions)
         n_seg = len(pos_list)  # ✅ 按你定义：最终 TOPP-RA 输入点数
         t_list, positions, qd, qdd= self.toppra_time_parameterize(q_wp, self.v_max, self.a_max, self.dt, n_seg)
-
-
         
         return t_list, positions, qd, qdd
