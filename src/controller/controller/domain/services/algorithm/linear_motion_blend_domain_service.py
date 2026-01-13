@@ -534,18 +534,30 @@ class LinearMotionBlendDomainService:
         
         quat_list = [q.tolist() for q in quat_samp]
         
-        s_curve_positions = np.array([])
+        s_curve_positions = np.zeros((0, 6))
         for position_index in range(len(input_positions) - 1):
             start_position = input_positions[position_index]
             end_position = input_positions[position_index + 1]
             _, _, _, positions = self.s_curve.planning(start_position, end_position)
-            s_curve_positions = np.concatenate((s_curve_positions[:-1], positions))
+            
+            # 第一次迭代直接赋值，后续迭代去掉前一段的最后一个点再拼接
+            if len(s_curve_positions) == 0:
+                s_curve_positions = positions
+            else:
+                s_curve_positions = np.concatenate((s_curve_positions[:-1], positions), axis=0)
 
-        # 对齐长度：使用线性插值重采样 s_curve_positions 以匹配 quat_list 的长度
-        if len(s_curve_positions) != len(quat_list) and len(s_curve_positions) > 1:
-            old_indices = np.linspace(0, 1, len(s_curve_positions))
-            new_indices = np.linspace(0, 1, len(quat_list))
-            s_curve_positions = np.interp(new_indices, old_indices, s_curve_positions)
+        # 对齐长度：对每一列分别进行线性插值重采样
+        if len(s_curve_positions) != len(quat_list):
+            if len(s_curve_positions) > 1:
+                old_indices = np.linspace(0, 1, len(s_curve_positions))
+                new_indices = np.linspace(0, 1, len(quat_list))
+                new_s_curve_positions = np.zeros((len(quat_list), 6))
+                for j in range(6):
+                    new_s_curve_positions[:, j] = np.interp(new_indices, old_indices, s_curve_positions[:, j])
+                s_curve_positions = new_s_curve_positions
+            else:
+                # 极端情况处理
+                s_curve_positions = np.tile(s_curve_positions[0], (len(quat_list), 1))
 
         positions = []
         for i in range(len(quat_list)):
