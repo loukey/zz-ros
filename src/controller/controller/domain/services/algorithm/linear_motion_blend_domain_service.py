@@ -164,7 +164,7 @@ class LinearMotionBlendDomainService:
     def build_blended_pieces_fillet(
         self,
         points: np.ndarray,
-        radii: Union[float, np.ndarray],
+        k_radii:float = 0.1,
         min_turn_angle_deg: float = 2.0,
         eps: float = 1e-9
     ) -> List[Piece]:
@@ -181,19 +181,6 @@ class LinearMotionBlendDomainService:
         N = P.shape[0]
         if N < 2:
             raise ValueError("points 至少 2 个点")
-
-        # 解析半径数组到 shape(N,)
-        if np.isscalar(radii):
-            r_corner = np.full(N, float(radii), dtype=float)
-        else:
-            r_arr = np.asarray(radii, dtype=float).reshape(-1)
-            if len(r_arr) == N:
-                r_corner = r_arr
-            elif len(r_arr) == N - 2:
-                r_corner = np.zeros(N, dtype=float)
-                r_corner[1:-1] = r_arr
-            else:
-                raise ValueError("radii 长度必须为 标量 / N / (N-2)")
 
         min_turn = np.deg2rad(min_turn_angle_deg)
 
@@ -212,15 +199,7 @@ class LinearMotionBlendDomainService:
                     pieces.append(Piece("line", current, Pi.copy()))
                     current = Pi.copy()
                 continue
-            if np.isscalar(radii):
-                r_des = float(radii)
-            else:
-                r_des = float(radii[i])
 
-            if r_des <= 0:
-                pieces.append(Piece("line", current, Pi.copy()))
-                current = Pi.copy()
-                continue
             u_in  = self._unit(Pi - Pm1)   # A -> B（入射方向）
             u_out = self._unit(Pp1 - Pi)   # B -> C（出射方向）
 
@@ -240,14 +219,14 @@ class LinearMotionBlendDomainService:
                     pieces.append(Piece("line", current, Pi.copy()))
                     current = Pi.copy()
                 continue
-
+            
+            zone_min = 0.005
+            zone_max = 0.15
+            Lmin = min(L1,L2)
             # 期望切点距离
-            t_des = r_des * tan_half
+            t_des = k_radii * Lmin
+            t_use = float(np.clip(t_des, zone_min, zone_max))
 
-            # 不允许切点超过两侧段长
-            k = 0.9
-            t_max = k * min(L1, L2)
-            t_use = min(t_des, t_max)
             r_use = t_use / tan_half
 
             # === 正确的切点（非常关键） ===
@@ -489,8 +468,8 @@ class LinearMotionBlendDomainService:
     def move_with_blend(
         self,
         input_positions,
-        step: float = 0.02,
-        radii: Union[float, np.ndarray] = 0.03,
+        step: float = 0.01,
+        k_radii: float = 0.1,
         min_turn_angle_deg: float = 2.0,
         include_last: bool = True,
     ) -> Tuple[List[List[float]], List[List[float]], int]:
@@ -501,7 +480,7 @@ class LinearMotionBlendDomainService:
         - pos_list : List[[x,y,z]]
         - n_seg    : int = len(pos_list) = len(quat_list)
         """
-        print(input_positions)
+        
         self.nearest_position = input_positions[0]
         quat_wp = []
         pos_wp = []
@@ -526,7 +505,7 @@ class LinearMotionBlendDomainService:
         # 1) 生成几何拼接分段（line + arc）
         pieces = self.build_blended_pieces_fillet(
             points=P,
-            radii=radii,
+            k_radii=k_radii,
             min_turn_angle_deg=min_turn_angle_deg
         )
 
@@ -560,13 +539,6 @@ class LinearMotionBlendDomainService:
         n_seg = len(pos_list)  # ✅ 按你定义：最终 TOPP-RA 输入点数
         t_list, positions, qd, qdd= self.toppra_time_parameterize(q_wp, self.v_max, self.a_max, self.dt, n_seg)
 
-        quat_t = []
-        pos_t = []
-        for position in positions:
-            quat, pos = self.kinematic_solver.get_gripper2base(position)
-            quat_t.append(quat)
-            pos_t.append(pos)
-        Pos_t = np.asarray(pos_t, dtype=float)
 
         
         return t_list, positions, qd, qdd
