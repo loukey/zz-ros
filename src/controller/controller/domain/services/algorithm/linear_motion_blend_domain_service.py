@@ -8,7 +8,7 @@ import toppra.algorithm as algo
 from scipy.spatial.transform import Rotation as R
 from .kinematic_domain_service import KinematicDomainService
 from .trajectory_domain_service import SCurve
-
+import matplotlib.pyplot as plt
 
 @dataclass
 class ProjectionResult:
@@ -77,6 +77,18 @@ class LinearMotionBlendDomainService:
         s = np.sin(angle)
         return v * c + np.cross(axis, v) * s + axis * (np.dot(axis, v)) * (1 - c)
 
+    def _tangency_cost(self, C: np.ndarray, T1: np.ndarray, T2: np.ndarray, u_in: np.ndarray, u_out: np.ndarray, eps: float = 1e-9) -> float:
+        """zhengque qiexian"""
+        v1 = T1 - C
+        v2 = T2 - C
+
+        if self._norm(v1) < eps or self._norm(v2) < eps:
+            return float("inf")
+
+        v1u = self._unit(v1)
+        v2u = self._unit(v2)
+
+        return abs(float(np.dot(v1u, u_in))+abs(float(np.dot(v2u, u_out))))
 
     # =========================================================
     # 1) 四元数工具：normalize + slerp
@@ -240,7 +252,7 @@ class LinearMotionBlendDomainService:
             T2 = Pi + u_out * t_use   # 从 B 沿 BC 方向“前进”
 
             # === 内侧角平分线 ===
-            bis = u_in + u_out
+            bis = u_out - u_in
             if self._norm(bis) < eps:
                 if self._norm(Pi - current) > 1e-12:
                     pieces.append(Piece("line", current, Pi.copy()))
@@ -257,6 +269,7 @@ class LinearMotionBlendDomainService:
 
             h = r_use / sin_half
             C = Pi + b * h
+
 
             v_start = T1 - C
             v_end = T2 - C
@@ -298,7 +311,9 @@ class LinearMotionBlendDomainService:
         pieces: List[Piece],
         step: float,
         include_last: bool = True,
-        eps: float = 1e-12
+        eps: float = 1e-12,
+        err_max: float = 0.0005,
+        min_pts_arc: int = 8
     ) -> Tuple[np.ndarray, List[int]]:
         """
         对 pieces 做等距采样（每 step 一点），返回：
@@ -307,6 +322,13 @@ class LinearMotionBlendDomainService:
         """
         if step <= 0:
             raise ValueError("step 必须 > 0")
+        
+        if err_max <= 0:
+            raise ValueError("err_max 必须 > 0")
+
+        min_pts_arc = int(min_pts_arc)
+        if min_pts_arc < 2:
+            raise ValueError("min_pts_arc 必须 > =2")
 
         pts: List[np.ndarray] = []
         n_piece: List[int] = []
@@ -314,6 +336,26 @@ class LinearMotionBlendDomainService:
         def append_pt(p: np.ndarray):
             if len(pts) == 0 or self._norm(pts[-1] - p) > 1e-10:
                 pts.append(p)
+        
+        def _arc_n_from_chord_error(r: float, arc_angle: float) -> int:
+            """
+            由最大弦误差 err_max 推出圆弧所需点数 n
+            弦误差 e = r*(1-cos(dtheta/2)) <= err_max
+            => dtheta <= 2*acos(1-err_max/r)
+            """
+            r = float(abs(r))
+            ang = float(abs(arc_angle))
+            if r < eps or ang < eps:
+                return 2
+
+            x = 1.0 - (err_max / r)
+            x = float(np.clip(x, -1.0, 1.0))
+            dtheta = 2.0 * float(np.arccos(x))
+            dtheta = max(dtheta, 1e-6)
+
+            n = int(np.ceil(ang / dtheta)) + 1
+            print(n)
+            return max(n, min_pts_arc)
 
         for pc in pieces:
             if pc.type == "line":
@@ -347,9 +389,8 @@ class LinearMotionBlendDomainService:
                     n_piece.append(1)
                     continue
 
-                arc_len = r * arc_angle
-                n = int(np.floor(arc_len / step)) + 1
-                n = max(n, 2)
+                n = _arc_n_from_chord_error(r, arc_angle)
+                
                 a_list = np.linspace(0.0, arc_angle, n, endpoint=True)
 
                 v0 = T1 - C
@@ -474,8 +515,8 @@ class LinearMotionBlendDomainService:
     def move_with_blend(
         self,
         input_positions,
-        step: float = 0.01,
-        k_radii: float = 0.1,
+        step: float = 0.005,
+        k_radii: float = 0.25,
         min_turn_angle_deg: float = 2.0,
         include_last: bool = True,
     ) -> Tuple[List[List[float]], List[List[float]], int]:
@@ -519,7 +560,9 @@ class LinearMotionBlendDomainService:
         pos_samp, _n_piece_debug = self.sample_pieces_by_step(
             pieces=pieces,
             step=step,
-            include_last=include_last
+            include_last=include_last,
+            err_max=0.0005,
+            min_pts_arc=8
         )
 
         # 3) 姿态：将每个采样点投影回“原始折线”段上 → SLERP
@@ -531,7 +574,20 @@ class LinearMotionBlendDomainService:
             quat_samp.append(qs)
 
         pos_list = pos_samp.tolist()
-        
+        # np.savetxt(
+        #     "pos_samp1.txt",
+        #     pos_list,
+        #     fmt="%.3f"
+        # )
+        pos_sam = np.asarray(pos_list)
+        x = pos_sam[:, 0]
+        z = pos_sam[:, 2]
+        plt.figure()
+        plt.plot(x, z, marker='o')
+        plt.axis("equal")
+        plt.grid(True)
+        plt.show()
+
         quat_list = [q.tolist() for q in quat_samp]
         
         s_curve_positions = np.zeros((0, 6))
@@ -554,6 +610,7 @@ class LinearMotionBlendDomainService:
                 # 极端情况处理
                 s_curve_positions = np.tile(s_curve_positions[0], (len(quat_list), 1))
         positions = []
+        
         for i in range(len(quat_list)):
             position = self.inverse_kinematic(quat_list[i], pos_list[i], s_curve_positions[i].tolist())
             positions.append(position)
@@ -562,6 +619,6 @@ class LinearMotionBlendDomainService:
 
         q_wp = self.ensure_2d_array(positions)
         n_seg = len(pos_list)  # ✅ 按你定义：最终 TOPP-RA 输入点数
-        t_list, positions, qd, qdd= self.toppra_time_parameterize(q_wp, self.v_max, self.a_max, self.dt, n_seg)
+        t_list, positions, qd, qdd= self.toppra_time_parameterize(q_wp, self.v_max, self.a_max, self.dt)
         
         return t_list, positions, qd, qdd
