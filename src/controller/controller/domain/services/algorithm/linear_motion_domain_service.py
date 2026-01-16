@@ -190,9 +190,12 @@ class LinearMotionDomainService:
         """
         positions = []
         for quat, pos in zip(quat_list, pos_list):
+            with open("./quat.txt", "a") as f:
+                f.write(f"{quat} | {pos}\n")
             position = self.inverse_kinematic(quat, pos)
             positions.append(position)
         positions = np.array(positions)
+        np.savetxt("./positions.txt", positions)
         # todo: 基于这个positions列表，规划rucking smooth
 
         q_wp = self.ensure_2d_array(positions)
@@ -202,8 +205,10 @@ class LinearMotionDomainService:
 
     def inverse_kinematic(self, quat, pos):
         """单点逆运动学求解（利用上一位置作为初值）。"""
-        rm = R.from_quat(quat).as_matrix()
+        rm = self.kinematic_solver.kinematic_utils.quat2rm(quat)
         inverse_position = self.kinematic_solver.inverse_kinematic(rm, pos, initial_theta=self.nearest_position)
+        with open("./inverse_position.txt", "a") as f:
+            f.write(f"{quat} | {pos} | {inverse_position} | {self.nearest_position} \n")
         self.nearest_position = inverse_position
         return inverse_position
 
