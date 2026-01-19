@@ -205,6 +205,8 @@ class LinearMotionDomainService:
         rm = self.kinematic_solver.kinematic_utils.quat2rm(quat)
         inverse_position = self.kinematic_solver.inverse_kinematic(rm, pos, initial_theta=self.nearest_position)
         self.nearest_position = inverse_position
+        with open("./inverse_position.txt", "a") as f:
+            f.write(f"{quat} | {pos} | {inverse_position} | {self.nearest_position} \n")
         return inverse_position
 
     def _q_normalize(self,q):
