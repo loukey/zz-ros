@@ -57,7 +57,7 @@ class LinearMotionDomainService:
         t_list, positions, qd, qdd = self.smooth(quat_list, pos_list, n_seg)
         return t_list, positions, qd, qdd
 
-    def linear_motion_z_axis(self, start_position: list[float], distance: float, direction: list[float], ds: float = 0.002, include_end: bool = True) -> tuple[list[float], list[list[float]], list[list[float]], list[list[float]]]:
+    def linear_motion_z_axis(self, start_position: list[float], distance: float, direction: list[float], ds: float = 0.02, include_end: bool = True) -> tuple[list[float], list[list[float]], list[list[float]], list[list[float]]]:
         """沿指定方向矢量进行直线运动规划。
         
         注意：此模式下末端姿态保持不变，仅位置发生位移。
@@ -128,7 +128,7 @@ class LinearMotionDomainService:
         s1 = np.sin(t * theta0) / sin_theta0
         return s0 * q0 + s1 * q1
 
-    def sampling(self, start_quat: np.ndarray, start_pos: np.ndarray, end_quat: np.ndarray, end_pos: np.ndarray, sampling_dis: float = 0.002, include_end: bool = True) -> tuple[np.ndarray, np.ndarray, int]:
+    def sampling(self, start_quat: np.ndarray, start_pos: np.ndarray, end_quat: np.ndarray, end_pos: np.ndarray, sampling_dis: float = 0.02, include_end: bool = True) -> tuple[np.ndarray, np.ndarray, int]:
         """对起点和终点进行空间线性插值采样。
         
         Args:
@@ -194,7 +194,21 @@ class LinearMotionDomainService:
             positions.append(position)
         positions = np.array(positions)
         # todo: 基于这个positions列表，规划rucking smooth
-
+        np.savetxt(
+            "pos6.txt",
+            positions,
+            fmt="%.5f"
+        )
+        np.savetxt(
+            "quat-list.txt",
+            quat_list,
+            fmt="%.5f"
+        )
+        np.savetxt(
+            "pos-list.txt",
+            pos_list,
+            fmt="%.5f"
+        )
         q_wp = self.ensure_2d_array(positions)
         grid_n = self.clamp(6*n_seg,300,3000)    
         t_list, positions, qd, qdd= self.toppra_time_parameterize(q_wp, self.v_max, self.a_max, self.dt, grid_n)
