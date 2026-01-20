@@ -290,29 +290,3 @@ class SmoothDomainService:
 
         return q_aligned.tolist()
     # ------------------------------------------------------------
-
-    def teach_smooth(
-        self,
-        q_teach: List[List[float]],
-        q_start_req: np.ndarray,
-        q_end_req: np.ndarray,
-        step: float = 0.002,
-        eps: float = 1e-6,
-    ) -> List[List[float]]:
-        """示教轨迹整体平滑处理。
-        
-        流程：
-        1. 去除停顿/重复点
-        2. 按弧长重采样（空间均匀）
-        3. 仿射缩放和平移对齐指定的起点/终点
-        
-        Args:
-            q_teach (List[List[float]]): 原始示教轨迹。
-            q_start_req (np.ndarray): 要求的起点。
-            q_end_req (np.ndarray): 要求的终点。
-            step (float, optional): 重采样步长. Defaults to 0.002.
-            eps (float, optional): 去重阈值. Defaults to 1e-6.
-        
-        Returns:
-            List[List[float]]: 最终平滑轨迹。
-        """

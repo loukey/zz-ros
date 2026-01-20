@@ -240,17 +240,8 @@ class TrajectoryPlanningService:
             target_first_point
         )
         
-        # 对示教数据进行平滑处理
-        smoothed_positions = self.smooth_service.teach_smooth(
-            teach_data,
-            target_first_point,
-            end_position,
-            step=0.5,
-            eps=1e-6            
-        )
-        
         toppra_positions = self.smooth_service.toppra_smooth(
-            smoothed_positions,
+            teach_data,
             v_max=[pi/4] * 6,
             a_max=[pi/8] * 6,
             dt = 0.01,
@@ -366,17 +357,8 @@ class TrajectoryPlanningService:
         v1 = v1 if isinstance(v1, list) else v1.tolist() if hasattr(v1, 'tolist') else list(v1)
         a1 = a1 if isinstance(a1, list) else a1.tolist() if hasattr(a1, 'tolist') else list(a1)
         
-        # 对示教数据进行平滑处理
-        smoothed_positions = self.smooth_service.teach_smooth(
-            teach_data,
-            target_first_point,
-            end_position,
-            step=0.5,
-            eps=1e-6            
-        )
-        
         toppra_positions = self.smooth_service.toppra_smooth(
-            smoothed_positions,
+            teach_data,
             v_max=[pi/4] * 6,
             a_max=[pi/8] * 6,
             dt=0.01
