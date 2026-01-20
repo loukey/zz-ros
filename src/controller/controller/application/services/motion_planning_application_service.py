@@ -688,16 +688,44 @@ class MotionPlanningApplicationService(QObject):
             if not all_tasks:
                 return False, "选中的节点没有可合并的运动任务"
             
-            # 6. 获取第一个节点的关节角度作为起点
-            first_point = points[0]
-            start_position = [
-                first_point.get("joint1", 0.0),
-                first_point.get("joint2", 0.0),
-                first_point.get("joint3", 0.0),
-                first_point.get("joint4", 0.0),
-                first_point.get("joint5", 0.0),
-                first_point.get("joint6", 0.0)
-            ]
+            # 6. 确定起始位置
+            first_selected_index = sorted_indices[0]
+            
+            if first_selected_index > 0:
+                # 前面还有节点，使用前一个节点的目标位置作为起点
+                prev_point = self.domain_service.get_single_point(first_selected_index - 1)
+                if prev_point:
+                    start_position = [
+                        prev_point.get("joint1", 0.0),
+                        prev_point.get("joint2", 0.0),
+                        prev_point.get("joint3", 0.0),
+                        prev_point.get("joint4", 0.0),
+                        prev_point.get("joint5", 0.0),
+                        prev_point.get("joint6", 0.0)
+                    ]
+                else:
+                    # 获取前一个节点失败，使用选中的第一个节点
+                    first_point = points[0]
+                    start_position = [
+                        first_point.get("joint1", 0.0),
+                        first_point.get("joint2", 0.0),
+                        first_point.get("joint3", 0.0),
+                        first_point.get("joint4", 0.0),
+                        first_point.get("joint5", 0.0),
+                        first_point.get("joint6", 0.0)
+                    ]
+            else:
+                # 选中的是第一个节点，使用该节点的关节角度作为起点
+                # （实际执行时会从当前位置过渡到这里）
+                first_point = points[0]
+                start_position = [
+                    first_point.get("joint1", 0.0),
+                    first_point.get("joint2", 0.0),
+                    first_point.get("joint3", 0.0),
+                    first_point.get("joint4", 0.0),
+                    first_point.get("joint5", 0.0),
+                    first_point.get("joint6", 0.0)
+                ]
             
             # 7. 调用 TrajectoryPlanningService 规划轨迹
             trajectory_planner = self.message_response.trajectory_planner
