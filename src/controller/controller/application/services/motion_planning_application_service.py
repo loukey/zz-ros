@@ -11,7 +11,7 @@ from controller.domain import (
 from controller.infrastructure import MotionPlanRepository, TrajectoryRepository
 from .command_hub_service import CommandHubService
 from .message_response_service import MessageResponseService
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Tuple
 from pathlib import Path
 
 
@@ -633,6 +633,115 @@ class MotionPlanningApplicationService(QObject):
             all_tasks.extend(tasks)
         
         return all_tasks
+    
+    # ========== 合并曲线功能 ==========
+    
+    def merge_nodes_to_teach(self, indices: List[int]) -> Tuple[bool, str]:
+        """将多个连续节点合并为一个示教节点。
+        
+        流程：
+        1. 校验索引连续性
+        2. 获取选中节点的数据
+        3. 解析为任务列表
+        4. 使用第一个节点的关节角度作为起点规划轨迹
+        5. 创建新的示教节点
+        6. 删除原来的多个节点
+        7. 在原位置插入新的示教节点
+        
+        Args:
+            indices (List[int]): 选中节点的索引列表（必须连续且已排序）。
+            
+        Returns:
+            Tuple[bool, str]: (成功与否, 提示信息/错误原因)。
+        """
+        try:
+            # 1. 基本校验
+            if len(indices) < 2:
+                return False, "至少需要选中2个节点"
+            
+            # 2. 校验索引连续性
+            sorted_indices = sorted(indices)
+            for i in range(1, len(sorted_indices)):
+                if sorted_indices[i] - sorted_indices[i - 1] != 1:
+                    return False, "选中的节点必须是连续的"
+            
+            # 3. 获取选中节点的数据
+            points = []
+            for i in sorted_indices:
+                point = self.domain_service.get_single_point(i)
+                if point is None:
+                    return False, f"节点 {i+1} 不存在"
+                points.append(point)
+            
+            # 4. 校验是否包含检测节点
+            for point in points:
+                mode = point.get("mode", "")
+                if mode == "检测":
+                    return False, "不能合并包含检测节点的选择"
+            
+            # 5. 解析为任务列表
+            all_tasks = []
+            for point in points:
+                tasks = self._parse_point_to_tasks(point)
+                all_tasks.extend(tasks)
+            
+            if not all_tasks:
+                return False, "选中的节点没有可合并的运动任务"
+            
+            # 6. 获取第一个节点的关节角度作为起点
+            first_point = points[0]
+            start_position = [
+                first_point.get("joint1", 0.0),
+                first_point.get("joint2", 0.0),
+                first_point.get("joint3", 0.0),
+                first_point.get("joint4", 0.0),
+                first_point.get("joint5", 0.0),
+                first_point.get("joint6", 0.0)
+            ]
+            
+            # 7. 调用 TrajectoryPlanningService 规划轨迹
+            trajectory_planner = self.message_response.trajectory_planner
+            positions = trajectory_planner.plan_task_sequence(all_tasks, start_position)
+            
+            if not positions or len(positions) < 2:
+                return False, "轨迹规划失败：生成的轨迹点数不足"
+            
+            # 8. 创建示教节点数据
+            merged_node = {
+                "mode": f"示教-合并({len(sorted_indices)}节点)",
+                "joint1": start_position[0],
+                "joint2": start_position[1],
+                "joint3": start_position[2],
+                "joint4": start_position[3],
+                "joint5": start_position[4],
+                "joint6": start_position[5],
+                "frequency": 0.01,
+                "curve_type": "S曲线",
+                "gripper_command": "00: 不进行任何操作",
+                "gripper_param": 0.0,
+                "gripper_pre_delay": 0.0,
+                "gripper_post_delay": 1.0,
+                "note": f"由节点 {sorted_indices[0]+1}-{sorted_indices[-1]+1} 合并，共 {len(positions)} 个轨迹点",
+                "teach_data": positions,
+                "source": "merged_nodes"
+            }
+            
+            # 9. 从后往前删除原节点（避免索引偏移）
+            for i in reversed(sorted_indices):
+                self.domain_service.remove_point(i)
+            
+            # 10. 在原起始位置插入新节点
+            insert_index = sorted_indices[0]
+            self.domain_service.insert_point(insert_index, merged_node)
+            
+            # 11. 保存数据并通知UI刷新
+            self._save_data()
+            self.point_list_changed.emit()
+            
+            return True, f"成功合并 {len(sorted_indices)} 个节点为示教节点，共 {len(positions)} 个轨迹点"
+            
+        except Exception as e:
+            return False, f"合并失败：{str(e)}"
     
     # ========== 加载本地轨迹功能 ==========
     

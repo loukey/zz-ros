@@ -2,7 +2,7 @@
 运动规划ViewModel
 """
 from PyQt5.QtCore import QObject, pyqtSignal
-from typing import List, Dict
+from typing import List, Dict, Tuple
 from controller.application import MotionPlanningApplicationService
 from .dynamics_view_model import DynamicsViewModel
 
@@ -289,4 +289,17 @@ class MotionPlanningViewModel(QObject):
             List[str]: 文件名列表（不带扩展名）。
         """
         return self.app_service.get_local_trajectory_files()
+    
+    # ========== 合并曲线功能 ==========
+    
+    def merge_selected_nodes(self, indices: List[int]) -> Tuple[bool, str]:
+        """合并选中的节点为示教节点。
+        
+        Args:
+            indices (List[int]): 选中节点的索引列表（必须连续）。
+            
+        Returns:
+            Tuple[bool, str]: (成功与否, 提示信息)。
+        """
+        return self.app_service.merge_nodes_to_teach(indices)
 

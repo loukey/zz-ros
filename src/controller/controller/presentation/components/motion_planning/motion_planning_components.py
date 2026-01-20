@@ -153,6 +153,11 @@ class MotionPlanningFrame(BaseComponent):
         self.preview_plan_btn.clicked.connect(self.preview_plan_trajectory)
         button_layout2.addWidget(self.preview_plan_btn)
         
+        # 合并曲线按钮
+        self.merge_curves_btn = QPushButton("合并曲线")
+        self.merge_curves_btn.clicked.connect(self.merge_selected_curves)
+        button_layout2.addWidget(self.merge_curves_btn)
+        
         button_layout2.addStretch()
         
         # 添加第二行按钮布局
@@ -499,6 +504,47 @@ class MotionPlanningFrame(BaseComponent):
         else:
             QMessageBox.warning(self, "错误", "准备预览失败，请检查方案数据")
     
+    # ========== 合并曲线功能 ==========
+    
+    def merge_selected_curves(self):
+        """合并选中的多个节点为示教节点"""
+        if not self.view_model:
+            return
+        
+        # 获取选中的行
+        selected_rows = self.motion_table.get_selected_rows()
+        
+        # 校验：至少选中2个节点
+        if len(selected_rows) < 2:
+            QMessageBox.warning(self, "警告", "请至少选中2个节点进行合并\n（按住 Ctrl 键可多选）")
+            return
+        
+        # 校验：选中的节点必须是连续的
+        for i in range(1, len(selected_rows)):
+            if selected_rows[i] - selected_rows[i - 1] != 1:
+                QMessageBox.warning(self, "警告", "选中的节点必须是连续的")
+                return
+        
+        # 确认对话框
+        reply = QMessageBox.question(
+            self,
+            "确认合并",
+            f"是否将选中的 {len(selected_rows)} 个节点（第 {selected_rows[0]+1} 至 {selected_rows[-1]+1} 行）合并为一个示教节点？\n\n"
+            "合并后将无法撤销。",
+            QMessageBox.Yes | QMessageBox.No
+        )
+        
+        if reply != QMessageBox.Yes:
+            return
+        
+        # 调用 ViewModel 合并方法
+        success, message = self.view_model.merge_selected_nodes(selected_rows)
+        
+        if success:
+            QMessageBox.information(self, "成功", message)
+        else:
+            QMessageBox.warning(self, "合并失败", message)
+    
     def show_trajectory_plot(self, trajectory_data: dict, context: dict):
         """
         显示轨迹曲线对话框
@@ -592,7 +638,7 @@ class MotionPlanningTable(QTableWidget):
         
         # 设置表格属性
         self.setSelectionBehavior(QTableWidget.SelectRows)
-        self.setSelectionMode(QTableWidget.SingleSelection)
+        self.setSelectionMode(QTableWidget.ExtendedSelection)  # 支持 Ctrl 多选
         self.setAlternatingRowColors(True)
         self.setEditTriggers(QTableWidget.NoEditTriggers)  # 禁止直接编辑单元格
         
@@ -828,6 +874,15 @@ class MotionPlanningTable(QTableWidget):
         # 备注 (第13列)
         note_item = QTableWidgetItem(new_data.get("note", ""))
         self.setItem(row, 13, note_item)
+    
+    def get_selected_rows(self) -> list:
+        """获取所有选中行的索引列表。
+        
+        Returns:
+            list: 选中行的索引列表（已排序）。
+        """
+        selected_indexes = self.selectionModel().selectedRows()
+        return sorted([index.row() for index in selected_indexes])
 
 
 class MotionPointDialog(QDialog):

@@ -90,7 +90,7 @@ class MessageResponseService(BaseService):
         
         self.message_buffer += message_in
         if "0D0A" in self.message_buffer:
-            if self.message_buffer.startswith("AA55") and len(self.message_buffer) < 120:
+            if self.message_buffer.startswith("AA55") and len(self.message_buffer) < 240:
                 return
             lines = self.message_buffer.rsplit("0D0A", 1)            
             self.message_buffer = lines[-1]

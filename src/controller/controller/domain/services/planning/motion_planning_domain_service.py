@@ -221,4 +221,29 @@ class MotionPlanningDomainService:
         """
         plan = self.get_current_plan()
         return plan.points.copy() if plan else []
+    
+    def insert_point(self, index: int, point_data: dict):
+        """在指定位置插入节点。
+        
+        Args:
+            index (int): 插入位置索引。
+            point_data (dict): 节点数据。
+        """
+        plan = self.get_current_plan()
+        if plan:
+            plan.insert_point(index, point_data)
+    
+    def get_single_point(self, index: int) -> Optional[dict]:
+        """获取单个节点数据。
+        
+        Args:
+            index (int): 节点索引。
+            
+        Returns:
+            Optional[dict]: 节点数据，无效索引返回 None。
+        """
+        plan = self.get_current_plan()
+        if plan and 0 <= index < len(plan.points):
+            return plan.points[index].copy()
+        return None
 

@@ -73,4 +73,17 @@ class MotionPlan:
         """
         if 0 <= index < len(self.points):
             self.points[index] = point_data
+    
+    def insert_point(self, index: int, point_data: dict):
+        """在指定位置插入节点。
+        
+        Args:
+            index (int): 插入位置索引。
+            point_data (dict): 节点数据。
+        """
+        if index < 0:
+            index = 0
+        if index > len(self.points):
+            index = len(self.points)
+        self.points.insert(index, point_data)
 
