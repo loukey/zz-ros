@@ -119,7 +119,7 @@ class HandEyeTransformDomainService:
         T_offset2target[:3, 3] = [0, -0.016, 0]
         T_target2base = T_target2base @ T_offset2target
 
-        T_offset2target[:3, 3] = [0, -0.1, 0.02]
+        T_offset2target[:3, 3] = [0.1, 0, 0.02]
         T_target2base = T_offset2target @ T_target2base
 
         # 5. 逆运动学求解

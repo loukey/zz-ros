@@ -35,6 +35,7 @@ class LinearMotionDomainService:
         self.dt = float(dt)
         self.kinematic_solver = KinematicDomainService()
         self.nearest_position = []
+        self.initial_pos = []
 
     def clamp(self, x, low, high):
         """限制数值范围。"""
@@ -51,6 +52,7 @@ class LinearMotionDomainService:
             tuple: (t_list, positions, qd, qdd) 轨迹数据。
         """
         self.nearest_position = start_position
+        self.initial_pos = self.nearest_position.copy()
         start_quat, start_pos = self.kinematic_solver.get_gripper2base(start_position)
         end_quat, end_pos = self.kinematic_solver.get_gripper2base(end_position)
         quat_list, pos_list, n_seg = self.sampling(start_quat, start_pos, end_quat, end_pos)
@@ -76,6 +78,7 @@ class LinearMotionDomainService:
             ValueError: 如果方向向量模长过小。
         """
         self.nearest_position = start_position
+        self.initial_pos = self.nearest_position.copy()
         start_quat, start_pos = self.kinematic_solver.get_gripper2base(start_position)
         # todo: 按照distance计算终点位置
         p0 = np.asarray(start_pos, dtype=float).reshape(3)
@@ -191,6 +194,8 @@ class LinearMotionDomainService:
         positions = []
         for quat, pos in zip(quat_list, pos_list):
             position = self.inverse_kinematic(quat, pos)
+            if position is None:
+                continue
             positions.append(position)
         positions = np.array(positions)
         # todo: 基于这个positions列表，规划rucking smooth
@@ -218,11 +223,27 @@ class LinearMotionDomainService:
         """单点逆运动学求解（利用上一位置作为初值）。"""
         rm = self.kinematic_solver.kinematic_utils.quat2rm(quat)
         inverse_position = self.kinematic_solver.inverse_kinematic(rm, pos, initial_theta=self.nearest_position)
+
         self.nearest_position = inverse_position
         with open("./inverse_position.txt", "a") as f:
             f.write(f"{quat} | {pos} | {inverse_position} | {self.nearest_position} \n")
         return inverse_position
 
+    def inverse_kinematic_force(self, quat, pos):
+        """单点逆运动学求解（利用上一位置作为初值）。"""
+        rm = self.kinematic_solver.kinematic_utils.quat2rm(quat)
+        inverse_position = self.kinematic_solver.inverse_kinematic(rm, pos, initial_theta=self.nearest_position)
+        last_q = self.nearest_position
+        start_q = self.initial_pos
+        start_q4 = float(start_q[3])
+        last_q6 = float(last_q[5])
+        q6 = float(inverse_position[5])
+        q4 = float(inverse_position[3])
+        
+        if abs(q6-last_q6) > 0.5 or abs(q4-start_q4) > 0.1:
+            return None
+        self.nearest_position = inverse_position
+        return inverse_position
     def _q_normalize(self,q):
         """归一化四元数。"""
         q = np.asarray(q, dtype=float)

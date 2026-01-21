@@ -502,10 +502,10 @@ class KinematicDomainService:
 
 kinematic_domain_service = KinematicDomainService()
 kinematic_utils = KinematicUtils()
-quat = [0.63116763, 0.31389901, 0.63909985, -0.30764626]
-pos = [0.55528, -0.02752803, 0.25536895]
+quat = [0.61878, 0.33443, 0.62975, -0.32967]
+pos = [0.55545, -0.03019, 0.25307]
 nearest_position = [
--0.6553247556660113, -1.5556075123873467, -1.8462758433296393, 1.9905958255326244, 0.008165271828196874, -3.8649504581211156
+-0.56822, -1.28653, -1.48267, 2.54398, 0.02695, -4.32428
     ]
 rm = kinematic_utils.quat2rm(quat)
 position = kinematic_domain_service.inverse_kinematic(rm, pos, nearest_position)
