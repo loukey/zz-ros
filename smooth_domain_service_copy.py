@@ -6,7 +6,7 @@ import numpy as np
 from scipy.signal import savgol_filter
 from scipy.interpolate import CubicSpline
 from scipy.interpolate import interp1d
-from typing import List, Tuple, Any
+from typing import List, Tuple
 from math import pi
 import toppra as ta
 import toppra.constraint as constraint
@@ -14,7 +14,8 @@ import toppra.algorithm as algo
 
 
 class SmoothDomainService:
-    """轨迹平滑服务。
+    """
+    轨迹平滑服务
     
     提供多种平滑算法：
     1. Cubic Spline + Savitzky-Golay 滤波（默认，旧版）
@@ -27,27 +28,24 @@ class SmoothDomainService:
     """
     
     def __init__(self):
-        """初始化平滑服务。"""
         pass
     
     def smooth_trajectory(
         self, 
         angles_list: List[List[float]], 
         method: str = "spline_savgol",
-        **kwargs: Any
+        **kwargs
     ) -> List[List[float]]:
-        """平滑轨迹（统一接口）。
+        """
+        平滑轨迹（统一接口）
         
         Args:
-            angles_list (List[List[float]]): 原始轨迹 [[θ1,...,θ6], ...]。
-            method (str, optional): 平滑方法 ("spline_savgol" 或 "toppra"). Defaults to "spline_savgol".
-            **kwargs: 各算法的特定参数。
+            angles_list: 原始轨迹 [[θ1,...,θ6], ...]
+            method: 平滑方法 ("spline_savgol" 或 "toppra")
+            **kwargs: 各算法的特定参数
         
         Returns:
-            List[List[float]]: 平滑后的轨迹点列表。
-            
-        Raises:
-            ValueError: 如果指定了未知的平滑方法。
+            平滑后的轨迹点列表
         """
         if method == "spline_savgol":
             return self.spline_then_savgol(angles_list, **kwargs)
@@ -63,7 +61,8 @@ class SmoothDomainService:
         sg_window: int = 211,
         sg_poly: int = 3
     ) -> List[List[float]]:
-        """Cubic Spline + Savitzky-Golay 滤波（参考旧版）。
+        """
+        Cubic Spline + Savitzky-Golay 滤波（参考旧版）
         
         流程：
         1. Savitzky-Golay 平滑原始数据
@@ -72,13 +71,13 @@ class SmoothDomainService:
         4. 再次 Savitzky-Golay 平滑
         
         Args:
-            angles_list (List[List[float]]): 原始轨迹 N×6。
-            upsample (int, optional): 上采样倍数. Defaults to 5.
-            sg_window (int, optional): Savgol 滤波窗口（必须是奇数）. Defaults to 211.
-            sg_poly (int, optional): Savgol 多项式阶数. Defaults to 3.
+            angles_list: 原始轨迹 N×6
+            upsample: 上采样倍数
+            sg_window: Savgol 滤波窗口（必须是奇数）
+            sg_poly: Savgol 多项式阶数
         
         Returns:
-            List[List[float]]: 平滑后的轨迹列表。
+            平滑后的轨迹列表
         """
         arr = np.asarray(angles_list, dtype=float)
         N, D = arr.shape
@@ -127,23 +126,7 @@ class SmoothDomainService:
         a_max: np.ndarray | float,
         dt: float = 0.01,
         grid_n: int = 800
-    ) -> List[List[float]]:
-        """使用 TOPPRA 进行平滑处理。
-        
-        Args:
-            waypoints (np.ndarray): 路径点 (N, dof)。
-            v_max (np.ndarray | float): 最大速度。
-            a_max (np.ndarray | float): 最大加速度。
-            dt (float, optional): 时间步长. Defaults to 0.01.
-            grid_n (int, optional): 网格数. Defaults to 800.
-        
-        Returns:
-            list: 平滑后的关节位置列表。
-            
-        Raises:
-            ValueError: 参数错误。
-            RuntimeError: 求解失败。
-        """
+    ):
         waypoints = np.asarray(waypoints, dtype=float)
         if waypoints.ndim != 2 or waypoints.shape[1] != 6 or waypoints.shape[0] < 2:
             raise ValueError("waypoints 必须是 (N,6) 且 N>=2")
@@ -186,35 +169,23 @@ class SmoothDomainService:
         return q.tolist()
 
     def remove_redundant_points(self, q_teach: List[List[float]], eps: float = 1e-4) -> List[List[float]]:
-        """改进版去除重复点：保留“任意一个关节角变化超过阈值”的点。
-        
-        Args:
-            q_teach (List[List[float]]): 示教点列表。
-            eps (float, optional): 变化阈值. Defaults to 1e-4.
-        
-        Returns:
-            List[List[float]]: 去重后的点列表。
-        """
-        q_teach = np.asarray(q_teach, dtype=float)
-        dq = np.abs(np.diff(q_teach, axis=0))  # 相邻关节角绝对差
-        moving_mask = np.any(dq > eps, axis=1)  # 只要任意一轴动了就认为在动
-        mask = np.hstack([[True], moving_mask])  # 保留第一个点
-        return q_teach[mask].tolist()
-    # ------------------------------------------------------------
+            """
+            改进版去除重复点：
+            保留“任意一个关节角变化超过阈值”的点。
+            """
+            q_teach = np.asarray(q_teach, dtype=float)
+            dq = np.abs(np.diff(q_teach, axis=0))  # 相邻关节角绝对差
+            moving_mask = np.any(dq > eps, axis=1)  # 只要任意一轴动了就认为在动
+            mask = np.hstack([[True], moving_mask])  # 保留第一个点
+            return q_teach[mask].tolist()
+        # ------------------------------------------------------------
     def resample_equal_arclen(self, q_points: List[List[float]], step: float = 0.002) -> List[List[float]]:
-        """按弧长重采样，使路径在关节空间中分布均匀。
-        
+        """
+        按弧长重采样，使路径在关节空间中分布均匀。
         原理：
         - 计算相邻点的欧氏距离（弧长）
         - 将弧长积分得到累计s
         - 对s均匀取样后，用插值函数生成新点
-        
-        Args:
-            q_points (List[List[float]]): 原始点列表。
-            step (float, optional): 重采样步长. Defaults to 0.002.
-        
-        Returns:
-            List[List[float]]: 重采样后的点列表。
         """
         q_points = np.asarray(q_points, dtype=float)
 
@@ -253,19 +224,12 @@ class SmoothDomainService:
         q_start_req: np.ndarray,
         q_end_req: np.ndarray,
     ) -> List[List[float]]:
-        """对弧长重采样后的轨迹做仿射变换（线性缩放+平移），使轨迹的首尾点精确对齐到指定的起点和终点。
-        
+        """
+        对弧长重采样后的轨迹做仿射变换（线性缩放+平移），
+        使轨迹的首尾点精确对齐到指定的起点和终点。
         数学形式：
         q_aligned = q_start_req + (q_eq - q0) * scale
         其中 scale = (q_end_req - q_start_req) / (q1 - q0)
-        
-        Args:
-            q_eq (List[List[float]]): 重采样后的轨迹。
-            q_start_req (np.ndarray): 要求的起点。
-            q_end_req (np.ndarray): 要求的终点。
-        
-        Returns:
-            List[List[float]]: 对齐后的轨迹。
         """
         q_eq = np.asarray(q_eq, dtype=float)
         q_start_req = np.asarray(q_start_req, dtype=float)
@@ -290,12 +254,13 @@ class SmoothDomainService:
 
         return q_aligned.tolist()
     # ------------------------------------------------------------
+
     def teach_smooth(
         self,
         q_teach: List[List[float]],
         q_start_req: np.ndarray,
         q_end_req: np.ndarray,
-        step: float = 0.02,
+        step: float = 0.002,
         eps: float = 1e-6,
     ) -> List[List[float]]:
         """

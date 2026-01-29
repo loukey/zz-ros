@@ -5,7 +5,7 @@
 from typing import List, Dict, Tuple
 import numpy as np
 from math import pi
-from ..algorithm import SCurve, SmoothDomainService, LinearMotionDomainService, CurveMotionDomainService, LinearMotionBlendDomainService
+from ..algorithm import SCurve, SmoothDomainService, LinearMotionDomainService, CurveMotionDomainService
 
 
 class TrajectoryPlanningService:
@@ -30,8 +30,7 @@ class TrajectoryPlanningService:
         s_curve: SCurve,
         smooth_service: SmoothDomainService,
         linear_motion_service: LinearMotionDomainService,
-        curve_motion_service: CurveMotionDomainService,
-        linear_motion_blend_service: LinearMotionBlendDomainService
+        curve_motion_service: CurveMotionDomainService
     ):
         """初始化轨迹规划服务。
         
@@ -40,13 +39,11 @@ class TrajectoryPlanningService:
             smooth_service (SmoothDomainService): 平滑算法服务。
             linear_motion_service (LinearMotionDomainService): 直线运动服务。
             curve_motion_service (CurveMotionDomainService): 曲线运动服务。
-            linear_motion_blend_service (LinearMotionBlendDomainService): 直线混合运动服务。
         """
         self.s_curve = s_curve
         self.smooth_service = smooth_service
         self.linear_motion_service = linear_motion_service
         self.curve_motion_service = curve_motion_service
-        self.linear_motion_blend_service = linear_motion_blend_service
     
     def plan_task_sequence(
         self,
@@ -148,11 +145,6 @@ class TrajectoryPlanningService:
             return self._plan_vector_motion(task, start_position)
         elif task_type == "curve_motion":
             return self._plan_curve_motion(task, start_position)
-        elif task_type == "blend":
-            result_dict = self._plan_blend_motion(task, start_position)
-            positions = result_dict["positions"]
-            final_pos = positions[-1] if positions else start_position
-            return (positions, final_pos)
         elif task_type == "gripper":
             return ([], start_position)
         else:
@@ -182,8 +174,6 @@ class TrajectoryPlanningService:
             return self._plan_vector_motion_full(task, start_position)
         elif task_type == "curve_motion":
             return self._plan_curve_motion_full(task, start_position)
-        elif task_type == "blend":
-            return self._plan_blend_motion(task, start_position)
         elif task_type == "gripper":
             return {"time": [], "positions": [], "velocities": [], "accelerations": []}
         else:
@@ -192,17 +182,9 @@ class TrajectoryPlanningService:
     # ========== 具体规划方法（位置版本） ==========
     
     def _plan_motion(self, task: Dict, start_position: List[float]) -> Tuple[List[List[float]], List[float]]:
-        """S曲线/直线/混合运动规划（仅返回位置）。"""
-        curve_type = task.get("curve_type", "s_curve")
-        
-        # 混合运动单独处理
-        if curve_type == "混合":
-            result_dict = self._plan_blend_motion(task, start_position)
-            positions = result_dict["positions"]
-            final_pos = positions[-1] if positions else start_position
-            return (positions, final_pos)
-            
+        """S曲线/直线运动规划（仅返回位置）。"""
         end_position = task["target_angles"]
+        curve_type = task.get("curve_type", "s_curve")
         frequency = task.get("frequency", 0.01)
         
         if curve_type == "linear":
@@ -240,8 +222,17 @@ class TrajectoryPlanningService:
             target_first_point
         )
         
-        toppra_positions = self.smooth_service.toppra_smooth(
+        # 对示教数据进行平滑处理
+        smoothed_positions = self.smooth_service.teach_smooth(
             teach_data,
+            target_first_point,
+            end_position,
+            step=0.02,
+            eps=1e-6            
+        )
+        
+        toppra_positions = self.smooth_service.toppra_smooth(
+            smoothed_positions,
             v_max=[pi/4] * 6,
             a_max=[pi/8] * 6,
             dt = 0.01,
@@ -299,14 +290,9 @@ class TrajectoryPlanningService:
     # ========== 具体规划方法（完整数据版本） ==========
     
     def _plan_motion_full(self, task: Dict, start_position: List[float]) -> Dict:
-        """S曲线/直线/混合运动规划（完整数据）。"""
-        curve_type = task.get("curve_type", "s_curve")
-        
-        # 混合运动单独处理
-        if curve_type == "混合":
-            return self._plan_blend_motion(task, start_position)
-            
+        """S曲线/直线运动规划（完整数据）。"""
         end_position = task["target_angles"]
+        curve_type = task.get("curve_type", "s_curve")
         frequency = task.get("frequency", 0.01)
         
         if curve_type == "linear":
@@ -357,8 +343,17 @@ class TrajectoryPlanningService:
         v1 = v1 if isinstance(v1, list) else v1.tolist() if hasattr(v1, 'tolist') else list(v1)
         a1 = a1 if isinstance(a1, list) else a1.tolist() if hasattr(a1, 'tolist') else list(a1)
         
-        toppra_positions = self.smooth_service.toppra_smooth(
+        # 对示教数据进行平滑处理
+        smoothed_positions = self.smooth_service.teach_smooth(
             teach_data,
+            target_first_point,
+            end_position,
+            step=0.02,
+            eps=1e-6            
+        )
+        
+        toppra_positions = self.smooth_service.toppra_smooth(
+            smoothed_positions,
             v_max=[pi/4] * 6,
             a_max=[pi/8] * 6,
             dt=0.01
@@ -443,33 +438,3 @@ class TrajectoryPlanningService:
             "accelerations": accelerations
         }
 
-    def _plan_blend_motion(self, task: Dict, start_position: List[float]) -> Dict:
-        """带交融半径的直线运动规划（完整数据）。"""
-        blend_data = task["blend_data"]
-        first_position = blend_data[0]
-        time, accelerations, velocities, positions = self.s_curve.planning(
-            start_position,
-            first_position,
-            dt=0.01
-        )
-        blend_times, blend_positions, blend_velocities, blend_accelerations = self.linear_motion_blend_service.move_with_blend(
-            blend_data
-        )
-        
-        # 将 numpy 数组转换为列表后再拼接
-        time_list = time.tolist() if hasattr(time, 'tolist') else list(time)
-        positions_list = positions.tolist() if hasattr(positions, 'tolist') else list(positions)
-        velocities_list = velocities.tolist() if hasattr(velocities, 'tolist') else list(velocities)
-        accelerations_list = accelerations.tolist() if hasattr(accelerations, 'tolist') else list(accelerations)
-        
-        final_positions = positions_list + blend_positions
-        final_velocities = velocities_list + blend_velocities
-        final_accelerations = accelerations_list + blend_accelerations
-        final_times = time_list + blend_times
-        
-        return {
-            "time": final_times,
-            "positions": final_positions,
-            "velocities": final_velocities,
-            "accelerations": final_accelerations
-        }
