@@ -92,4 +92,28 @@ message_formats:
         length: 1
         default: 0.0
         formatter: "float_struct"
+      
+      effector_mode_2:
+        type: "int"
+        length: 1
+        default: 0x00
+        formatter: "hex"
+        
+      effector_data_2:
+        type: "float"
+        length: 1
+        default: 0.0
+        formatter: "float_struct"
+      
+      sweep_command:
+        type: "int"
+        length: 1
+        default: 0x00
+        formatter: "hex"
+        
+      press_command:
+        type: "int"
+        length: 1
+        default: 0x00
+        formatter: "hex"
         

@@ -354,7 +354,6 @@ class LinearMotionBlendDomainService:
             dtheta = max(dtheta, 1e-6)
 
             n = int(np.ceil(ang / dtheta)) + 1
-            print(n)
             return max(n, min_pts_arc)
 
         for pc in pieces:

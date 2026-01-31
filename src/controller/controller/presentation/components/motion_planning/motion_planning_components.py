@@ -5,7 +5,7 @@ from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
                             QTableWidget, QTableWidgetItem, QDialog, QLabel, 
                             QDoubleSpinBox, QComboBox, QFormLayout, QDialogButtonBox,
                             QHeaderView, QMessageBox, QLineEdit, QCheckBox, QRadioButton, 
-                            QButtonGroup, QInputDialog, QListWidget)
+                            QButtonGroup, QInputDialog, QListWidget, QSpinBox)
 from PyQt5.QtCore import Qt, pyqtSignal
 from ..base_component import BaseComponent
 from .trajectory_plot_dialog import TrajectoryPlotDialog
@@ -630,10 +630,11 @@ class MotionPlanningTable(QTableWidget):
         super(MotionPlanningTable, self).__init__(parent)
         
         # 设置列数和列标题
-        self.setColumnCount(14)
+        self.setColumnCount(16)
         self.setHorizontalHeaderLabels([
             "模式", "关节1", "关节2", "关节3", "关节4", "关节5", "关节6", 
-            "频率", "曲线类型", "夹爪命令", "夹爪参数", "前置等待", "后置等待", "备注"
+            "频率", "曲线类型", "夹爪命令", "夹爪参数", "其他指令", "指令值",
+            "前置等待", "后置等待", "备注"
         ])
         
         # 设置表格属性
@@ -670,16 +671,24 @@ class MotionPlanningTable(QTableWidget):
         self.setColumnWidth(10, 100)
         header.setSectionResizeMode(10, QHeaderView.Interactive)
         
-        # 前置等待列
-        self.setColumnWidth(11, 100)
+        # 其他指令列
+        self.setColumnWidth(11, 80)
         header.setSectionResizeMode(11, QHeaderView.Interactive)
         
-        # 后置等待列
-        self.setColumnWidth(12, 100)
+        # 指令值列
+        self.setColumnWidth(12, 60)
         header.setSectionResizeMode(12, QHeaderView.Interactive)
         
+        # 前置等待列
+        self.setColumnWidth(13, 80)
+        header.setSectionResizeMode(13, QHeaderView.Interactive)
+        
+        # 后置等待列
+        self.setColumnWidth(14, 80)
+        header.setSectionResizeMode(14, QHeaderView.Interactive)
+        
         # 备注列 - 自适应剩余空间（也可手动调整）
-        header.setSectionResizeMode(13, QHeaderView.Stretch)
+        header.setSectionResizeMode(15, QHeaderView.Stretch)
         
         # 连接双击信号
         self.cellDoubleClicked.connect(self.edit_motion_point)
@@ -736,19 +745,39 @@ class MotionPlanningTable(QTableWidget):
         gripper_param_item.setTextAlignment(Qt.AlignCenter)
         self.setItem(row_position, 10, gripper_param_item)
         
-        # 前置等待 (第11列)
-        pre_delay_item = QTableWidgetItem(str(motion_data.get("gripper_pre_delay", 0.0)) + "s")
+        # 其他指令 (第11列) - 清扫/压机
+        other_cmd_type = motion_data.get("other_command_type", "-")
+        other_cmd_item = QTableWidgetItem(other_cmd_type)
+        other_cmd_item.setTextAlignment(Qt.AlignCenter)
+        self.setItem(row_position, 11, other_cmd_item)
+        
+        # 指令值 (第12列)
+        other_cmd_value = motion_data.get("other_command_value", 0)
+        other_value_item = QTableWidgetItem(str(other_cmd_value) if other_cmd_type != "-" else "-")
+        other_value_item.setTextAlignment(Qt.AlignCenter)
+        self.setItem(row_position, 12, other_value_item)
+        
+        # 前置等待 (第13列) - 根据模式选择正确的字段
+        if mode == "其他":
+            pre_delay = motion_data.get("other_pre_delay", 0.0)
+        else:
+            pre_delay = motion_data.get("gripper_pre_delay", 0.0)
+        pre_delay_item = QTableWidgetItem(str(pre_delay) + "s")
         pre_delay_item.setTextAlignment(Qt.AlignCenter)
-        self.setItem(row_position, 11, pre_delay_item)
+        self.setItem(row_position, 13, pre_delay_item)
         
-        # 后置等待 (第12列)
-        post_delay_item = QTableWidgetItem(str(motion_data.get("gripper_post_delay", 1.0)) + "s")
+        # 后置等待 (第14列) - 根据模式选择正确的字段
+        if mode == "其他":
+            post_delay = motion_data.get("other_post_delay", 1.0)
+        else:
+            post_delay = motion_data.get("gripper_post_delay", 1.0)
+        post_delay_item = QTableWidgetItem(str(post_delay) + "s")
         post_delay_item.setTextAlignment(Qt.AlignCenter)
-        self.setItem(row_position, 12, post_delay_item)
+        self.setItem(row_position, 14, post_delay_item)
         
-        # 备注 (第13列)
+        # 备注 (第15列)
         note_item = QTableWidgetItem(motion_data.get("note", ""))
-        self.setItem(row_position, 13, note_item)
+        self.setItem(row_position, 15, note_item)
     
     def edit_motion_point(self, row, column):
         """编辑运动点（双击时触发）"""
@@ -802,24 +831,44 @@ class MotionPlanningTable(QTableWidget):
             gripper_param_item = self.item(row, 10)
             point_data["gripper_param"] = float(gripper_param_item.text()) if gripper_param_item else 0.0
             
-            # 前置等待 (第11列) - 移除"s"后缀
-            pre_delay_item = self.item(row, 11)
+            # 其他指令 (第11列)
+            other_cmd_item = self.item(row, 11)
+            other_cmd_type = other_cmd_item.text() if other_cmd_item else "-"
+            if other_cmd_type != "-":
+                point_data["other_command_type"] = other_cmd_type
+            
+            # 指令值 (第12列)
+            other_value_item = self.item(row, 12)
+            if other_value_item and other_value_item.text() != "-":
+                try:
+                    point_data["other_command_value"] = int(other_value_item.text())
+                except ValueError:
+                    point_data["other_command_value"] = 0
+            
+            # 前置等待 (第13列) - 移除"s"后缀，根据模式保存到正确的字段
+            pre_delay_item = self.item(row, 13)
+            pre_delay_value = 0.0
             if pre_delay_item:
                 pre_delay_text = pre_delay_item.text().replace("s", "").strip()
-                point_data["gripper_pre_delay"] = float(pre_delay_text) if pre_delay_text else 0.0
-            else:
-                point_data["gripper_pre_delay"] = 0.0
+                pre_delay_value = float(pre_delay_text) if pre_delay_text else 0.0
             
-            # 后置等待 (第12列) - 移除"s"后缀
-            post_delay_item = self.item(row, 12)
+            # 后置等待 (第14列) - 移除"s"后缀，根据模式保存到正确的字段
+            post_delay_item = self.item(row, 14)
+            post_delay_value = 1.0
             if post_delay_item:
                 post_delay_text = post_delay_item.text().replace("s", "").strip()
-                point_data["gripper_post_delay"] = float(post_delay_text) if post_delay_text else 1.0
-            else:
-                point_data["gripper_post_delay"] = 1.0
+                post_delay_value = float(post_delay_text) if post_delay_text else 1.0
             
-            # 备注 (第13列)
-            note_item = self.item(row, 13)
+            # 根据模式保存到正确的字段
+            if point_data["mode"] == "其他":
+                point_data["other_pre_delay"] = pre_delay_value
+                point_data["other_post_delay"] = post_delay_value
+            else:
+                point_data["gripper_pre_delay"] = pre_delay_value
+                point_data["gripper_post_delay"] = post_delay_value
+            
+            # 备注 (第15列)
+            note_item = self.item(row, 15)
             point_data["note"] = note_item.text() if note_item else ""
             
             motion_data.append(point_data)
@@ -861,19 +910,40 @@ class MotionPlanningTable(QTableWidget):
         gripper_param_item.setTextAlignment(Qt.AlignCenter)
         self.setItem(row, 10, gripper_param_item)
         
-        # 前置等待 (第11列)
-        pre_delay_item = QTableWidgetItem(str(new_data.get("gripper_pre_delay", 0.0)) + "s")
+        # 其他指令 (第11列)
+        other_cmd_type = new_data.get("other_command_type", "-")
+        other_cmd_item = QTableWidgetItem(other_cmd_type)
+        other_cmd_item.setTextAlignment(Qt.AlignCenter)
+        self.setItem(row, 11, other_cmd_item)
+        
+        # 指令值 (第12列)
+        other_cmd_value = new_data.get("other_command_value", 0)
+        other_value_item = QTableWidgetItem(str(other_cmd_value) if other_cmd_type != "-" else "-")
+        other_value_item.setTextAlignment(Qt.AlignCenter)
+        self.setItem(row, 12, other_value_item)
+        
+        # 前置等待 (第13列) - 根据模式选择正确的字段
+        mode = new_data.get("mode", "运动")
+        if mode == "其他":
+            pre_delay = new_data.get("other_pre_delay", 0.0)
+        else:
+            pre_delay = new_data.get("gripper_pre_delay", 0.0)
+        pre_delay_item = QTableWidgetItem(str(pre_delay) + "s")
         pre_delay_item.setTextAlignment(Qt.AlignCenter)
-        self.setItem(row, 11, pre_delay_item)
+        self.setItem(row, 13, pre_delay_item)
         
-        # 后置等待 (第12列)
-        post_delay_item = QTableWidgetItem(str(new_data.get("gripper_post_delay", 1.0)) + "s")
+        # 后置等待 (第14列) - 根据模式选择正确的字段
+        if mode == "其他":
+            post_delay = new_data.get("other_post_delay", 1.0)
+        else:
+            post_delay = new_data.get("gripper_post_delay", 1.0)
+        post_delay_item = QTableWidgetItem(str(post_delay) + "s")
         post_delay_item.setTextAlignment(Qt.AlignCenter)
-        self.setItem(row, 12, post_delay_item)
+        self.setItem(row, 14, post_delay_item)
         
-        # 备注 (第13列)
+        # 备注 (第15列)
         note_item = QTableWidgetItem(new_data.get("note", ""))
-        self.setItem(row, 13, note_item)
+        self.setItem(row, 15, note_item)
     
     def get_selected_rows(self) -> list:
         """获取所有选中行的索引列表。
@@ -920,15 +990,76 @@ class MotionPointDialog(QDialog):
         self.mode_group.addButton(self.gripper_radio, 1)
         radio_layout.addWidget(self.gripper_radio)
         
+        self.gripper2_radio = QRadioButton("夹爪二")
+        self.mode_group.addButton(self.gripper2_radio, 2)
+        radio_layout.addWidget(self.gripper2_radio)
+        
+        self.other_radio = QRadioButton("其他")
+        self.mode_group.addButton(self.other_radio, 3)
+        radio_layout.addWidget(self.other_radio)
+        
         self.detect_radio = QRadioButton("检测")
-        self.mode_group.addButton(self.detect_radio, 2)
+        self.mode_group.addButton(self.detect_radio, 4)
         radio_layout.addWidget(self.detect_radio)
         
         radio_layout.addStretch()
         layout.addLayout(radio_layout)
         
-        # 创建表单布局
-        form_layout = QFormLayout()
+        # 其他指令设置容器（默认隐藏）
+        self.other_params_widget = QWidget()
+        other_layout = QFormLayout(self.other_params_widget)
+        
+        # 指令类型选择
+        other_type_layout = QHBoxLayout()
+        self.other_type_group = QButtonGroup()
+        self.sweep_radio = QRadioButton("清扫指令")
+        self.sweep_radio.setChecked(True)
+        self.other_type_group.addButton(self.sweep_radio, 0)
+        other_type_layout.addWidget(self.sweep_radio)
+        
+        self.press_radio = QRadioButton("压机指令")
+        self.other_type_group.addButton(self.press_radio, 1)
+        other_type_layout.addWidget(self.press_radio)
+        other_type_layout.addStretch()
+        other_layout.addRow("指令类型:", other_type_layout)
+        
+        # 指令值输入
+        self.other_value_spin = QSpinBox()
+        self.other_value_spin.setRange(0, 255)
+        self.other_value_spin.setValue(0)
+        other_layout.addRow("指令值 (0-255):", self.other_value_spin)
+        
+        # 其他模式专用前置等待
+        self.other_pre_delay_spin = QDoubleSpinBox()
+        self.other_pre_delay_spin.setRange(0.0, 10.0)
+        self.other_pre_delay_spin.setDecimals(2)
+        self.other_pre_delay_spin.setSingleStep(0.1)
+        self.other_pre_delay_spin.setValue(0.0)
+        self.other_pre_delay_spin.setSuffix(" 秒")
+        other_layout.addRow("前置等待:", self.other_pre_delay_spin)
+        
+        # 其他模式专用后置等待
+        self.other_post_delay_spin = QDoubleSpinBox()
+        self.other_post_delay_spin.setRange(0.0, 10.0)
+        self.other_post_delay_spin.setDecimals(2)
+        self.other_post_delay_spin.setSingleStep(0.1)
+        self.other_post_delay_spin.setValue(1.0)
+        self.other_post_delay_spin.setSuffix(" 秒")
+        other_layout.addRow("后置等待:", self.other_post_delay_spin)
+        
+        # 其他模式专用备注
+        self.other_note_input = QLineEdit()
+        other_layout.addRow("备注:", self.other_note_input)
+        
+        self.other_params_widget.setVisible(False)
+        layout.addWidget(self.other_params_widget)
+        
+        # 监听模式切换，显示/隐藏其他指令参数
+        self.mode_group.buttonClicked.connect(self._on_mode_changed)
+        
+        # ========== 运动参数容器（运动模式专用） ==========
+        self.motion_params_widget = QWidget()
+        motion_layout = QFormLayout(self.motion_params_widget)
         
         # 角度输入
         self.joint_spins = []
@@ -937,7 +1068,7 @@ class MotionPointDialog(QDialog):
             spin.setRange(-180, 180)
             spin.setDecimals(12)
             spin.setSingleStep(1.0)
-            form_layout.addRow(f"关节{i}角度:", spin)
+            motion_layout.addRow(f"关节{i}角度:", spin)
             self.joint_spins.append(spin)
         
         # 频率输入
@@ -946,13 +1077,13 @@ class MotionPointDialog(QDialog):
         self.frequency_spin.setDecimals(2)
         self.frequency_spin.setSingleStep(0.01)
         self.frequency_spin.setValue(0.01)
-        form_layout.addRow("频率:", self.frequency_spin)
+        motion_layout.addRow("频率:", self.frequency_spin)
         
         # 曲线类型选择
         self.curve_type_combo = QComboBox()
         self.curve_type_combo.addItems(["S曲线", "直线", "向量", "曲线", "混合"])
         self.curve_type_combo.currentTextChanged.connect(self._on_curve_type_changed)
-        form_layout.addRow("曲线类型:", self.curve_type_combo)
+        motion_layout.addRow("曲线类型:", self.curve_type_combo)
         
         # 向量运动参数容器（默认隐藏）
         self.vector_params_widget = QWidget()
@@ -991,7 +1122,7 @@ class MotionPointDialog(QDialog):
         vector_layout.addRow("方向Z:", self.direction_z_spin)
         
         self.vector_params_widget.setVisible(False)
-        form_layout.addRow(self.vector_params_widget)
+        motion_layout.addRow(self.vector_params_widget)
         
         # 曲线运动参数容器（默认隐藏）
         self.curve_params_widget = QWidget()
@@ -1046,7 +1177,7 @@ class MotionPointDialog(QDialog):
         curve_layout.addRow("中间点2-Z(m):", self.mid_point2_z_spin)
         
         self.curve_params_widget.setVisible(False)
-        form_layout.addRow(self.curve_params_widget)
+        motion_layout.addRow(self.curve_params_widget)
         
         # 混合运动参数容器（默认隐藏）
         self.blend_params_widget = QWidget()
@@ -1070,7 +1201,17 @@ class MotionPointDialog(QDialog):
         blend_layout.addWidget(self.blend_point_list)
 
         self.blend_params_widget.setVisible(False)
-        form_layout.addRow(self.blend_params_widget)
+        motion_layout.addRow(self.blend_params_widget)
+        
+        # 运动模式备注
+        self.note_input = QLineEdit()
+        motion_layout.addRow("备注:", self.note_input)
+        
+        layout.addWidget(self.motion_params_widget)
+        
+        # ========== 夹爪参数容器（夹爪/夹爪二模式专用） ==========
+        self.gripper_params_widget = QWidget()
+        gripper_layout = QFormLayout(self.gripper_params_widget)
         
         # 夹爪命令选择
         self.gripper_command_combo = QComboBox()
@@ -1084,7 +1225,7 @@ class MotionPointDialog(QDialog):
             "06: 查询夹爪目前位置",
             "07: 查询夹爪电流"
         ])
-        form_layout.addRow("夹爪命令:", self.gripper_command_combo)
+        gripper_layout.addRow("夹爪命令:", self.gripper_command_combo)
         
         # 夹爪参数输入
         self.gripper_param_spin = QDoubleSpinBox()
@@ -1092,7 +1233,7 @@ class MotionPointDialog(QDialog):
         self.gripper_param_spin.setDecimals(2)
         self.gripper_param_spin.setSingleStep(1.0)
         self.gripper_param_spin.setValue(0.0)
-        form_layout.addRow("夹爪参数:", self.gripper_param_spin)
+        gripper_layout.addRow("夹爪参数:", self.gripper_param_spin)
         
         # 夹爪前置等待时间
         self.gripper_pre_delay_spin = QDoubleSpinBox()
@@ -1101,7 +1242,7 @@ class MotionPointDialog(QDialog):
         self.gripper_pre_delay_spin.setSingleStep(0.1)
         self.gripper_pre_delay_spin.setValue(0.0)
         self.gripper_pre_delay_spin.setSuffix(" 秒")
-        form_layout.addRow("夹爪前置等待:", self.gripper_pre_delay_spin)
+        gripper_layout.addRow("前置等待:", self.gripper_pre_delay_spin)
         
         # 夹爪后置等待时间
         self.gripper_post_delay_spin = QDoubleSpinBox()
@@ -1110,13 +1251,22 @@ class MotionPointDialog(QDialog):
         self.gripper_post_delay_spin.setSingleStep(0.1)
         self.gripper_post_delay_spin.setValue(1.0)
         self.gripper_post_delay_spin.setSuffix(" 秒")
-        form_layout.addRow("夹爪后置等待:", self.gripper_post_delay_spin)
+        gripper_layout.addRow("后置等待:", self.gripper_post_delay_spin)
         
-        # 备注输入
-        self.note_input = QLineEdit()
-        form_layout.addRow("备注:", self.note_input)
+        # 夹爪模式备注
+        self.gripper_note_input = QLineEdit()
+        gripper_layout.addRow("备注:", self.gripper_note_input)
         
-        layout.addLayout(form_layout)
+        self.gripper_params_widget.setVisible(False)
+        layout.addWidget(self.gripper_params_widget)
+        
+        # ========== 检测模式容器（检测模式专用） ==========
+        self.detect_params_widget = QWidget()
+        detect_layout = QFormLayout(self.detect_params_widget)
+        self.detect_note_input = QLineEdit()
+        detect_layout.addRow("备注:", self.detect_note_input)
+        self.detect_params_widget.setVisible(False)
+        layout.addWidget(self.detect_params_widget)
         
         # 添加功能按钮
         button_row = QHBoxLayout()
@@ -1139,6 +1289,22 @@ class MotionPointDialog(QDialog):
         self.button_box.rejected.connect(self.reject)
         layout.addWidget(self.button_box)
     
+    def _on_mode_changed(self, button):
+        """模式切换时，显示/隐藏相应的参数区域"""
+        is_motion = (button == self.motion_radio)
+        is_gripper = (button == self.gripper_radio) or (button == self.gripper2_radio)
+        is_other = (button == self.other_radio)
+        is_detect = (button == self.detect_radio)
+        
+        # 运动模式：显示 motion_params_widget
+        self.motion_params_widget.setVisible(is_motion)
+        # 夹爪/夹爪二模式：显示 gripper_params_widget
+        self.gripper_params_widget.setVisible(is_gripper)
+        # 其他模式：显示 other_params_widget
+        self.other_params_widget.setVisible(is_other)
+        # 检测模式：显示 detect_params_widget
+        self.detect_params_widget.setVisible(is_detect)
+    
     def _on_curve_type_changed(self, curve_type: str):
         """曲线类型变化时，显示/隐藏向量参数和曲线参数"""
         is_vector = (curve_type == "向量")
@@ -1160,95 +1326,178 @@ class MotionPointDialog(QDialog):
 
     def fill_data(self, data):
         """使用提供的数据填充界面"""
-        # 填充模式选择
+        # 填充模式选择并控制容器可见性
         mode = data.get("mode", "运动")
+        
+        # 先隐藏所有参数容器
+        self.motion_params_widget.setVisible(False)
+        self.gripper_params_widget.setVisible(False)
+        self.other_params_widget.setVisible(False)
+        self.detect_params_widget.setVisible(False)
+        
         if mode == "夹爪":
             self.gripper_radio.setChecked(True)
+            self.gripper_params_widget.setVisible(True)
+            # 填充夹爪参数
+            if "gripper_command" in data:
+                index = self.gripper_command_combo.findText(data["gripper_command"])
+                if index >= 0:
+                    self.gripper_command_combo.setCurrentIndex(index)
+            if "gripper_param" in data:
+                self.gripper_param_spin.setValue(data["gripper_param"])
+            if "gripper_pre_delay" in data:
+                self.gripper_pre_delay_spin.setValue(data["gripper_pre_delay"])
+            if "gripper_post_delay" in data:
+                self.gripper_post_delay_spin.setValue(data["gripper_post_delay"])
+            self.gripper_note_input.setText(data.get("note", ""))
+            
+        elif mode == "夹爪二":
+            self.gripper2_radio.setChecked(True)
+            self.gripper_params_widget.setVisible(True)
+            # 填充夹爪参数
+            if "gripper_command" in data:
+                index = self.gripper_command_combo.findText(data["gripper_command"])
+                if index >= 0:
+                    self.gripper_command_combo.setCurrentIndex(index)
+            if "gripper_param" in data:
+                self.gripper_param_spin.setValue(data["gripper_param"])
+            if "gripper_pre_delay" in data:
+                self.gripper_pre_delay_spin.setValue(data["gripper_pre_delay"])
+            if "gripper_post_delay" in data:
+                self.gripper_post_delay_spin.setValue(data["gripper_post_delay"])
+            self.gripper_note_input.setText(data.get("note", ""))
+            
+        elif mode == "其他":
+            self.other_radio.setChecked(True)
+            self.other_params_widget.setVisible(True)
+            # 填充其他指令参数
+            other_command_type = data.get("other_command_type", "清扫")
+            if other_command_type == "压机":
+                self.press_radio.setChecked(True)
+            else:
+                self.sweep_radio.setChecked(True)
+            self.other_value_spin.setValue(data.get("other_command_value", 0))
+            self.other_pre_delay_spin.setValue(data.get("other_pre_delay", 0.0))
+            self.other_post_delay_spin.setValue(data.get("other_post_delay", 1.0))
+            self.other_note_input.setText(data.get("note", ""))
+            
         elif mode == "检测":
             self.detect_radio.setChecked(True)
+            self.detect_params_widget.setVisible(True)
+            self.detect_note_input.setText(data.get("note", ""))
+            
         else:
+            # 运动模式（默认）
             self.motion_radio.setChecked(True)
-        
-        # 填充关节角度
-        for i, key in enumerate(["joint1", "joint2", "joint3", "joint4", "joint5", "joint6"]):
-            if key in data:
-                self.joint_spins[i].setValue(data[key])
-        
-        # 填充频率
-        if "frequency" in data:
-            self.frequency_spin.setValue(data["frequency"])
-        
-        # 填充曲线类型
-        if "curve_type" in data:
-            index = self.curve_type_combo.findText(data["curve_type"])
-            if index >= 0:
-                self.curve_type_combo.setCurrentIndex(index)
-        
-        # 填充向量参数
-        if data.get("curve_type") == "向量":
-            if "distance" in data:
-                self.distance_spin.setValue(data["distance"])
-            if "direction_x" in data:
-                self.direction_x_spin.setValue(data["direction_x"])
-            if "direction_y" in data:
-                self.direction_y_spin.setValue(data["direction_y"])
-            if "direction_z" in data:
-                self.direction_z_spin.setValue(data["direction_z"])
-        
-        # 填充曲线参数
-        if data.get("curve_type") == "曲线":
-            if "mid_point1_x" in data:
-                self.mid_point1_x_spin.setValue(data["mid_point1_x"])
-            if "mid_point1_y" in data:
-                self.mid_point1_y_spin.setValue(data["mid_point1_y"])
-            if "mid_point1_z" in data:
-                self.mid_point1_z_spin.setValue(data["mid_point1_z"])
-            if "mid_point2_x" in data:
-                self.mid_point2_x_spin.setValue(data["mid_point2_x"])
-            if "mid_point2_y" in data:
-                self.mid_point2_y_spin.setValue(data["mid_point2_y"])
-            if "mid_point2_z" in data:
-                self.mid_point2_z_spin.setValue(data["mid_point2_z"])
-        
-        # 填充混合参数
-        if data.get("curve_type") == "混合" and "blend_points" in data:
-            self.blend_points_data = data["blend_points"]
-            self.blend_point_list.clear()
-            for i, pos in enumerate(self.blend_points_data):
-                point_str = f"点 {i+1}: {[round(p, 2) for p in pos]}"
-                self.blend_point_list.addItem(point_str)
-
-        # 填充夹爪命令
-        if "gripper_command" in data:
-            index = self.gripper_command_combo.findText(data["gripper_command"])
-            if index >= 0:
-                self.gripper_command_combo.setCurrentIndex(index)
-        
-        # 填充夹爪参数
-        if "gripper_param" in data:
-            self.gripper_param_spin.setValue(data["gripper_param"])
-        
-        # 填充夹爪延迟时间
-        if "gripper_pre_delay" in data:
-            self.gripper_pre_delay_spin.setValue(data["gripper_pre_delay"])
-        if "gripper_post_delay" in data:
-            self.gripper_post_delay_spin.setValue(data["gripper_post_delay"])
-        
-        # 填充备注
-        if "note" in data:
-            self.note_input.setText(data["note"])
+            self.motion_params_widget.setVisible(True)
+            
+            # 填充关节角度
+            for i, key in enumerate(["joint1", "joint2", "joint3", "joint4", "joint5", "joint6"]):
+                if key in data:
+                    self.joint_spins[i].setValue(data[key])
+            
+            # 填充频率
+            if "frequency" in data:
+                self.frequency_spin.setValue(data["frequency"])
+            
+            # 填充曲线类型
+            if "curve_type" in data:
+                index = self.curve_type_combo.findText(data["curve_type"])
+                if index >= 0:
+                    self.curve_type_combo.setCurrentIndex(index)
+            
+            # 填充向量参数
+            if data.get("curve_type") == "向量":
+                if "distance" in data:
+                    self.distance_spin.setValue(data["distance"])
+                if "direction_x" in data:
+                    self.direction_x_spin.setValue(data["direction_x"])
+                if "direction_y" in data:
+                    self.direction_y_spin.setValue(data["direction_y"])
+                if "direction_z" in data:
+                    self.direction_z_spin.setValue(data["direction_z"])
+            
+            # 填充曲线参数
+            if data.get("curve_type") == "曲线":
+                if "mid_point1_x" in data:
+                    self.mid_point1_x_spin.setValue(data["mid_point1_x"])
+                if "mid_point1_y" in data:
+                    self.mid_point1_y_spin.setValue(data["mid_point1_y"])
+                if "mid_point1_z" in data:
+                    self.mid_point1_z_spin.setValue(data["mid_point1_z"])
+                if "mid_point2_x" in data:
+                    self.mid_point2_x_spin.setValue(data["mid_point2_x"])
+                if "mid_point2_y" in data:
+                    self.mid_point2_y_spin.setValue(data["mid_point2_y"])
+                if "mid_point2_z" in data:
+                    self.mid_point2_z_spin.setValue(data["mid_point2_z"])
+            
+            # 填充混合参数
+            if data.get("curve_type") == "混合" and "blend_points" in data:
+                self.blend_points_data = data["blend_points"]
+                self.blend_point_list.clear()
+                for i, pos in enumerate(self.blend_points_data):
+                    point_str = f"点 {i+1}: {[round(p, 2) for p in pos]}"
+                    self.blend_point_list.addItem(point_str)
+            
+            # 填充备注
+            self.note_input.setText(data.get("note", ""))
     
     def get_motion_data(self):
         """获取运动点数据"""
         data = {}
         
         # 获取模式选择
-        if self.gripper_radio.isChecked():
-            data["mode"] = "夹爪"
+        if self.gripper_radio.isChecked() or self.gripper2_radio.isChecked():
+            # 夹爪/夹爪二模式
+            data["mode"] = "夹爪" if self.gripper_radio.isChecked() else "夹爪二"
+            # 从夹爪参数容器获取数据
+            data["gripper_command"] = self.gripper_command_combo.currentText()
+            data["gripper_param"] = self.gripper_param_spin.value()
+            data["gripper_pre_delay"] = self.gripper_pre_delay_spin.value()
+            data["gripper_post_delay"] = self.gripper_post_delay_spin.value()
+            data["note"] = self.gripper_note_input.text()
+            # 其他字段使用默认值
+            for key in ["joint1", "joint2", "joint3", "joint4", "joint5", "joint6"]:
+                data[key] = 0.0
+            data["frequency"] = 0.01
+            data["curve_type"] = "S曲线"
+            return data
+            
+        elif self.other_radio.isChecked():
+            # 其他模式（清扫/压机）
+            data["mode"] = "其他"
+            data["other_command_type"] = "清扫" if self.sweep_radio.isChecked() else "压机"
+            data["other_command_value"] = self.other_value_spin.value()
+            data["other_pre_delay"] = self.other_pre_delay_spin.value()
+            data["other_post_delay"] = self.other_post_delay_spin.value()
+            data["note"] = self.other_note_input.text()
+            # 其他字段使用默认值
+            for key in ["joint1", "joint2", "joint3", "joint4", "joint5", "joint6"]:
+                data[key] = 0.0
+            data["frequency"] = 0.01
+            data["curve_type"] = "S曲线"
+            data["gripper_command"] = "00: 不进行任何操作"
+            data["gripper_param"] = 0.0
+            return data
+            
         elif self.detect_radio.isChecked():
+            # 检测模式
             data["mode"] = "检测"
-        else:
-            data["mode"] = "运动"
+            data["note"] = self.detect_note_input.text()
+            # 其他字段使用默认值
+            for key in ["joint1", "joint2", "joint3", "joint4", "joint5", "joint6"]:
+                data[key] = 0.0
+            data["frequency"] = 0.01
+            data["curve_type"] = "S曲线"
+            data["gripper_command"] = "00: 不进行任何操作"
+            data["gripper_param"] = 0.0
+            data["gripper_pre_delay"] = 0.0
+            data["gripper_post_delay"] = 1.0
+            return data
+        
+        # 运动模式（默认）
+        data["mode"] = "运动"
         
         # 获取关节角度
         for i, key in enumerate(["joint1", "joint2", "joint3", "joint4", "joint5", "joint6"]):
@@ -1283,15 +1532,11 @@ class MotionPointDialog(QDialog):
             if not self.note_input.text():
                  data["note"] = f"混合路径: 共{len(self.blend_points_data)}个路点"
 
-        # 获取夹爪命令
-        data["gripper_command"] = self.gripper_command_combo.currentText()
-        
-        # 获取夹爪参数
-        data["gripper_param"] = self.gripper_param_spin.value()
-        
-        # 获取夹爪延迟时间
-        data["gripper_pre_delay"] = self.gripper_pre_delay_spin.value()
-        data["gripper_post_delay"] = self.gripper_post_delay_spin.value()
+        # 运动模式的默认夹爪参数
+        data["gripper_command"] = "00: 不进行任何操作"
+        data["gripper_param"] = 0.0
+        data["gripper_pre_delay"] = 0.0
+        data["gripper_post_delay"] = 1.0
         
         # 获取备注
         data["note"] = self.note_input.text()

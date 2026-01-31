@@ -56,12 +56,13 @@ class MotionRunner(QObject):
             message = self.message_domain_service.encode_message(**msg_dict)
             self.data_list.append(message)
 
-    def add_gripper_data(self, effector_mode, effector_data, pre_delay=0.0, post_delay=1.0):
-        """添加夹爪命令。
+    def add_gripper_data(self, effector_mode, effector_data, gripper_index=1, pre_delay=0.0, post_delay=1.0):
+        """添加夹爪命令（支持夹爪一或夹爪二）。
         
         Args:
             effector_mode (int): 夹爪模式。
             effector_data (float): 夹爪参数。
+            gripper_index (int, optional): 夹爪索引，1=夹爪一，2=夹爪二. Defaults to 1.
             pre_delay (float, optional): 前置等待时间（秒）. Defaults to 0.0.
             post_delay (float, optional): 后置等待时间（秒）. Defaults to 1.0.
         """
@@ -69,13 +70,62 @@ class MotionRunner(QObject):
         if pre_delay > 0:
             self.data_list.append(DelayCommand(delay_s=pre_delay))
         
-        # 添加夹爪命令
-        msg_dict = {
-            'control': 0x00,
-            'mode': 0x08,
-            'effector_mode': effector_mode,
-            'effector_data': effector_data
-        }
+        # 根据夹爪索引设置不同字段
+        if gripper_index == 1:
+            msg_dict = {
+                'control': 0x00,
+                'mode': 0x08,
+                'effector_mode': effector_mode,
+                'effector_data': effector_data,
+                'effector_mode_2': 0x00,
+                'effector_data_2': 0.0
+            }
+        else:  # gripper_index == 2
+            msg_dict = {
+                'control': 0x00,
+                'mode': 0x08,
+                'effector_mode': 0x00,
+                'effector_data': 0.0,
+                'effector_mode_2': effector_mode,
+                'effector_data_2': effector_data
+            }
+        
+        message = self.message_domain_service.encode_message(**msg_dict)
+        self.data_list.append(message)
+        
+        # 添加后置延迟（如果>0）
+        if post_delay > 0:
+            self.data_list.append(DelayCommand(delay_s=post_delay))
+
+    def add_other_command_data(self, command_type: str, value: int, pre_delay=0.0, post_delay=1.0):
+        """添加其他指令（清扫/压机）。
+        
+        Args:
+            command_type (str): 指令类型，"sweep" 或 "press"。
+            value (int): 指令值 (0-255)。
+            pre_delay (float, optional): 前置等待时间（秒）. Defaults to 0.0.
+            post_delay (float, optional): 后置等待时间（秒）. Defaults to 1.0.
+        """
+        # 添加前置延迟（如果>0）
+        if pre_delay > 0:
+            self.data_list.append(DelayCommand(delay_s=pre_delay))
+        
+        # 根据指令类型设置对应字段
+        if command_type == "sweep":
+            msg_dict = {
+                'control': 0x00,
+                'mode': 0x08,
+                'sweep_command': value,
+                'press_command': 0x00
+            }
+        else:  # press
+            msg_dict = {
+                'control': 0x00,
+                'mode': 0x08,
+                'sweep_command': 0x00,
+                'press_command': value
+            }
+        
         message = self.message_domain_service.encode_message(**msg_dict)
         self.data_list.append(message)
         

@@ -226,8 +226,9 @@ class MotionPlanningApplicationService(QObject):
         流程：
         1. 获取节点数据
         2. 解析为任务列表
-        3. 准备执行操作
-        4. 查询当前位置
+        3. 判断任务类型：
+           - 简单指令（夹爪、清扫、压机）：直接执行，不需要位置信息
+           - 运动任务：查询位置后执行
         
         Args:
             index (int): 节点索引。
@@ -245,14 +246,26 @@ class MotionPlanningApplicationService(QObject):
         else:
             self._auto_started_detection = False
 
-        # 准备执行操作
-        self.motion_constructor.prepare_operation(
-            MotionOperationMode.EXECUTE,
-            tasks
-        )
+        # 检查是否为简单指令（不需要位置信息的任务）
+        simple_command_types = {"gripper", "gripper2", "sweep", "press"}
+        is_simple_command = all(task.get("type") in simple_command_types for task in tasks)
         
-        # 查询当前位置，触发执行
-        self.command_hub.get_current_position()
+        if is_simple_command:
+            # 简单指令：直接执行，不需要查询位置
+            self.motion_constructor.prepare_operation(
+                MotionOperationMode.EXECUTE,
+                tasks
+            )
+            # 使用空位置列表直接执行
+            self.motion_constructor.execute_motion([0.0] * 6)
+        else:
+            # 运动任务：需要先查询当前位置
+            self.motion_constructor.prepare_operation(
+                MotionOperationMode.EXECUTE,
+                tasks
+            )
+            # 查询当前位置，触发执行
+            self.command_hub.get_current_position()
     
     def execute_motion_plan(self):
         """执行整个运动规划方案。
@@ -329,11 +342,10 @@ class MotionPlanningApplicationService(QObject):
             return [{
                 "type": "detect"
             }]
-
         
-        # 4. 判断是否为夹爪节点
-        gripper_command = point.get("gripper_command", "00: 不进行任何操作")
-        if gripper_command != "00: 不进行任何操作":
+        # 3. 判断是否为夹爪一节点（优先检查 mode）
+        if mode == "夹爪":
+            gripper_command = point.get("gripper_command", "00: 不进行任何操作")
             effector_mode = self._parse_gripper_command(gripper_command)
             effector_data = point.get("gripper_param", 0.0)
             pre_delay = point.get("gripper_pre_delay", 0.0)
@@ -343,6 +355,38 @@ class MotionPlanningApplicationService(QObject):
                 "type": "gripper",
                 "effector_mode": effector_mode,
                 "effector_data": effector_data,
+                "pre_delay": pre_delay,
+                "post_delay": post_delay
+            }]
+        
+        # 4. 判断是否为夹爪二节点
+        if mode == "夹爪二":
+            gripper_command = point.get("gripper_command", "00: 不进行任何操作")
+            effector_mode = self._parse_gripper_command(gripper_command)
+            effector_data = point.get("gripper_param", 0.0)
+            pre_delay = point.get("gripper_pre_delay", 0.0)
+            post_delay = point.get("gripper_post_delay", 1.0)
+            
+            return [{
+                "type": "gripper2",
+                "effector_mode_2": effector_mode,
+                "effector_data_2": effector_data,
+                "pre_delay": pre_delay,
+                "post_delay": post_delay
+            }]
+        
+        # 5. 判断是否为"其他"节点（清扫/压机）
+        if mode == "其他":
+            other_command_type = point.get("other_command_type", "清扫")
+            other_command_value = point.get("other_command_value", 0)
+            pre_delay = point.get("other_pre_delay", 0.0)
+            post_delay = point.get("other_post_delay", 1.0)
+            
+            task_type = "sweep" if other_command_type == "清扫" else "press"
+            
+            return [{
+                "type": task_type,
+                "value": other_command_value,
                 "pre_delay": pre_delay,
                 "post_delay": post_delay
             }]

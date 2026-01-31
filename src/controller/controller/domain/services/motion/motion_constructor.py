@@ -172,7 +172,7 @@ class MotionConstructor(QObject):
                 self._pending_tasks.pop(0)  # 确认处理该任务，移出队列
                 
                 if task["type"] == "gripper":
-                    # 夹爪任务：直接添加夹爪命令
+                    # 夹爪一任务：直接添加夹爪命令
                     effector_mode = task["effector_mode"]
                     effector_data = task["effector_data"]
                     pre_delay = task.get("pre_delay", 0.0)
@@ -180,6 +180,42 @@ class MotionConstructor(QObject):
                     self.motion_runner.add_gripper_data(
                         effector_mode, 
                         effector_data,
+                        gripper_index=1,
+                        pre_delay=pre_delay,
+                        post_delay=post_delay
+                    )
+                elif task["type"] == "gripper2":
+                    # 夹爪二任务：直接添加夹爪命令
+                    effector_mode = task["effector_mode_2"]
+                    effector_data = task["effector_data_2"]
+                    pre_delay = task.get("pre_delay", 0.0)
+                    post_delay = task.get("post_delay", 1.0)
+                    self.motion_runner.add_gripper_data(
+                        effector_mode, 
+                        effector_data,
+                        gripper_index=2,
+                        pre_delay=pre_delay,
+                        post_delay=post_delay
+                    )
+                elif task["type"] == "sweep":
+                    # 清扫指令任务
+                    value = task["value"]
+                    pre_delay = task.get("pre_delay", 0.0)
+                    post_delay = task.get("post_delay", 1.0)
+                    self.motion_runner.add_other_command_data(
+                        command_type="sweep",
+                        value=value,
+                        pre_delay=pre_delay,
+                        post_delay=post_delay
+                    )
+                elif task["type"] == "press":
+                    # 压机指令任务
+                    value = task["value"]
+                    pre_delay = task.get("pre_delay", 0.0)
+                    post_delay = task.get("post_delay", 1.0)
+                    self.motion_runner.add_other_command_data(
+                        command_type="press",
+                        value=value,
                         pre_delay=pre_delay,
                         post_delay=post_delay
                     )
