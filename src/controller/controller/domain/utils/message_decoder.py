@@ -74,7 +74,9 @@ class ListParser(BaseParser):
         
         # 如果需要转换，调用robot_utils的相应方法
         if transform and robot_utils:
-            transform_method = getattr(robot_utils, transform)
+            transform_method = getattr(robot_utils, transform, None)
+            if transform_method is None:
+                raise AttributeError(f"RobotUtils 不存在方法: {transform}")
             result = transform_method(result)
             
         return result

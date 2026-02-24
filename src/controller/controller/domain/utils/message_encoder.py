@@ -29,7 +29,9 @@ class ListFormatter(BaseFormatter):
             raise ValueError("ListFormatter requires a list value")
         
         if 'transform' in params and robot_utils:
-            transform_method = getattr(robot_utils, params['transform'])
+            transform_method = getattr(robot_utils, params['transform'], None)
+            if transform_method is None:
+                raise AttributeError(f"RobotUtils 不存在方法: {params['transform']}")
             transformed_values = transform_method(value)
         else:
             transformed_values = value

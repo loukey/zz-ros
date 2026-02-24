@@ -3,10 +3,37 @@
 注册所有应用服务到DI容器 - 简化版
 """
 from .di_container import DIContainer, get_container, resolve
-from controller.application import *
-from controller.presentation import *
-from controller.domain import *
-from controller.infrastructure import *
+
+# Infrastructure
+from controller.infrastructure import (
+    RecordRepository, MotionPlanRepository, HandEyeCalibrationRepository, TrajectoryRepository,
+)
+
+# Domain
+from controller.domain import (
+    SerialDomainService, MessageEncoder, MessageDecoder, MessageDomainService,
+    MotionRunner, SmoothDomainService, KinematicDomainService,
+    LinearMotionDomainService, CurveMotionDomainService, LinearMotionBlendDomainService,
+    SCurve, TrajectoryPlanningService, MotionConstructor,
+    RobotStateDomainService, DynamicDomainService, TeachRecordDomainService,
+    MotionPlanningDomainService, CameraDomainService, RecognitionDomainService,
+    HandEyeTransformDomainService, HandEyeCalibrationConfig,
+)
+
+# Application
+from controller.application import (
+    SerialApplicationService, CommandHubService, MessageResponseService,
+    MotionPlanningApplicationService, CameraApplicationService,
+    ToolsApplicationService, DataRecordingApplicationService,
+    MessageDisplay, MotionListener,
+)
+
+# Presentation
+from controller.presentation import (
+    MainViewModel, SerialViewModel, DisplayViewModel, ControlViewModel,
+    StatusViewModel, EffectorViewModel, TrajectoryViewModel, DynamicsViewModel,
+    CameraViewModel, MotionPlanningViewModel, ToolsViewModel, RecordingViewModel,
+)
 
 
 def register_infrastructure_services(container: DIContainer) -> None:

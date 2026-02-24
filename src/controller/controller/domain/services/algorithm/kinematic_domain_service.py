@@ -23,11 +23,16 @@ class KinematicDomainService:
         self.dh_param = DHParam()
         self.kinematic_dh = self.dh_param.get_kinematic_dh()
         self.kinematic_utils = KinematicUtils()
-        self.gripper2base = self.get_gripper2base(self.kinematic_dh[:, 3])
+        self.gripper2base = self._compute_fk(self.kinematic_dh)
+
+    def _compute_fk(self, dh: np.ndarray) -> np.ndarray:
+        """根据 DH 参数计算正运动学变换矩阵。"""
+        rm_list = [self.kinematic_utils.dh2rm(*row) for row in dh]
+        return reduce(lambda x, y: x @ y, rm_list, np.eye(4))
 
     def get_kinematic_dh(self) -> np.ndarray:
         """获取运动学 DH 参数矩阵。
-        
+
         Returns:
             np.ndarray: DH 参数矩阵。
         """
@@ -35,10 +40,10 @@ class KinematicDomainService:
 
     def get_gripper2base(self, theta_list: list[float] | np.ndarray = None) -> tuple[np.ndarray, np.ndarray]:
         """计算末端执行器相对于基座的位姿（四元数 + 位置）。
-        
+
         Args:
             theta_list (list[float] | np.ndarray, optional): 关节角度列表（弧度）。如果不传则使用当前内部状态。
-        
+
         Returns:
             tuple: (quat, pos)
                 - quat (np.ndarray): 姿态四元数 [x, y, z, w]。
@@ -46,27 +51,21 @@ class KinematicDomainService:
         """
         if theta_list is not None:
             self.kinematic_dh[:, 3] = theta_list
-            rm_list = []
-            for dh in self.kinematic_dh:
-                rm_list.append(self.kinematic_utils.dh2rm(*dh))
-            self.gripper2base = reduce(lambda x, y: x @ y, rm_list, np.eye(4))
+            self.gripper2base = self._compute_fk(self.kinematic_dh)
         quat = R.from_matrix(self.gripper2base[:3, :3]).as_quat()
         return quat, self.gripper2base[:3, 3]
-    
+
     def get_gripper2base_rm(self, theta_list: list[float]) -> np.ndarray:
         """获取末端执行器相对于基座的变换矩阵。
-        
+
         Args:
             theta_list (list[float]): 关节角度列表（弧度）。
-        
+
         Returns:
             np.ndarray: 4x4 齐次变换矩阵。
         """
         self.kinematic_dh[:, 3] = theta_list
-        rm_list = []
-        for dh in self.kinematic_dh:
-            rm_list.append(self.kinematic_utils.dh2rm(*dh))
-        self.gripper2base = reduce(lambda x, y: x @ y, rm_list, np.eye(4))
+        self.gripper2base = self._compute_fk(self.kinematic_dh)
         return self.gripper2base
 
     def inverse_kinematic(self, rm: np.ndarray, pos: np.ndarray, initial_theta: list[float] | None = None) -> list[float]:
@@ -84,7 +83,7 @@ class KinematicDomainService:
             ValueError: 如果未找到有效的逆运动学解。
         """
         if not initial_theta:
-            initial_theta = self.kinematic_dh[:, 3]
+            initial_theta = self.dh_param.get_kinematic_dh()[:, 3].copy()
         valid_solutions = []
         # rotation matrix
         nx, ny, nz = rm[:, 0]
@@ -101,7 +100,7 @@ class KinematicDomainService:
         
         # 添加奇异性判断
         if abs(ax**2 + ay**2 - d4**2) < 1e-6:
-            return valid_solutions
+            raise ValueError("Singularity: target near wrist singularity")
         
         # theta1计算
         m = ay * d6 - py
@@ -110,14 +109,14 @@ class KinematicDomainService:
             delta = m**2 + n**2 - d4**2
             
             if delta < 0:
-                return valid_solutions
+                raise ValueError("No valid solutions: target out of reach")
             
             theta1_0 = atan2(m, n) - atan2(-d4, sqrt(m**2 + n**2 - d4**2))
             theta1_1 = atan2(m, n) - atan2(-d4, -sqrt(m**2 + n**2 - d4**2))
             theta1_candidate = [theta1_0, theta1_1]
                 
         except Exception as e:
-            return valid_solutions
+            raise ValueError(f"IK computation failed: {e}") from e
 
         # theta5
         for i, theta1 in enumerate(theta1_candidate):
@@ -173,11 +172,8 @@ class KinematicDomainService:
         
                     # theta4
                     if abs(s5) < 1e-6:
-                        # 在腕部奇异性时，使用更稳定的计算方式
-                        if initial_theta is not None:
-                            theta4_candidate = [initial_theta[3]]
-                        else:
-                            theta4_candidate = [initial_theta[3]]
+                        # 腕部奇异性：保持当前 theta4 不变
+                        theta4_candidate = [initial_theta[3]]
                     else:
                         T01 = self.kinematic_utils.dh2rm(self.kinematic_dh[0, 0], self.kinematic_dh[0, 1], self.kinematic_dh[0, 2], theta1)
                         T12 = self.kinematic_utils.dh2rm(self.kinematic_dh[1, 0], self.kinematic_dh[1, 1], self.kinematic_dh[1, 2], theta2)
@@ -218,16 +214,16 @@ class KinematicDomainService:
 
     def verify_solution(self, theta_list: list[float], target_pos: np.ndarray) -> bool:
         """验证逆运动学解的准确性。
-        
+
         Args:
             theta_list (list[float]): 待验证的关节角度解。
             target_pos (np.ndarray): 目标位置坐标。
-        
+
         Returns:
             bool: 如果正解位置与目标位置误差小于 1e-5 则返回 True。
         """
         self.get_gripper2base(theta_list)
         current_pos = self.gripper2base[:3, 3]
         error = np.linalg.norm(current_pos - target_pos)
-        
-        return error < 1e-5 
+
+        return error < 1e-5

@@ -2,13 +2,9 @@ import numpy as np
 from math import pi
 from dataclasses import dataclass
 from typing import List, Tuple, Optional, Union
-import toppra as ta
-import toppra.constraint as constraint
-import toppra.algorithm as algo
-from scipy.spatial.transform import Rotation as R
 from .kinematic_domain_service import KinematicDomainService
 from .trajectory_domain_service import SCurve
-import matplotlib.pyplot as plt
+from ...utils import KinematicUtils
 
 @dataclass
 class ProjectionResult:
@@ -78,7 +74,7 @@ class LinearMotionBlendDomainService:
         return v * c + np.cross(axis, v) * s + axis * (np.dot(axis, v)) * (1 - c)
 
     def _tangency_cost(self, C: np.ndarray, T1: np.ndarray, T2: np.ndarray, u_in: np.ndarray, u_out: np.ndarray, eps: float = 1e-9) -> float:
-        """zhengque qiexian"""
+        """计算切线代价：切点方向与入射/出射方向的点积之和。"""
         v1 = T1 - C
         v2 = T2 - C
 
@@ -89,51 +85,6 @@ class LinearMotionBlendDomainService:
         v2u = self._unit(v2)
 
         return abs(float(np.dot(v1u, u_in))+abs(float(np.dot(v2u, u_out))))
-
-    # =========================================================
-    # 1) 四元数工具：normalize + slerp
-    #    四元数格式统一为 [x, y, z, w]
-    # =========================================================
-
-    def quat_normalize(self, q: np.ndarray, eps: float = 1e-12) -> np.ndarray:
-        q = np.asarray(q, dtype=float)
-        n = float(np.linalg.norm(q))
-        if n < eps:
-            return np.array([0.0, 0.0, 0.0, 1.0], dtype=float)  # 单位四元数
-        return q / n
-
-    def quat_slerp(self, q0: np.ndarray, q1: np.ndarray, t: float, eps: float = 1e-12) -> np.ndarray:
-        """
-        四元数球面线性插值 SLERP
-        - q0, q1: [x,y,z,w]
-        - t: 0~1
-        """
-        q0 = self.quat_normalize(q0, eps)
-        q1 = self.quat_normalize(q1, eps)
-
-        # 最短弧：点积为负则翻转 q1
-        dot = float(np.dot(q0, q1))
-        if dot < 0.0:
-            q1 = -q1
-            dot = -dot
-
-        dot = self._clamp(dot, -1.0, 1.0)
-
-        # 很接近时用线性插值避免数值问题
-        if dot > 0.9995:
-            q = (1.0 - t) * q0 + t * q1
-            return self.quat_normalize(q, eps)
-
-        theta = np.arccos(dot)
-        sin_theta = np.sin(theta)
-        if abs(sin_theta) < eps:
-            return q0
-
-        w0 = np.sin((1.0 - t) * theta) / sin_theta
-        w1 = np.sin(t * theta) / sin_theta
-        q = w0 * q0 + w1 * q1
-        return self.quat_normalize(q, eps)
-
 
     # =========================================================
     # 2) 点投影到“原始折线”以获得段索引与 alpha（用于姿态 SLERP）
@@ -411,101 +362,21 @@ class LinearMotionBlendDomainService:
 
     def inverse_kinematic(self, quat, pos, similar_position=None):
         """单点逆运动学求解（利用上一位置作为初值）。
-        
+
         Args:
             quat: 四元数 [x, y, z, w]。
             pos: 位置 [x, y, z]。
             similar_position: 相似位置（用于逆运动学初始猜测）。
-            
+
         Returns:
-            list[float]: 关节角度列表。
+            list[float] | None: 关节角度列表，无解时返回 None。
         """
-        rm = R.from_quat(quat).as_matrix()
-        inverse_position = self.kinematic_solver.inverse_kinematic(rm, pos, initial_theta=similar_position)
+        rm = KinematicUtils.quat2rm(quat)
+        try:
+            inverse_position = self.kinematic_solver.inverse_kinematic(rm, pos, initial_theta=similar_position)
+        except ValueError:
+            return None
         return inverse_position
-
-    def ensure_2d_array(self, arr: np.ndarray) -> np.ndarray:
-        """将输入转换为二维数组 (N, dof) 并做基本校验。
-        
-        Args:
-            arr (np.ndarray): 输入数组。
-            
-        Returns:
-            np.ndarray: 二维数组 (N, 6)。
-            
-        Raises:
-            ValueError: 当路标数少于 2 时抛出。
-        """
-        arr = np.asarray(arr, dtype=float)
-        if arr.ndim == 1:
-            arr = arr.reshape(1, -1)
-        if arr.shape[0] < 2:
-            raise ValueError("至少需要 2 个路点")
-        return arr
-
-    def toppra_time_parameterize(self,
-        waypoints: np.ndarray,
-        v_max: np.ndarray | float = np.asarray([pi/4] * 6, dtype=float),
-        a_max: np.ndarray | float = np.asarray([pi/8] * 6, dtype=float),
-        dt: float = 0.01,
-        grid_n: int = 800
-        ) -> tuple[list[float], list[list[float]], list[list[float]], list[list[float]]]:
-        """使用 TOPPRA 进行时间参数化。
-        
-        Args:
-            waypoints (np.ndarray): 路径点 (N, dof)。
-            v_max (np.ndarray | float): 最大速度。
-            a_max (np.ndarray | float): 最大加速度。
-            dt (float, optional): 时间步长. Defaults to 0.01.
-            grid_n (int, optional): 网格点数. Defaults to 800.
-            
-        Returns:
-            tuple: (t, q, qd, qdd).
-            
-        Raises:
-            ValueError: 如果参数形状不正确。
-            RuntimeError: 如果求解失败。
-        """
-        waypoints = np.asarray(waypoints, dtype=float)
-        if waypoints.ndim != 2 or waypoints.shape[1] != 6 or waypoints.shape[0] < 2:
-            raise ValueError("waypoints 必须是 (N,6) 且 N>=2")
-
-        dof = waypoints.shape[1]
-
-        # 1) 几何路径：用样条在路径参数 s∈[0,1] 上插值
-        breaks = np.linspace(0.0, 1.0, waypoints.shape[0])
-        path = ta.SplineInterpolator(breaks, waypoints)  # 官方示例同款 API
-
-        # 2) 速度/加速度约束（上下界格式）
-        v_max = np.full(dof, float(v_max)) if np.isscalar(v_max) else np.asarray(v_max, dtype=float)
-        a_max = np.full(dof, float(a_max)) if np.isscalar(a_max) else np.asarray(a_max, dtype=float)
-        if v_max.shape != (dof,) or a_max.shape != (dof,):
-            raise ValueError("v_max/a_max 需为标量或 shape=(6,)")
-
-        v_bounds = np.column_stack((-np.abs(v_max), np.abs(v_max)))  # (2,6) -> [v_min; v_max]
-        a_bounds = np.column_stack((-np.abs(a_max), np.abs(a_max)))  # (2,6) -> [a_min; a_max]
-
-        pc_vel = constraint.JointVelocityConstraint(v_bounds)
-        pc_acc = constraint.JointAccelerationConstraint(a_bounds)
-
-        # 3) TOPPRA 主算法 + 常用参数化器（常用且满足边界/约束）
-        gridpoints = np.linspace(0, path.duration, int(grid_n))
-        instance = algo.TOPPRA([pc_vel, pc_acc], path, gridpoints=gridpoints, parametrizer="ParametrizeConstAccel")
-
-        # 4) 求解时间参数化，得到可按时间采样的 jnt_traj
-        jnt_traj = instance.compute_trajectory(sd_start=0.0, sd_end=0.0)
-        if jnt_traj is None:
-            raise RuntimeError("TOPPRA 求解失败：给定约束下不可行，或路径异常。")
-
-        # 5) 按 dt 采样
-        T = float(jnt_traj.duration)
-        M = max(2, int(np.ceil(T / dt)) + 1)
-        t = np.linspace(0.0, T, M)
-
-        q   = jnt_traj.eval(t)
-        qd  = jnt_traj.evald(t)
-        qdd = jnt_traj.evaldd(t)
-        return t.tolist(), q.tolist(), qd.tolist(), qdd.tolist()
 
     # =========================================================
     # 5) 主接口：blend + 等距采样 + 姿态（四元数）输出
@@ -520,7 +391,7 @@ class LinearMotionBlendDomainService:
         include_last: bool = True,
     ) -> Tuple[List[List[float]], List[List[float]], int]:
         """
-        radii:jiaorongbanjing
+        radii: 圆角融合半径
         输出：
         - quat_list: List[[x,y,z,w]]
         - pos_list : List[[x,y,z]]
@@ -546,7 +417,7 @@ class LinearMotionBlendDomainService:
             raise ValueError("至少需要 2 个路点")
 
         # 归一化路点四元数
-        Qn = np.vstack([self.quat_normalize(Q[i]) for i in range(Q.shape[0])])
+        Qn = np.vstack([KinematicUtils.q_normalize(Q[i]) for i in range(Q.shape[0])])
 
         # 1) 生成几何拼接分段（line + arc）
         pieces = self.build_blended_pieces_fillet(
@@ -569,24 +440,10 @@ class LinearMotionBlendDomainService:
         for p in pos_samp:
             pr = self.project_point_to_polyline_segment(p, P)
             i, a = pr.seg_idx, pr.alpha
-            qs = self.quat_slerp(Qn[i], Qn[i + 1], a)
+            qs = KinematicUtils.q_slerp(Qn[i], Qn[i + 1], a)
             quat_samp.append(qs)
 
         pos_list = pos_samp.tolist()
-        # np.savetxt(
-        #     "pos_samp1.txt",
-        #     pos_list,
-        #     fmt="%.3f"
-        # )
-        pos_sam = np.asarray(pos_list)
-        x = pos_sam[:, 0]
-        z = pos_sam[:, 2]
-        plt.figure()
-        plt.plot(x, z, marker='o')
-        plt.axis("equal")
-        plt.grid(True)
-        plt.show()
-
         quat_list = [q.tolist() for q in quat_samp]
         
         s_curve_positions = np.zeros((0, 6))
@@ -612,12 +469,14 @@ class LinearMotionBlendDomainService:
         
         for i in range(len(quat_list)):
             position = self.inverse_kinematic(quat_list[i], pos_list[i], s_curve_positions[i].tolist())
+            if position is None:
+                continue
             positions.append(position)
         positions = np.array(positions)
-        # todo: 基于这个positions列表，规划rucking smooth
 
-        q_wp = self.ensure_2d_array(positions)
-        n_seg = len(pos_list)  # ✅ 按你定义：最终 TOPP-RA 输入点数
-        t_list, positions, qd, qdd= self.toppra_time_parameterize(q_wp, self.v_max, self.a_max, self.dt)
+        q_wp = KinematicUtils.ensure_waypoints_2d(positions)
+        n_seg = len(pos_list)
+        grid_n = KinematicUtils.clamp(6 * n_seg, 300, 3000)
+        t_list, positions, qd, qdd = KinematicUtils.toppra_time_parameterize(q_wp, self.v_max, self.a_max, self.dt, grid_n)
         
         return t_list, positions, qd, qdd

@@ -1,7 +1,5 @@
 from ..communication import SerialDomainService, MessageDomainService
-from PyQt5.QtCore import QTimer
-import time
-from PyQt5.QtCore import pyqtSignal, QObject
+from PyQt5.QtCore import QTimer, pyqtSignal, QObject
 
 
 class DelayCommand:
@@ -152,12 +150,20 @@ class MotionRunner(QObject):
         """定时器回调函数，负责单步发送或延迟等待。"""
         if self.data_index >= len(self.data_list):
             self.timer.stop()
-            self.motion_finished.emit()  # 发送完成信号
+            self.motion_finished.emit()
             return
         current_item = self.data_list[self.data_index]
+        self.data_index += 1
         if hasattr(current_item, 'is_delay'):
-            time.sleep(current_item.delay_s)
+            self.timer.stop()
+            QTimer.singleShot(int(current_item.delay_s * 1000), self._resume_after_delay)
         else:
             self.serial_domain_service.send_data(current_item)
             self.motion_msg_signal.emit(current_item, "发送")
-        self.data_index += 1
+
+    def _resume_after_delay(self):
+        """延迟结束后恢复定时器。"""
+        if self.data_index < len(self.data_list):
+            self.timer.start()
+        else:
+            self.motion_finished.emit()

@@ -71,7 +71,7 @@ class PortScanner:
             ser.open()
             ser.close()
             return True
-        except:
+        except Exception:
             # 如果无法打开，检查是否至少有读权限
             return os.access(device, os.R_OK)
     

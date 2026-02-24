@@ -169,7 +169,7 @@ class RobotStateDomainService(QObject):
             if not rclpy.ok():
                 try:
                     rclpy.init()
-                except:
+                except Exception:
                     pass
             
             if not self._publisher_node:

@@ -13,16 +13,16 @@ class SCurve():
         t_j (float): 加加减速段时间。
     """
     
-    def __init__(self, v_max=[pi/4] * 6, acc_max=[pi/8] * 6, t_j=0.5):
+    def __init__(self, v_max=None, acc_max=None, t_j=0.5):
         """初始化 S 曲线规划器。
-        
+
         Args:
             v_max (list[float], optional): 最大速度. Defaults to [pi/4]*6.
             acc_max (list[float], optional): 最大加速度. Defaults to [pi/8]*6.
             t_j (float, optional): Jerk 时间参数. Defaults to 0.5.
         """
-        self.v_max = np.array(v_max)
-        self.acc_max = np.array(acc_max)
+        self.v_max = np.array(v_max if v_max is not None else [pi/4] * 6)
+        self.acc_max = np.array(acc_max if acc_max is not None else [pi/8] * 6)
         self.t_j = t_j
 
     @staticmethod
@@ -153,7 +153,7 @@ class SCurve():
         positions[-1, :] = target_angles        
         return accelerations, velocities, positions
 
-    def planning(self, start_angles: list[float], target_angles: list[float], v_start: list[float] = [0] * 6, dt: float = 0.01) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    def planning(self, start_angles: list[float], target_angles: list[float], v_start: list[float] = None, dt: float = 0.01) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """规划从起点到终点的S曲线轨迹。
         
         Args:
@@ -165,6 +165,8 @@ class SCurve():
         Returns:
             tuple: (times, accelerations, velocities, positions) 规划结果。
         """
+        if v_start is None:
+            v_start = [0] * 6
         start_angles = np.array(start_angles)
         target_angles = np.array(target_angles)
         displacements = target_angles - start_angles
@@ -221,7 +223,10 @@ class SCurve():
             c = 4 * max_v_start - jerk * t0**2 / 2
             d = -max_displacement
             t_j = self.solve_cubic_numeric(a, b, c, d)
-            t_j = t_j[(t_j > 0) & (t_j < self.t_j)][0]
+            t_j_candidates = t_j[(t_j > 0) & (t_j < self.t_j)]
+            if len(t_j_candidates) == 0:
+                raise ValueError("S曲线规划失败：无满足约束的 t_j 解")
+            t_j = t_j_candidates[0]
             s_acc_5, list_t_3, list_a_3, list_v_3, list_s_3 = self.get_stage_3(jerk, 0, max_v_start, 0, t_j, t0)
             t_acc_1, t_acc_2, t_dec_1, t_dec_2, t_dec_3 = list_t_3
             a_acc_1, a_acc_2, a_dec_1, a_dec_2, a_dec_3 = list_a_3
@@ -256,7 +261,10 @@ class SCurve():
             b = 3 / 2 * a_max * self.t_j + max_v_start
             c = 5 / 6 * a_max * self.t_j ** 2 + max_v_start * self.t_j - delta_s / 2 
             t_k = self.solve_quadratic(a, b, c)
-            t_k = t_k[(4 * self.t_j + 2 * t_k + t0 > t_2) & (4 * self.t_j + 2 * t_k + t0 < sum(list_t_1))][0]
+            t_k_candidates = t_k[(4 * self.t_j + 2 * t_k + t0 > t_2) & (4 * self.t_j + 2 * t_k + t0 < sum(list_t_1))]
+            if len(t_k_candidates) == 0:
+                raise ValueError("S曲线规划失败：无满足约束的 t_k 解")
+            t_k = t_k_candidates[0]
             s_dec_4, list_t_2, list_a_2, list_v_2, list_s_2 = self.get_stage_2(jerk, 0, max_v_start, 0, t_k, t0)
             t_acc_1, t_acc_2, t_acc_3, t_dec_1, t_dec_2, t_dec_3, t_dec_4 = list_t_2
             a_acc_1, a_acc_2, a_acc_3, a_dec_1, a_dec_2, a_dec_3, a_dec_4 = list_a_2
