@@ -10,7 +10,12 @@ from PyQt5.QtGui import QFont
 from ..components import *
 from ..view_models import *
 from controller.shared.config.di_container import resolve
-import rclpy
+
+try:
+    import rclpy
+    HAS_ROS2 = True
+except ImportError:
+    HAS_ROS2 = False
 
 
 class MainWindow(QMainWindow):
@@ -49,14 +54,14 @@ class MainWindow(QMainWindow):
         注意：这是一个可选的优化，即使失败也不影响应用启动。
         Domain层服务会在需要时自动初始化ROS。
         """
+        if not HAS_ROS2:
+            return
         try:
             if not rclpy.ok():
                 rclpy.init()
         except RuntimeError:
-            # ROS已经初始化过，这是正常情况
             pass
-        except Exception as e:
-            # 初始化失败不影响应用启动，Domain层会处理
+        except Exception:
             pass
     
     def init_ui(self):
@@ -328,12 +333,12 @@ class MainWindow(QMainWindow):
             
             # 2. 最后关闭ROS2（如果还在运行）
             # 注意：只在所有Domain Services清理完成后才关闭
-            try:
-                if rclpy.ok():
-                    rclpy.shutdown()
-            except Exception as ros_e:
-                # ROS关闭失败不应阻塞应用退出
-                pass
+            if HAS_ROS2:
+                try:
+                    if rclpy.ok():
+                        rclpy.shutdown()
+                except Exception:
+                    pass
             
             # 3. 恢复终端状态（修复终端echo被禁用的问题）
             try:

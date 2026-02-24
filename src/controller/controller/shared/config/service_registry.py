@@ -18,6 +18,7 @@ from controller.domain import (
     RobotStateDomainService, DynamicDomainService, TeachRecordDomainService,
     MotionPlanningDomainService, CameraDomainService, RecognitionDomainService,
     HandEyeTransformDomainService, HandEyeCalibrationConfig,
+    CameraIntrinsics, TargetOffset, EndEffectorAdjustment,
 )
 
 # Application
@@ -87,13 +88,22 @@ def register_domain_services(container: DIContainer) -> None:
     container.register_singleton(CameraDomainService)
     container.register_singleton(RecognitionDomainService)
     
-    # 手眼标定配置（作为值对象注入）
+    # 手眼标定配置（作为值对象注入，配置文件不存在时使用默认值）
     def create_hand_eye_config():
         repo = resolve(HandEyeCalibrationRepository)
-        return repo.load()
-    
+        try:
+            return repo.load()
+        except FileNotFoundError:
+            import numpy as _np
+            return HandEyeCalibrationConfig(
+                hand_eye_matrix=_np.eye(4),
+                camera_intrinsics=CameraIntrinsics(fx=0, fy=0, cx=0, cy=0),
+                target_offset=TargetOffset(x=0, y=0, z=0),
+                end_effector_adjustment=EndEffectorAdjustment(z_rotation=0, y_rotation=0, x_rotation=0),
+            )
+
     container.register_singleton(HandEyeCalibrationConfig, create_hand_eye_config)
-    
+
     # 手眼标定服务（会自动注入 HandEyeCalibrationConfig 和 KinematicDomainService）
     container.register_singleton(HandEyeTransformDomainService)
     

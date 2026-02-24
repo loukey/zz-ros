@@ -9,25 +9,28 @@ from typing import Optional, List, Dict
 from PyQt5.QtCore import QObject, pyqtSignal
 from ...value_objects import RobotStateSnapshot
 
-# ROS2 Imports
-import rclpy
-from rclpy.node import Node
-from sensor_msgs.msg import JointState
+# ROS2 Imports（可选，Windows 上无 ROS2 时跳过）
+try:
+    import rclpy
+    from rclpy.node import Node
+    from sensor_msgs.msg import JointState
+    HAS_ROS2 = True
+except ImportError:
+    HAS_ROS2 = False
 
+if HAS_ROS2:
+    class RobotStatePublisherNode(Node):
+        """机械臂状态发布节点 (内部类)"""
+        def __init__(self):
+            super().__init__('robot_state_publisher')
+            self.publisher_ = self.create_publisher(JointState, '/robot/joint_states', 10)
 
-class RobotStatePublisherNode(Node):
-    """机械臂状态发布节点 (内部类)"""
-    def __init__(self):
-        super().__init__('robot_state_publisher')
-        self.publisher_ = self.create_publisher(JointState, '/robot/joint_states', 10)
-    
-    def publish_state(self, snapshot: RobotStateSnapshot):
-        msg = JointState()
-        msg.header.stamp = self.get_clock().now().to_msg()
-        msg.name = ['joint_1', 'joint_2', 'joint_3', 'joint_4', 'joint_5', 'joint_6']
-        # RobotStateSnapshot.joint_angles 是弧度
-        msg.position = list(snapshot.joint_angles)
-        self.publisher_.publish(msg)
+        def publish_state(self, snapshot: RobotStateSnapshot):
+            msg = JointState()
+            msg.header.stamp = self.get_clock().now().to_msg()
+            msg.name = ['joint_1', 'joint_2', 'joint_3', 'joint_4', 'joint_5', 'joint_6']
+            msg.position = list(snapshot.joint_angles)
+            self.publisher_.publish(msg)
 
 
 class RobotStateDomainService(QObject):
@@ -161,7 +164,9 @@ class RobotStateDomainService(QObject):
     # ════════════════════════════════════════════════════════
     
     def enable_ros_publishing(self, enabled: bool):
-        """启用或禁用 ROS 状态广播"""
+        """启用或禁用 ROS 状态广播。无 ROS2 环境时静默跳过。"""
+        if not HAS_ROS2:
+            return
         if enabled == self._ros_publishing_enabled:
             return
 
@@ -171,10 +176,10 @@ class RobotStateDomainService(QObject):
                     rclpy.init()
                 except Exception:
                     pass
-            
+
             if not self._publisher_node:
                 self._publisher_node = RobotStatePublisherNode()
-            
+
             self._ros_publishing_enabled = True
         else:
             self._ros_publishing_enabled = False

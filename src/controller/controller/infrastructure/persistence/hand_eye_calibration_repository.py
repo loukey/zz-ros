@@ -6,7 +6,11 @@ import json
 import numpy as np
 from pathlib import Path
 from math import radians
-from ament_index_python.packages import get_package_share_directory
+try:
+    from ament_index_python.packages import get_package_share_directory
+    _HAS_AMENT_INDEX = True
+except ImportError:
+    _HAS_AMENT_INDEX = False
 from controller.domain.value_objects import (
     HandEyeCalibrationConfig,
     CameraIntrinsics,
@@ -41,7 +45,8 @@ class HandEyeCalibrationRepository:
         if config_path is None:
             # 使用 ROS2 包资源管理方式查找配置文件
             try:
-                # ROS2 方式：从 share 目录加载
+                if not _HAS_AMENT_INDEX:
+                    raise ImportError("ament_index_python not available")
                 package_share_dir = get_package_share_directory('controller')
                 config_path = Path(package_share_dir) / 'config' / 'hand_eye_calibration.json'
             except Exception:
