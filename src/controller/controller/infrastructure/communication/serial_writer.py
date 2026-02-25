@@ -2,63 +2,62 @@
 串口写入器 - Infrastructure层
 负责多线程发送串口数据
 """
-import serial
 import time
 from queue import Queue
 from PyQt5.QtCore import QObject
 from typing import Union, Optional
+from .native_serial_port import NativeSerialPort
 
 
 class SerialWriter(QObject):
     """串口发送处理类。
-    
+
     负责在独立线程中发送串口数据，使用队列管理发送任务。
-    
+
     Attributes:
-        serial_port (Optional[serial.Serial]): 串口对象。
+        serial_port (Optional[NativeSerialPort]): 串口对象。
         send_queue (Queue): 发送任务队列。
     """
-    
-    def __init__(self, serial_port: Optional[serial.Serial] = None):
+
+    def __init__(self, serial_port: Optional[NativeSerialPort] = None):
         """初始化串口写入器。
-        
+
         Args:
-            serial_port (serial.Serial, optional): 串口对象。
+            serial_port (NativeSerialPort, optional): 串口对象。
         """
         super().__init__()
         self.serial_port = serial_port
         self.send_queue = Queue()
         self.stop_flag = False
-    
+
     def stop(self) -> None:
         """停止发送。"""
         self.stop_flag = True
-    
+
     def add_to_queue(self, cmd: Union[str, bytes]) -> None:
         """添加命令到发送队列。
-        
+
         Args:
             cmd (Union[str, bytes]): 待发送的命令（十六进制字符串或字节）。
         """
         self.send_queue.put(cmd)
-    
+
     def send_data(self) -> None:
         """发送串口数据 - 在独立线程中运行。"""
         self.stop_flag = False
-        
+
         while not self.stop_flag:
             try:
                 if not self.serial_port or not self.serial_port.is_open:
                     time.sleep(0.1)
                     continue
-                    
+
                 if not self.send_queue.empty():
                     try:
                         cmd = self.send_queue.get()
                         if isinstance(cmd, str):
                             cmd = bytes.fromhex(cmd.replace(' ', ''))
                         self.serial_port.write(cmd)
-                        self.serial_port.flush()
                         self.send_queue.task_done()
                     except Exception:
                         # 静默处理错误，不发送信号
@@ -68,4 +67,4 @@ class SerialWriter(QObject):
                     time.sleep(0.01)
             except Exception:
                 # 静默处理错误，不发送信号
-                time.sleep(0.1) 
+                time.sleep(0.1)

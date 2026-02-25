@@ -7,10 +7,12 @@ from .serial_reader import SerialReader
 from .serial_writer import SerialWriter
 from .port_scanner import PortScanner
 from .serial_adapter import SerialAdapter
+from .native_serial_port import NativeSerialPort
 
 __all__ = [
     "SerialReader",
-    "SerialWriter", 
+    "SerialWriter",
     "PortScanner",
-    "SerialAdapter"
-] 
+    "SerialAdapter",
+    "NativeSerialPort"
+]
