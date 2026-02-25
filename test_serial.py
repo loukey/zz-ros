@@ -148,7 +148,14 @@ else:
                 except OSError:
                     pass
 
-            self._fd = os.open(self.port, os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
+            for attempt in range(10):
+                try:
+                    self._fd = os.open(self.port, os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
+                    break
+                except OSError:
+                    if attempt == 9:
+                        raise
+                    time.sleep(0.5)
 
             attrs = termios.tcgetattr(self._fd)
             baud = self.BAUD_MAP.get(self.baudrate, termios.B115200)
