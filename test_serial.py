@@ -124,7 +124,7 @@ else:
     import fcntl
 
     class NativeSerialPort:
-        """POSIX: termios 配置 + select 非阻塞读"""
+        """POSIX: termios 配置 + select 非阻塞读 + 自动重开 fd"""
 
         BAUD_MAP = {
             9600: termios.B9600, 19200: termios.B19200,
@@ -135,50 +135,59 @@ else:
 
         def __init__(self, port: str, baudrate: int = 115200):
             self.port = port
+            self.baudrate = baudrate
             self.is_open = False
-            self._fd = os.open(port, os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
+            self._fd = -1
+            self._open_fd()
 
-            # 配置 termios: 8N1, raw mode
+        def _open_fd(self):
+            """打开并配置串口 fd"""
+            if self._fd >= 0:
+                try:
+                    os.close(self._fd)
+                except OSError:
+                    pass
+
+            self._fd = os.open(self.port, os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
+
             attrs = termios.tcgetattr(self._fd)
-            baud = self.BAUD_MAP.get(baudrate, termios.B115200)
+            baud = self.BAUD_MAP.get(self.baudrate, termios.B115200)
 
-            # iflag: 关闭所有输入处理
-            attrs[0] = 0
-            # oflag: 关闭所有输出处理
-            attrs[1] = 0
-            # cflag: 8N1 + CREAD + CLOCAL
-            attrs[2] = termios.CS8 | termios.CREAD | termios.CLOCAL | baud
-            # lflag: 关闭 canonical, echo 等
-            attrs[3] = 0
-            # cc: VMIN=0, VTIME=0 (完全非阻塞)
+            attrs[0] = 0  # iflag
+            attrs[1] = 0  # oflag
+            attrs[2] = termios.CS8 | termios.CREAD | termios.CLOCAL | baud  # cflag
+            attrs[3] = 0  # lflag
             attrs[6][termios.VMIN] = 0
             attrs[6][termios.VTIME] = 0
-
-            # 设置输入输出波特率
             attrs[4] = baud  # ispeed
             attrs[5] = baud  # ospeed
 
             termios.tcsetattr(self._fd, termios.TCSANOW, attrs)
             termios.tcflush(self._fd, termios.TCIOFLUSH)
 
-            # 设置 DTR
+            # DTR
             import struct
-            TIOCM_DTR = 0x002
-            TIOCMBIS = 0x5416
             try:
-                buf = struct.pack('I', TIOCM_DTR)
-                fcntl.ioctl(self._fd, TIOCMBIS, buf)
+                fcntl.ioctl(self._fd, 0x5416, struct.pack('I', 0x002))  # TIOCMBIS, TIOCM_DTR
             except OSError:
                 pass
 
             self.is_open = True
 
+        def reopen(self):
+            """关闭后重新打开 fd，重置驱动状态"""
+            try:
+                self._open_fd()
+                return True
+            except OSError:
+                self.is_open = False
+                return False
+
         def read(self, size: int = 1024, timeout_ms: int = 100) -> bytes:
             if not self.is_open or self._fd < 0:
                 return b""
             try:
-                timeout_s = timeout_ms / 1000.0
-                ready, _, _ = select.select([self._fd], [], [], timeout_s)
+                ready, _, _ = select.select([self._fd], [], [], timeout_ms / 1000.0)
                 if ready:
                     return os.read(self._fd, size)
                 return b""
@@ -194,7 +203,7 @@ else:
                 return 0
 
         def close(self):
-            if self.is_open and self._fd >= 0:
+            if self._fd >= 0:
                 try:
                     os.close(self._fd)
                 except OSError:
@@ -218,16 +227,36 @@ def main():
 
     ser = NativeSerialPort(PORT, BAUD)
     stop = threading.Event()
+    last_rx_time = [time.time()]
+    last_tx_time = [0.0]
 
     def read_loop():
+        silence_detected = False
         while not stop.is_set():
             data = ser.read(1024, timeout_ms=100)
             if data:
+                last_rx_time[0] = time.time()
+                silence_detected = False
                 try:
                     text = data.decode("utf-8", errors="replace")
                     print(f"[RX] {text}", end="", flush=True)
                 except Exception:
                     print(f"[RX hex] {data.hex().upper()}", flush=True)
+            else:
+                # Linux: 如果发送了数据但 2 秒内没有回应，重开 fd
+                if (sys.platform != "win32"
+                    and last_tx_time[0] > last_rx_time[0]
+                    and time.time() - last_tx_time[0] > 2.0
+                    and not silence_detected):
+                    silence_detected = True
+                    print("\n[!] 检测到通信中断，重新打开串口...")
+                    if ser.reopen():
+                        print("[OK] 串口已重新打开")
+                        last_rx_time[0] = time.time()
+                    else:
+                        print("[!] 重开失败，1秒后重试...")
+                        time.sleep(1)
+                        silence_detected = False
 
     reader = threading.Thread(target=read_loop, daemon=True)
     reader.start()
@@ -245,6 +274,7 @@ def main():
             break
         try:
             ser.write((cmd + "\r\n").encode("utf-8"))
+            last_tx_time[0] = time.time()
         except Exception as e:
             print(f"[!] 发送失败: {e}")
 
