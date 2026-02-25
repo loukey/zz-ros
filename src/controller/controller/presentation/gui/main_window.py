@@ -33,7 +33,7 @@ class MainWindow(QMainWindow):
         self._init_rclpy()
         
         # 设置窗口标题和自适应大小
-        self.setWindowTitle("镇中科技机械臂控制工具v0.7")
+        self.setWindowTitle("镇中科技机械臂控制工具v0.7.1")
         self._setup_adaptive_size()
         
         # 初始化设置对话框
