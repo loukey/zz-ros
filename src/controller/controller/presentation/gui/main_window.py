@@ -2,14 +2,15 @@
 主窗口视图 - 新架构实现
 基于MVVM模式，与原有界面保持一致的外观和功能
 """
-from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QTabWidget, QMessageBox, 
+from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QTabWidget, QMessageBox,
                            QHBoxLayout, QStatusBar, QProgressBar, QToolBar, QApplication,
-                           QMenu, QAction, QPushButton, QLabel, QSplitter)
+                           QMenu, QAction, QPushButton, QLabel, QSplitter, QDesktopWidget)
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont
 from ..components import *
 from ..view_models import *
 from controller.shared.config.di_container import resolve
+from controller.presentation.theme import FONT_FAMILY
 
 try:
     import rclpy
@@ -31,9 +32,9 @@ class MainWindow(QMainWindow):
         # ✅ 预初始化ROS2（可选，Domain层会自动处理）
         self._init_rclpy()
         
-        # 设置窗口标题和大小（与原版保持一致）
+        # 设置窗口标题和自适应大小
         self.setWindowTitle("镇中科技机械臂控制工具v0.7")
-        self.resize(1800, 1000)
+        self._setup_adaptive_size()
         
         # 初始化设置对话框
         self._init_serial_config()
@@ -64,16 +65,30 @@ class MainWindow(QMainWindow):
         except Exception:
             pass
     
+    def _setup_adaptive_size(self):
+        """根据屏幕分辨率自适应窗口大小"""
+        desktop = QDesktopWidget()
+        screen_rect = desktop.availableGeometry(self)
+        w = int(screen_rect.width() * 0.85)
+        h = int(screen_rect.height() * 0.85)
+        w = max(1200, min(w, 1920))
+        h = max(700, min(h, 1080))
+        self.resize(w, h)
+        # 居中显示
+        frame_geo = self.frameGeometry()
+        frame_geo.moveCenter(screen_rect.center())
+        self.move(frame_geo.topLeft())
+
     def init_ui(self):
         """初始化用户界面"""
         # 创建中央部件
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         
-        # 创建主要的水平分割布局，设置为贴边
+        # 创建主要的水平分割布局
         main_layout = QHBoxLayout(central_widget)
-        main_layout.setContentsMargins(0, 0, 0, 0)  # 移除外边距
-        main_layout.setSpacing(0)  # 移除间距
+        main_layout.setContentsMargins(4, 4, 4, 4)
+        main_layout.setSpacing(0)
         
         # 创建水平分割器
         splitter = QSplitter(Qt.Horizontal)
@@ -103,7 +118,7 @@ class MainWindow(QMainWindow):
         # 创建左侧标签页
         self.left_tab_widget = QTabWidget()
         # 设置tab字体为10号，与其他界面元素保持一致
-        tab_font = QFont('SimHei', 10)
+        tab_font = QFont(FONT_FAMILY, 10)
         self.left_tab_widget.setFont(tab_font)
         self.left_tab_widget.setContentsMargins(0, 0, 0, 0)  # TabWidget本身无边距
         left_layout.addWidget(self.left_tab_widget)
@@ -162,8 +177,8 @@ class MainWindow(QMainWindow):
         """创建主页标签"""
         main_tab = QWidget()
         layout = QVBoxLayout(main_tab)
-        layout.setContentsMargins(6, 6, 6, 6)  # 保留少量内边距
-        layout.setSpacing(2)  # 减少组件间距
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setSpacing(6)
         
         # 串口选择区域
         self.port_frame = PortSelectionFrame(
@@ -205,8 +220,8 @@ class MainWindow(QMainWindow):
         """创建运动规划标签"""
         motion_tab = QWidget()
         layout = QVBoxLayout(motion_tab)
-        layout.setContentsMargins(6, 6, 6, 6)  # 保留少量内边距
-        layout.setSpacing(2)  # 减少组件间距
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setSpacing(6)
         
         # 运动规划框架
         self.motion_planning_frame = MotionPlanningFrame(
@@ -221,8 +236,8 @@ class MainWindow(QMainWindow):
         """创建动力学标签"""
         dynamics_tab = QWidget()
         layout = QVBoxLayout(dynamics_tab)
-        layout.setContentsMargins(6, 6, 6, 6)  # 保留少量内边距
-        layout.setSpacing(2)  # 减少组件间距
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setSpacing(6)
         
         # 动力学控制框架
         self.dynamics_frame = DynamicsFrame(

@@ -20,7 +20,9 @@ class PortSelectionFrame(BaseComponent):
     def setup_ui(self):
         """设置UI"""
         layout = QHBoxLayout(self)
-        
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
+
         # 创建串口选择下拉列表 - 使用LabeledComboBox基础组件
         self.port_combo = LabeledComboBox("选择串口:")
         self.port_combo.combobox.setMinimumWidth(300)
@@ -29,12 +31,15 @@ class PortSelectionFrame(BaseComponent):
         # 创建刷新按钮
         self.refresh_button = QPushButton("刷新")
         self.refresh_button.setFont(default_font)
+        self.refresh_button.setMinimumWidth(70)
+        self.refresh_button.setStyleSheet("QPushButton { border-radius: 4px; padding: 5px 14px; }")
         self.refresh_button.clicked.connect(self.on_refresh_clicked)
         layout.addWidget(self.refresh_button)
-        
+
         # 创建连接按钮
         self.connect_button = QPushButton("连接串口")
         self.connect_button.setFont(default_font)
+        self.connect_button.setMinimumWidth(100)
         self.connect_button.clicked.connect(self.on_connect_clicked)
         layout.addWidget(self.connect_button)
         
@@ -100,12 +105,18 @@ class PortSelectionFrame(BaseComponent):
         """更新连接状态"""
         if is_connected:
             self.connect_button.setText("断开连接")
-            self.connect_button.setStyleSheet("QPushButton { background-color: #f44336; color: white; }")
-            self.refresh_button.setEnabled(False) 
-            self.port_combo.set_enabled(False)    
+            self.connect_button.setStyleSheet(
+                "QPushButton { background-color: #f44336; color: white; border-radius: 4px; padding: 5px 14px; }"
+                "QPushButton:hover { background-color: #e53935; }"
+                "QPushButton:pressed { background-color: #c62828; }")
+            self.refresh_button.setEnabled(False)
+            self.port_combo.set_enabled(False)
         else:
             self.connect_button.setText("连接串口")
-            self.connect_button.setStyleSheet("QPushButton { background-color: #4CAF50; color: white; }")
+            self.connect_button.setStyleSheet(
+                "QPushButton { background-color: #4CAF50; color: white; border-radius: 4px; padding: 5px 14px; }"
+                "QPushButton:hover { background-color: #43A047; }"
+                "QPushButton:pressed { background-color: #2E7D32; }")
             self.refresh_button.setEnabled(True)
             self.port_combo.set_enabled(True)
 

@@ -8,6 +8,7 @@ import platform
 from PyQt5.QtWidgets import QApplication, QMessageBox
 from controller.shared.config.service_registry import configure_services, get_main_view_model, get_listener_service
 from controller.presentation.gui.main_window import MainWindow
+from controller.presentation.theme import get_stylesheet
 if platform.system() == 'Linux':
     os.environ.setdefault('QT_QPA_PLATFORM_PLUGIN_PATH',
                           '/usr/lib/x86_64-linux-gnu/qt5/plugins/platforms')
@@ -22,6 +23,9 @@ def main():
     app.setApplicationName("镇中科技机械臂控制系统")
     app.setApplicationVersion("0.6.0 - Simplified")
     app.setOrganizationName("镇中科技")
+
+    # 应用全局主题样式
+    app.setStyleSheet(get_stylesheet())
     
     try:
         # 初始化依赖注入容器

@@ -1,11 +1,12 @@
 """
 Data display component for right panel
 """
-from PyQt5.QtWidgets import (QWidget, QLabel, QTextEdit, QPushButton, 
+from PyQt5.QtWidgets import (QWidget, QLabel, QTextEdit, QPushButton,
                            QVBoxLayout, QHBoxLayout, QSplitter, QGroupBox)
 from PyQt5.QtCore import Qt, QDateTime, pyqtSignal
-from PyQt5.QtGui import QTextCursor
+from PyQt5.QtGui import QTextCursor, QTextCharFormat, QColor
 from ..base_component import BaseComponent, default_font, text_font
+from controller.presentation.theme import MSG_COLOR_MAP, TEXT_PRIMARY
 
 
 class DataDisplayFrame(BaseComponent):
@@ -22,11 +23,14 @@ class DataDisplayFrame(BaseComponent):
         """设置UI"""
         # 创建分组框
         group_box = QGroupBox("数据显示")
-        group_box.setFont(default_font)  # 设置为10号字体
+        group_box.setFont(default_font)
         main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.addWidget(group_box)
-        
+
         layout = QVBoxLayout(group_box)
+        layout.setContentsMargins(8, 6, 8, 6)
+        layout.setSpacing(6)
         
         # 创建发送区
         send_group = QGroupBox("发送区")
@@ -52,10 +56,12 @@ class DataDisplayFrame(BaseComponent):
         # 立即停止按钮（红色）
         self.stop_btn = QPushButton("立即停止")
         self.stop_btn.setFont(default_font)
-        self.stop_btn.setStyleSheet("QPushButton { background-color: #FF4444; color: white; font-weight: bold; }"
-                                     "QPushButton:hover { background-color: #FF6666; }"
-                                     "QPushButton:pressed { background-color: #CC0000; }"
-                                     "QPushButton:disabled { background-color: #CCCCCC; color: #666666; }")
+        self.stop_btn.setStyleSheet(
+            "QPushButton { background-color: #FF4444; color: white; font-weight: bold; "
+            "border-radius: 4px; padding: 5px 14px; }"
+            "QPushButton:hover { background-color: #FF6666; }"
+            "QPushButton:pressed { background-color: #CC0000; }"
+            "QPushButton:disabled { background-color: #CCCCCC; color: #666666; }")
         self.stop_btn.clicked.connect(self.send_stop_command)
         self.stop_btn.setEnabled(False)  # 默认禁用，连接串口后启用
         button_layout.addWidget(self.stop_btn)
@@ -93,28 +99,26 @@ class DataDisplayFrame(BaseComponent):
             # 连接停止命令信号
             self.stop_command_requested.connect(self.control_vm.send_command)
     
+    def _insert_colored(self, text_edit, text, color_hex):
+        """使用 QTextCharFormat 带颜色插入文本"""
+        cursor = text_edit.textCursor()
+        cursor.movePosition(QTextCursor.End)
+        fmt = QTextCharFormat()
+        fmt.setForeground(QColor(color_hex))
+        cursor.insertText(text, fmt)
+        text_edit.setTextCursor(cursor)
+        text_edit.moveCursor(QTextCursor.End)
+
     def append_message(self, message, message_type="接收"):
-        """添加消息到显示区（纯文本模式，提高性能）"""
+        """添加消息到显示区（带颜色区分）"""
         timestamp = QDateTime.currentDateTime().toString("HH:mm:ss.zzz")
-        
-        # 使用纯文本格式显示消息
-        if message_type in ["发送", "控制", "参数", "调试", "轨迹", "摄像头"]:  # 这些类型显示在发送区
-            formatted_message = f"[{timestamp}][{message_type}] {message}\n"
-            
-            # 使用纯文本插入，避免HTML解析
-            self.send_text.insertPlainText(formatted_message)
-            
-            # 滚动到底部
-            self.send_text.moveCursor(QTextCursor.End)
-            
-        else:  # 接收、错误、信息、系统等类型显示在接收区
-            formatted_message = f"[{timestamp}][{message_type}] {message}\n"
-            
-            # 使用纯文本插入，避免HTML解析
-            self.receive_text.insertPlainText(formatted_message)
-            
-            # 滚动到底部
-            self.receive_text.moveCursor(QTextCursor.End)
+        formatted_message = f"[{timestamp}][{message_type}] {message}\n"
+        color = MSG_COLOR_MAP.get(message_type, TEXT_PRIMARY)
+
+        if message_type in ["发送", "控制", "参数", "调试", "轨迹", "摄像头"]:
+            self._insert_colored(self.send_text, formatted_message, color)
+        else:
+            self._insert_colored(self.receive_text, formatted_message, color)
     
     def clear_send(self):
         """清除发送区域"""

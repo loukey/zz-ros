@@ -7,10 +7,11 @@ from PyQt5.QtWidgets import (QFrame, QWidget, QLabel, QComboBox, QPushButton,
                            QRadioButton, QButtonGroup, QSlider, QCheckBox)
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QFont, QDoubleValidator, QIntValidator
+from controller.presentation.theme import FONT_FAMILY
 
 # 设置全局字体
-default_font = QFont('SimHei', 10)
-text_font = QFont('SimHei', 9)
+default_font = QFont(FONT_FAMILY, 10)
+text_font = QFont(FONT_FAMILY, 9)
 
 
 class BaseComponent(QFrame):
@@ -50,12 +51,14 @@ class LabeledLineEdit(QWidget):
             self.line_edit.setValidator(validator)
         
         layout = QHBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(4)
         layout.addWidget(self.label)
         layout.addWidget(self.line_edit)
         layout.setStretchFactor(self.line_edit, 1)
-        
+
         self.setLayout(layout)
-    
+
     def text(self):
         """获取文本"""
         return self.line_edit.text()
@@ -94,20 +97,22 @@ class LabeledDoubleSpinBox(QWidget):
         self.spin_box.valueChanged.connect(self.valueChanged.emit)
         
         layout = QHBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(4)
         layout.addWidget(self.label)
         layout.addWidget(self.spin_box)
         layout.setStretchFactor(self.spin_box, 1)
-        
+
         self.setLayout(layout)
-    
+
     def value(self):
         """获取值"""
         return self.spin_box.value()
-    
+
     def set_value(self, value):
         """设置值"""
         self.spin_box.setValue(value)
-    
+
     def set_enabled(self, enabled):
         """设置是否启用"""
         self.spin_box.setEnabled(enabled)
@@ -131,20 +136,22 @@ class LabeledSpinBox(QWidget):
         self.spin_box.valueChanged.connect(self.valueChanged.emit)
         
         layout = QHBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(4)
         layout.addWidget(self.label)
         layout.addWidget(self.spin_box)
         layout.setStretchFactor(self.spin_box, 1)
-        
+
         self.setLayout(layout)
-    
+
     def value(self):
         """获取值"""
         return self.spin_box.value()
-    
+
     def set_value(self, value):
         """设置值"""
         self.spin_box.setValue(value)
-    
+
     def set_enabled(self, enabled):
         """设置是否启用"""
         self.spin_box.setEnabled(enabled)
@@ -171,10 +178,12 @@ class LabeledComboBox(QWidget):
         self.combobox.currentIndexChanged.connect(self.currentIndexChanged.emit)
         
         layout = QHBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(4)
         layout.addWidget(self.label)
         layout.addWidget(self.combobox)
         layout.setStretchFactor(self.combobox, 1)
-        
+
         self.setLayout(layout)
     
     def current_text(self):
@@ -224,10 +233,12 @@ class LabeledButton(QWidget):
             self.button.clicked.connect(on_click)
         
         layout = QHBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(4)
         layout.addWidget(self.label)
         layout.addWidget(self.button)
         layout.setStretchFactor(self.button, 1)
-        
+
         self.setLayout(layout)
     
     def set_enabled(self, enabled):
@@ -245,24 +256,28 @@ class InputGrid(QWidget):
     def __init__(self, labels, rows=2, cols=3, default_value="0.0", validator=None, parent=None):
         super().__init__(parent)
         self.inputs = []
-        
+
         layout = QGridLayout()
-        
-        # 添加标签
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setHorizontalSpacing(6)
+        layout.setVerticalSpacing(4)
+
+        # 标签左、输入右同行布局：每个字段占 2 列(label + input)
         for i, label_text in enumerate(labels):
             row = i // cols
-            col = i % cols
-            layout.addWidget(QLabel(label_text), row * 2, col)
-            
-            # 添加输入框
+            grid_col = (i % cols) * 2  # 每个字段占2列
+            label = QLabel(label_text)
+            label.setFont(default_font)
+            label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            layout.addWidget(label, row, grid_col)
+
             line_edit = QLineEdit(default_value)
             line_edit.setFont(default_font)
             if validator:
                 line_edit.setValidator(validator)
-            
-            layout.addWidget(line_edit, row * 2 + 1, col)
+            layout.addWidget(line_edit, row, grid_col + 1)
             self.inputs.append(line_edit)
-        
+
         self.setLayout(layout)
     
     def get_values(self):
@@ -298,8 +313,10 @@ class RadioButtonGroup(QWidget):
     
     def __init__(self, label_text, options, default_option=None, parent=None):
         super().__init__(parent)
-        
+
         layout = QHBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(6)
         
         if label_text:
             label = QLabel(label_text)
@@ -352,8 +369,8 @@ class ButtonRow(QWidget):
         self.buttons = []
         
         layout = QHBoxLayout()
-        layout.setContentsMargins(0, 0, 0, 0)  # 移除边距
-        layout.setSpacing(4)  # 减少按钮间距
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(6)
         
         for config in button_configs:
             text = config[0]
@@ -396,8 +413,8 @@ class GroupFrame(QGroupBox):
         super().__init__(title, parent)
         self.setFont(default_font)
         self.layout = QVBoxLayout()
-        self.layout.setContentsMargins(6, 6, 6, 6)  # 减少内部边距
-        self.layout.setSpacing(2)  # 减少组件间距
+        self.layout.setContentsMargins(8, 14, 8, 8)
+        self.layout.setSpacing(6)
         self.setLayout(self.layout)
     
     def add_widget(self, widget):
@@ -428,8 +445,8 @@ class ConfigRow(QWidget):
     def __init__(self, label_text, parent=None):
         super().__init__(parent)
         self.layout = QHBoxLayout()
-        self.layout.setContentsMargins(0, 0, 0, 0)  # 移除边距
-        self.layout.setSpacing(4)  # 减少组件间距
+        self.layout.setContentsMargins(0, 0, 0, 0)
+        self.layout.setSpacing(6)
         
         if label_text:
             label = QLabel(label_text)
@@ -474,11 +491,13 @@ class LabeledSlider(QWidget):
         self.slider.valueChanged.connect(lambda v: self.value_label.setText(str(v)))
         
         layout = QHBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(4)
         layout.addWidget(self.label)
         layout.addWidget(self.slider)
         layout.addWidget(self.value_label)
         layout.setStretchFactor(self.slider, 1)
-        
+
         self.setLayout(layout)
     
     def value(self):

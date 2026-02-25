@@ -24,9 +24,12 @@ class ControlButtonsFrame(BaseComponent):
         # 创建分组框
         group_box = QGroupBox("参数配置和控制命令")
         main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.addWidget(group_box)
-        
+
         layout = QVBoxLayout(group_box)
+        layout.setContentsMargins(8, 6, 8, 6)
+        layout.setSpacing(6)
         
         # 创建参数配置区域
         # 注释：编码格式固定为hex模式，无需用户选择
@@ -60,6 +63,7 @@ class ControlButtonsFrame(BaseComponent):
         
         # 创建控制按钮
         button_layout = QHBoxLayout()
+        button_layout.setSpacing(6)
         commands = [
             ("使能", 0x01),
             ("取消使能", 0x02),
@@ -117,9 +121,12 @@ class AngleControlFrame(BaseComponent):
         # 创建分组框
         group_box = QGroupBox("角度控制 (弧度值)")
         main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.addWidget(group_box)
-        
+
         layout = QVBoxLayout(group_box)
+        layout.setContentsMargins(8, 6, 8, 6)
+        layout.setSpacing(6)
         
         # 创建角度输入区域 - 使用InputGrid基础组件
         angle_labels = [f"角度{i+1}" for i in range(6)]
@@ -136,7 +143,8 @@ class AngleControlFrame(BaseComponent):
         
         # 按钮区域
         button_layout = QHBoxLayout()
-        
+        button_layout.setSpacing(6)
+
         self.send_button = QPushButton("发送角度")
         self.send_button.setFont(default_font)
         self.send_button.clicked.connect(lambda: self.send_angles_requested.emit({

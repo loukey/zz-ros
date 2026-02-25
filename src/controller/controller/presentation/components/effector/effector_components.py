@@ -20,16 +20,16 @@ class EffectorFrame(BaseComponent):
         # 创建分组框
         group_box = QGroupBox("夹爪设置")
         main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.addWidget(group_box)
-        
-        # 创建主布局
-        layout = QVBoxLayout(group_box)
-        
-        # 创建水平布局用于命令选择和参数值
-        params_layout = QHBoxLayout()
-        params_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)  # 设置左对齐
-        
-        # 命令选择 - 使用LabeledComboBox基础组件
+
+        # 单行布局：命令选择 + 参数值 + 发送按钮
+        row_layout = QHBoxLayout(group_box)
+        row_layout.setContentsMargins(8, 6, 8, 6)
+        row_layout.setSpacing(8)
+        row_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
+
+        # 命令选择
         self.command_combo = LabeledComboBox("命令选择:", [
             "00: 不进行任何操作",
             "01: 夹爪手动使能",
@@ -50,38 +50,26 @@ class EffectorFrame(BaseComponent):
             "06: 查询夹爪目前位置": 0x06,
             "07: 查询夹爪电流": 0x07
         }
-        params_layout.addWidget(self.command_combo)
-        
+        row_layout.addWidget(self.command_combo)
+
         # 参数输入
-        param_layout = QHBoxLayout()
-        param_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)  # 设置左对齐
-        param_layout.addWidget(QLabel("参数值:"))
+        param_label = QLabel("参数值:")
+        param_label.setFont(default_font)
+        row_layout.addWidget(param_label)
         self.param_edit = QLineEdit("0.0")
         self.param_edit.setValidator(QDoubleValidator(-1000.0, 1000.0, 2))
         self.param_edit.setFont(default_font)
         self.param_edit.setMinimumWidth(100)
-        param_layout.addWidget(self.param_edit)
-        params_layout.addLayout(param_layout)
-        
-        # 添加伸缩项，让前面的内容向左对齐
-        params_layout.addStretch(1)
-        
-        layout.addLayout(params_layout)
-        
-        # 控制按钮
-        button_layout = QHBoxLayout()
-        button_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)  # 设置左对齐
-        
+        row_layout.addWidget(self.param_edit)
+
+        # 发送按钮
         self.send_button = QPushButton("发送")
         self.send_button.setFont(default_font)
         self.send_button.clicked.connect(self._on_send_clicked)
-        self.send_button.setEnabled(False)  # 初始状态为禁用
-        button_layout.addWidget(self.send_button)
-        
-        # 添加伸缩项，让按钮向左对齐
-        button_layout.addStretch(1)
-        
-        layout.addLayout(button_layout)
+        self.send_button.setEnabled(False)
+        row_layout.addWidget(self.send_button)
+
+        row_layout.addStretch(1)
     
     def connect_signals(self):
         """连接视图模型信号"""
