@@ -117,53 +117,86 @@ if sys.platform == "win32":
             self.is_open = False
 
 else:
-    # Linux / macOS: pyserial 打开配置 + select/os.read 非阻塞读写
+    # Linux / macOS: 直接 termios + select + os.read（完全绕过 pyserial）
     import os
     import select
-    import serial
+    import termios
+    import fcntl
+    import struct
 
     class NativeSerialPort:
-        """POSIX: pyserial 打开配置 + select+os.read 非阻塞读（绕过 pyserial 的阻塞读）"""
+        """POSIX: 最小化 termios 配置 + select 非阻塞读"""
+
+        BAUD_MAP = {
+            9600: termios.B9600, 19200: termios.B19200,
+            38400: termios.B38400, 57600: termios.B57600,
+            115200: termios.B115200, 230400: termios.B230400,
+            460800: termios.B460800, 921600: termios.B921600,
+        }
 
         def __init__(self, port: str, baudrate: int = 115200):
             self.port = port
             self.baudrate = baudrate
             self.is_open = False
-            self._ser = None
             self._fd = -1
             self._open()
 
+        def _configure(self):
+            """配置 termios: raw 8N1"""
+            baud = self.BAUD_MAP.get(self.baudrate, termios.B115200)
+            attrs = [0, 0, 0, 0, baud, baud, [0] * 32]
+            # cflag: CREAD + CLOCAL + CS8
+            attrs[2] = termios.CS8 | termios.CREAD | termios.CLOCAL | baud
+            # cc: VMIN=0, VTIME=1 (100ms 超时)
+            attrs[6] = list(attrs[6])
+            attrs[6][termios.VMIN] = 0
+            attrs[6][termios.VTIME] = 1
+            termios.tcsetattr(self._fd, termios.TCSAFLUSH, attrs)
+            # DTR
+            try:
+                fcntl.ioctl(self._fd, 0x5416, struct.pack('I', 0x002))
+            except OSError:
+                pass
+
         def _open(self):
-            """用 pyserial 打开并配置，获取 fd 用于直接读写"""
-            if self._ser:
+            """打开串口"""
+            if self._fd >= 0:
                 try:
-                    self._ser.close()
-                except Exception:
+                    os.close(self._fd)
+                except OSError:
                     pass
+                self._fd = -1
 
             for attempt in range(10):
                 try:
-                    self._ser = serial.Serial(
-                        self.port, self.baudrate,
-                        timeout=0, write_timeout=1)
+                    self._fd = os.open(
+                        self.port, os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
                     break
-                except (serial.SerialException, OSError):
+                except OSError:
                     if attempt == 9:
                         raise
                     time.sleep(0.5)
 
-            self._ser.dtr = True
-            self._ser.rts = True
-            self._ser.reset_input_buffer()
-            self._fd = self._ser.fileno()
+            self._configure()
             self.is_open = True
 
+        def reset(self):
+            """不关闭 fd，只 flush + 重配 termios（轻量恢复）"""
+            if self._fd < 0:
+                return False
+            try:
+                termios.tcflush(self._fd, termios.TCIOFLUSH)
+                self._configure()
+                return True
+            except OSError:
+                return False
+
         def reopen(self):
-            """关闭后重开，重置驱动状态"""
+            """完整关闭重开（重量恢复）"""
             try:
                 self._open()
                 return True
-            except (serial.SerialException, OSError):
+            except OSError:
                 self.is_open = False
                 return False
 
@@ -171,7 +204,8 @@ else:
             if not self.is_open or self._fd < 0:
                 return b""
             try:
-                ready, _, _ = select.select([self._fd], [], [], timeout_ms / 1000.0)
+                ready, _, _ = select.select(
+                    [self._fd], [], [], timeout_ms / 1000.0)
                 if ready:
                     return os.read(self._fd, size)
                 return b""
@@ -187,13 +221,12 @@ else:
                 return 0
 
         def close(self):
-            if self._ser:
+            if self._fd >= 0:
                 try:
-                    self._ser.close()
-                except Exception:
+                    os.close(self._fd)
+                except OSError:
                     pass
-                self._ser = None
-            self._fd = -1
+                self._fd = -1
             self.is_open = False
 
 
@@ -234,36 +267,43 @@ def main():
                     and time.time() - last_tx_time[0] > 2.0
                     and not silence_detected):
                     silence_detected = True
-                    print("\n[!] 检测到通信中断，重新打开串口...")
-                    # 先等 STM32 完成重启
-                    time.sleep(2)
-                    if ser.reopen():
-                        # 等待启动消息，确认 STM32 就绪
-                        print("[*] 等待 STM32 启动...")
-                        boot_start = time.time()
-                        ready = False
-                        while time.time() - boot_start < 8:
+                    print("\n[!] 检测到通信中断，尝试恢复...")
+
+                    # Linux: 先尝试轻量 reset（不关 fd）
+                    recovered = False
+                    if sys.platform != "win32":
+                        ser.reset()
+                        # 等 STM32 启动消息（最多 5 秒）
+                        t0 = time.time()
+                        while time.time() - t0 < 5:
                             d = ser.read(1024, timeout_ms=200)
-                            if d:
-                                try:
-                                    txt = d.decode("utf-8", errors="replace")
-                                    print(f"[BOOT] {txt}", end="", flush=True)
-                                except Exception:
-                                    pass
-                                if b"Booted" in d or b"UART" in d:
-                                    ready = True
+                            if d and (b"Booted" in d or b"UART" in d or b"init" in d):
+                                print(f"[OK] 轻量恢复成功")
+                                recovered = True
+                                break
+
+                    # 如果轻量恢复失败，完整 close + reopen
+                    if not recovered:
+                        for attempt in range(3):
+                            time.sleep(1)
+                            if ser.reopen():
+                                t0 = time.time()
+                                while time.time() - t0 < 5:
+                                    d = ser.read(1024, timeout_ms=200)
+                                    if d and (b"Booted" in d or b"UART" in d or b"init" in d):
+                                        print(f"[OK] 重开恢复成功")
+                                        recovered = True
+                                        break
+                                if recovered:
                                     break
-                        if ready:
-                            ser.read(1024, timeout_ms=100)  # 清残余
-                            print("\n[OK] STM32 已就绪，通信恢复")
-                            last_rx_time[0] = time.time()
-                        else:
-                            print("\n[!] 未检测到启动消息，继续重试...")
-                            silence_detected = False
+                            print(f"[.] 重试 {attempt+1}/3...")
+
+                    if recovered:
+                        ser.read(1024, timeout_ms=100)  # 清残余
+                        last_rx_time[0] = time.time()
                     else:
-                        print("[!] 重开失败，2秒后重试...")
-                        time.sleep(2)
-                        silence_detected = False
+                        print("[!] 恢复失败，继续重试...")
+                    silence_detected = False
 
     reader = threading.Thread(target=read_loop, daemon=True)
     reader.start()
