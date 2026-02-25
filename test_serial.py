@@ -117,76 +117,53 @@ if sys.platform == "win32":
             self.is_open = False
 
 else:
-    # Linux / macOS: termios + select + os.read/os.write
+    # Linux / macOS: pyserial 打开配置 + select/os.read 非阻塞读写
     import os
-    import termios
     import select
-    import fcntl
+    import serial
 
     class NativeSerialPort:
-        """POSIX: termios 配置 + select 非阻塞读 + 自动重开 fd"""
-
-        BAUD_MAP = {
-            9600: termios.B9600, 19200: termios.B19200,
-            38400: termios.B38400, 57600: termios.B57600,
-            115200: termios.B115200, 230400: termios.B230400,
-            460800: termios.B460800, 921600: termios.B921600,
-        }
+        """POSIX: pyserial 打开配置 + select+os.read 非阻塞读（绕过 pyserial 的阻塞读）"""
 
         def __init__(self, port: str, baudrate: int = 115200):
             self.port = port
             self.baudrate = baudrate
             self.is_open = False
+            self._ser = None
             self._fd = -1
-            self._open_fd()
+            self._open()
 
-        def _open_fd(self):
-            """打开并配置串口 fd"""
-            if self._fd >= 0:
+        def _open(self):
+            """用 pyserial 打开并配置，获取 fd 用于直接读写"""
+            if self._ser:
                 try:
-                    os.close(self._fd)
-                except OSError:
+                    self._ser.close()
+                except Exception:
                     pass
 
             for attempt in range(10):
                 try:
-                    self._fd = os.open(self.port, os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
+                    self._ser = serial.Serial(
+                        self.port, self.baudrate,
+                        timeout=0, write_timeout=1)
                     break
-                except OSError:
+                except (serial.SerialException, OSError):
                     if attempt == 9:
                         raise
                     time.sleep(0.5)
 
-            attrs = termios.tcgetattr(self._fd)
-            baud = self.BAUD_MAP.get(self.baudrate, termios.B115200)
-
-            attrs[0] = 0  # iflag
-            attrs[1] = 0  # oflag
-            attrs[2] = termios.CS8 | termios.CREAD | termios.CLOCAL | baud  # cflag
-            attrs[3] = 0  # lflag
-            attrs[6][termios.VMIN] = 0
-            attrs[6][termios.VTIME] = 0
-            attrs[4] = baud  # ispeed
-            attrs[5] = baud  # ospeed
-
-            termios.tcsetattr(self._fd, termios.TCSANOW, attrs)
-            termios.tcflush(self._fd, termios.TCIOFLUSH)
-
-            # DTR
-            import struct
-            try:
-                fcntl.ioctl(self._fd, 0x5416, struct.pack('I', 0x002))  # TIOCMBIS, TIOCM_DTR
-            except OSError:
-                pass
-
+            self._ser.dtr = True
+            self._ser.rts = True
+            self._ser.reset_input_buffer()
+            self._fd = self._ser.fileno()
             self.is_open = True
 
         def reopen(self):
-            """关闭后重新打开 fd，重置驱动状态"""
+            """关闭后重开，重置驱动状态"""
             try:
-                self._open_fd()
+                self._open()
                 return True
-            except OSError:
+            except (serial.SerialException, OSError):
                 self.is_open = False
                 return False
 
@@ -210,12 +187,13 @@ else:
                 return 0
 
         def close(self):
-            if self._fd >= 0:
+            if self._ser:
                 try:
-                    os.close(self._fd)
-                except OSError:
+                    self._ser.close()
+                except Exception:
                     pass
-                self._fd = -1
+                self._ser = None
+            self._fd = -1
             self.is_open = False
 
 
