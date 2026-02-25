@@ -235,12 +235,34 @@ def main():
                     and not silence_detected):
                     silence_detected = True
                     print("\n[!] 检测到通信中断，重新打开串口...")
+                    # 先等 STM32 完成重启
+                    time.sleep(2)
                     if ser.reopen():
-                        print("[OK] 串口已重新打开")
-                        last_rx_time[0] = time.time()
+                        # 等待启动消息，确认 STM32 就绪
+                        print("[*] 等待 STM32 启动...")
+                        boot_start = time.time()
+                        ready = False
+                        while time.time() - boot_start < 8:
+                            d = ser.read(1024, timeout_ms=200)
+                            if d:
+                                try:
+                                    txt = d.decode("utf-8", errors="replace")
+                                    print(f"[BOOT] {txt}", end="", flush=True)
+                                except Exception:
+                                    pass
+                                if b"Booted" in d or b"UART" in d:
+                                    ready = True
+                                    break
+                        if ready:
+                            ser.read(1024, timeout_ms=100)  # 清残余
+                            print("\n[OK] STM32 已就绪，通信恢复")
+                            last_rx_time[0] = time.time()
+                        else:
+                            print("\n[!] 未检测到启动消息，继续重试...")
+                            silence_detected = False
                     else:
-                        print("[!] 重开失败，1秒后重试...")
-                        time.sleep(1)
+                        print("[!] 重开失败，2秒后重试...")
+                        time.sleep(2)
                         silence_detected = False
 
     reader = threading.Thread(target=read_loop, daemon=True)
