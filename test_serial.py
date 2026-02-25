@@ -234,7 +234,7 @@ else:
 # 测试
 # ============================================================
 
-PORT = "COM5" if sys.platform == "win32" else "/dev/ttyUSB0"
+PORT = "COM5" if sys.platform == "win32" else "/dev/ttyACM0"
 BAUD = 115200
 
 

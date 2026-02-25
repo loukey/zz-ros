@@ -19,7 +19,7 @@ setup(
     maintainer_email='user@todo.todo',
     description='Data recording package for manipulator arm and camera',
     license='TODO: License declaration',
-    tests_require=['pytest'],
+
     entry_points={
         'console_scripts': [
             'record = record.record_node:main',
