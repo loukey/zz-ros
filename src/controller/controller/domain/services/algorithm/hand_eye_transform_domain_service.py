@@ -116,8 +116,10 @@ class HandEyeTransformDomainService:
         T_offset2target = np.eye(4)
         T_offset2target[:3, 3] = [0, -0.016, 0]
         T_target2base = T_target2base @ T_offset2target
-
-        T_offset2target[:3, 3] = [0.1, 0, 0.02]
+        v_conveyor = 0.0065
+        t_move = 7
+        y_offset = -v_conveyor*t_move
+        T_offset2target[:3, 3] = [0.1, y_offset, 0.02]
         T_target2base = T_offset2target @ T_target2base
 
         # 5. 逆运动学求解
