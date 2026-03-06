@@ -4,7 +4,8 @@
 """
 from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QTabWidget, QMessageBox,
                            QHBoxLayout, QStatusBar, QProgressBar, QToolBar, QApplication,
-                           QMenu, QAction, QPushButton, QLabel, QSplitter, QDesktopWidget)
+                           QMenu, QAction, QPushButton, QLabel, QSplitter, QDesktopWidget,
+                           QScrollArea)
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont
 from ..components import *
@@ -32,16 +33,18 @@ class MainWindow(QMainWindow):
         # ✅ 预初始化ROS2（可选，Domain层会自动处理）
         self._init_rclpy()
         
-        # 设置窗口标题和自适应大小
+        # 设置窗口标题
         self.setWindowTitle("镇中科技机械臂控制工具v0.7.1")
-        self._setup_adaptive_size()
-        
+
         # 初始化设置对话框
         self._init_serial_config()
         self._init_contour_settings()
-        
-        # 初始化界面
+
+        # 初始化界面（必须在 adaptive size 之前，否则布局最小尺寸会覆盖 resize）
         self.init_ui()
+
+        # 自适应窗口大小（在 init_ui 之后）
+        self._setup_adaptive_size()
     
         # 添加窗口关闭事件处理
         app = QApplication.instance()
@@ -70,9 +73,9 @@ class MainWindow(QMainWindow):
         desktop = QDesktopWidget()
         screen_rect = desktop.availableGeometry(self)
         w = int(screen_rect.width() * 0.85)
-        h = int(screen_rect.height() * 0.85)
-        w = max(1200, min(w, 1920))
-        h = max(700, min(h, 1080))
+        h = int(screen_rect.height() * 0.80)
+        w = max(1200, min(w, screen_rect.width()))
+        h = max(600, min(h, screen_rect.height()))
         self.resize(w, h)
         # 居中显示
         frame_geo = self.frameGeometry()
@@ -173,13 +176,21 @@ class MainWindow(QMainWindow):
         
         parent.addWidget(right_widget)
     
+    def _make_scrollable_tab(self, content_widget):
+        """将内容组件包装为可滚动的标签页"""
+        scroll = QScrollArea()
+        scroll.setWidget(content_widget)
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.NoFrame)
+        return scroll
+
     def _create_main_tab(self):
         """创建主页标签"""
         main_tab = QWidget()
         layout = QVBoxLayout(main_tab)
         layout.setContentsMargins(8, 8, 8, 8)
         layout.setSpacing(6)
-        
+
         # 串口选择区域
         self.port_frame = PortSelectionFrame(
             parent=main_tab,
@@ -187,14 +198,14 @@ class MainWindow(QMainWindow):
             get_serial_config=self.serial_config.get_config
         )
         layout.addWidget(self.port_frame)
-        
-        # 控制按钮区域  
+
+        # 控制按钮区域
         self.control_frame = ControlButtonsFrame(
             parent=main_tab,
             view_model=self.view_model.control_vm
         )
         layout.addWidget(self.control_frame)
-        
+
         # 角度控制区域
         self.angle_control_frame = AngleControlFrame(
             parent=main_tab,
@@ -203,18 +214,18 @@ class MainWindow(QMainWindow):
             get_run_mode=self.control_frame.get_run_mode
         )
         layout.addWidget(self.angle_control_frame)
-        
+
         # 末端执行器区域
         self.effector_frame = EffectorFrame(
             parent=main_tab,
             view_model=self.view_model.effector_vm
         )
         layout.addWidget(self.effector_frame)
-        
+
         # 添加伸缩空间
         layout.addStretch()
-        
-        self.left_tab_widget.addTab(main_tab, "主页")
+
+        self.left_tab_widget.addTab(self._make_scrollable_tab(main_tab), "主页")
     
     def _create_motion_planning_tab(self):
         """创建运动规划标签"""
@@ -230,7 +241,7 @@ class MainWindow(QMainWindow):
         )
         layout.addWidget(self.motion_planning_frame)
         
-        self.left_tab_widget.addTab(motion_tab, "运动规划")
+        self.left_tab_widget.addTab(self._make_scrollable_tab(motion_tab), "运动规划")
     
     def _create_dynamics_tab(self):
         """创建动力学标签"""
@@ -249,7 +260,7 @@ class MainWindow(QMainWindow):
         # 添加伸缩空间
         layout.addStretch()
         
-        self.left_tab_widget.addTab(dynamics_tab, "动力学")
+        self.left_tab_widget.addTab(self._make_scrollable_tab(dynamics_tab), "动力学")
     
     def _create_camera_tab(self):
         """创建摄像头标签"""
@@ -259,14 +270,14 @@ class MainWindow(QMainWindow):
             view_model=self.view_model.camera_vm
         )
         
-        self.left_tab_widget.addTab(self.camera_widget, "摄像头")
+        self.left_tab_widget.addTab(self._make_scrollable_tab(self.camera_widget), "摄像头")
     
     def _create_recording_tab(self):
         """创建录制标签"""
         # 从DI容器获取ViewModel (而不是Service)
         vm = resolve(RecordingViewModel)
         recording_widget = DataRecordingWidget(view_model=vm)
-        self.left_tab_widget.addTab(recording_widget, "数据采集")
+        self.left_tab_widget.addTab(self._make_scrollable_tab(recording_widget), "数据采集")
     
     def _create_tools_tab(self):
         """创建工具标签"""
@@ -275,7 +286,7 @@ class MainWindow(QMainWindow):
             view_model=self.view_model.tools_vm
         )
         
-        self.left_tab_widget.addTab(tools_widget, "工具")
+        self.left_tab_widget.addTab(self._make_scrollable_tab(tools_widget), "工具")
     
     def _create_menu_bar(self):
         """创建菜单栏"""
