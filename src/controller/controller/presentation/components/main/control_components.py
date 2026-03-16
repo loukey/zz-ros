@@ -347,6 +347,11 @@ class RelativePoseControlFrame(BaseComponent):
         self.send_button.setEnabled(False)
         button_layout.addWidget(self.send_button)
 
+        zero_button = QPushButton("全部归零")
+        zero_button.setFont(default_font)
+        zero_button.clicked.connect(self._on_zero)
+        button_layout.addWidget(zero_button)
+
         layout.addLayout(button_layout)
 
     def connect_signals(self):
@@ -365,6 +370,12 @@ class RelativePoseControlFrame(BaseComponent):
         run_mode = self.get_run_mode() if self.get_run_mode else 0x08
         contour_params = self.get_contour() if self.get_contour else None
         self.view_model.send_relative_pose_command(euler, pos, run_mode, contour_params)
+
+    def _on_zero(self):
+        """将所有增量输入归零"""
+        zero = ["0.0"] * 3
+        self.euler_grid.set_values(zero)
+        self.pos_grid.set_values(zero)
 
     def _on_pose_error(self, message):
         """显示姿态控制错误"""
