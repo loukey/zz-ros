@@ -7,6 +7,7 @@ from .motion_planning_application_service import MotionPlanningApplicationServic
 from .camera_application_service import CameraApplicationService
 from .tools_application_service import ToolsApplicationService
 from .data_recording_application_service import DataRecordingApplicationService
+from .pose_control_application_service import PoseControlApplicationService
 
 __all__ = [
     'SerialApplicationService',
@@ -16,4 +17,5 @@ __all__ = [
     'CameraApplicationService',
     'ToolsApplicationService',
     'DataRecordingApplicationService',
-]     
+    'PoseControlApplicationService',
+]

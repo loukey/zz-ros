@@ -231,6 +231,15 @@ class MainWindow(QMainWindow):
         )
         layout.addWidget(self.pose_control_frame)
 
+        # 相对姿态控制区域（末端坐标系）
+        self.relative_pose_control_frame = RelativePoseControlFrame(
+            parent=main_tab,
+            view_model=self.view_model.control_vm,
+            get_contour=self.contour_settings.get_contour_params,
+            get_run_mode=self.control_frame.get_run_mode
+        )
+        layout.addWidget(self.relative_pose_control_frame)
+
         # 添加伸缩空间
         layout.addStretch()
 

@@ -3,7 +3,7 @@ UI组件模块（聚合导出）
 """
 # Main tab
 from .main.port_selection import PortSelectionFrame
-from .main.control_components import ControlButtonsFrame, AngleControlFrame, PoseControlFrame
+from .main.control_components import ControlButtonsFrame, AngleControlFrame, PoseControlFrame, RelativePoseControlFrame
 
 # Effector (main tab section)
 from .effector.effector_components import EffectorFrame
@@ -42,6 +42,7 @@ __all__ = [
     "ControlButtonsFrame",
     "AngleControlFrame",
     "PoseControlFrame",
+    "RelativePoseControlFrame",
     # Effector
     "EffectorFrame",
     # Motion planning

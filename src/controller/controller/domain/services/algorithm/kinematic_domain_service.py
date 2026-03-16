@@ -68,6 +68,30 @@ class KinematicDomainService:
         self.gripper2base = self._compute_fk(self.kinematic_dh)
         return self.gripper2base
 
+    def apply_relative_transform(self, current_angles: list[float],
+                                 euler_xyz: list[float], position_xyz: list[float]) -> tuple[np.ndarray, np.ndarray]:
+        """在末端执行器坐标系下施加相对变换，返回基坐标系下的目标旋转矩阵和位置。
+
+        通过后乘（post-multiply）实现末端坐标系下的增量变换：
+        T_target = T_current @ T_delta
+
+        Args:
+            current_angles: 当前关节角度列表（弧度）。
+            euler_xyz: xyz内旋欧拉角增量 [rx, ry, rz]（弧度），相对于末端坐标系。
+            position_xyz: 位置增量 [x, y, z]（米），相对于末端坐标系。
+
+        Returns:
+            tuple: (rm, pos)
+                - rm (np.ndarray): 目标旋转矩阵 (3x3)。
+                - pos (np.ndarray): 目标位置 [x, y, z]。
+        """
+        T_current = self.get_gripper2base_rm(current_angles)
+        T_delta = np.eye(4)
+        T_delta[:3, :3] = R.from_euler('xyz', euler_xyz).as_matrix()
+        T_delta[:3, 3] = position_xyz
+        T_target = T_current @ T_delta
+        return T_target[:3, :3], T_target[:3, 3]
+
     def inverse_kinematic(self, rm: np.ndarray, pos: np.ndarray, initial_theta: list[float] | None = None) -> list[float]:
         """机械臂逆运动学求解。
         

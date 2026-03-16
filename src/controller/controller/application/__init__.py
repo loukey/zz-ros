@@ -6,19 +6,21 @@ from .services import (
     MotionPlanningApplicationService,
     CameraApplicationService,
     ToolsApplicationService,
-    DataRecordingApplicationService
+    DataRecordingApplicationService,
+    PoseControlApplicationService
 )
 from .commands import MessageDisplay
 from .listener import MotionListener
 
 __all__ = [
-    'SerialApplicationService', 
-    'CommandHubService', 
+    'SerialApplicationService',
+    'CommandHubService',
     'MessageResponseService',
     'MotionPlanningApplicationService',
     'CameraApplicationService',
     'ToolsApplicationService',
     'DataRecordingApplicationService',
-    'MessageDisplay', 
+    'PoseControlApplicationService',
+    'MessageDisplay',
     'MotionListener'
 ] 

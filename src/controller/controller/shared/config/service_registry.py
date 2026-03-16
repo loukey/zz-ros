@@ -26,6 +26,7 @@ from controller.application import (
     SerialApplicationService, CommandHubService, MessageResponseService,
     MotionPlanningApplicationService, CameraApplicationService,
     ToolsApplicationService, DataRecordingApplicationService,
+    PoseControlApplicationService,
     MessageDisplay, MotionListener,
 )
 
@@ -126,6 +127,8 @@ def register_application_services(container: DIContainer) -> None:
     container.register_singleton(ToolsApplicationService)
     # 数据录制应用服务
     container.register_singleton(DataRecordingApplicationService)
+    # 姿态控制应用服务
+    container.register_singleton(PoseControlApplicationService)
     
     # 手动连接应用服务之间的信号
     # MotionPlanningApplicationService -> CameraApplicationService (检测服务启停)

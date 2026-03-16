@@ -297,3 +297,77 @@ class PoseControlFrame(BaseComponent):
         QMessageBox.warning(self, "姿态控制错误", message)
 
 
+class RelativePoseControlFrame(BaseComponent):
+    """相对姿态控制框架 - 在末端执行器坐标系下通过增量欧拉角+位置控制机械臂"""
+
+    def __init__(self, parent=None, view_model=None,
+                 get_contour=None, get_run_mode=None):
+        self.get_contour = get_contour
+        self.get_run_mode = get_run_mode
+        super().__init__(parent, view_model)
+
+    def setup_ui(self):
+        """设置UI"""
+        group_box = QGroupBox("相对姿态控制（末端坐标系）")
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.addWidget(group_box)
+
+        layout = QVBoxLayout(group_box)
+        layout.setContentsMargins(8, 6, 8, 6)
+        layout.setSpacing(6)
+
+        # 欧拉角增量输入 (xyz内旋，弧度)
+        euler_labels = ["旋转X", "旋转Y", "旋转Z"]
+        self.euler_grid = InputGrid(
+            labels=euler_labels,
+            rows=1, cols=3,
+            default_value="0.0",
+            validator=QDoubleValidator()
+        )
+        layout.addWidget(self.euler_grid)
+
+        # 位置增量输入 (xyz，米)
+        pos_labels = ["平移X", "平移Y", "平移Z"]
+        self.pos_grid = InputGrid(
+            labels=pos_labels,
+            rows=1, cols=3,
+            default_value="0.0",
+            validator=QDoubleValidator()
+        )
+        layout.addWidget(self.pos_grid)
+
+        # 按钮区域
+        button_layout = QHBoxLayout()
+        button_layout.setSpacing(6)
+
+        self.send_button = QPushButton("发送相对姿态")
+        self.send_button.setFont(default_font)
+        self.send_button.clicked.connect(self._on_send_relative_pose)
+        self.send_button.setEnabled(False)
+        button_layout.addWidget(self.send_button)
+
+        layout.addLayout(button_layout)
+
+    def connect_signals(self):
+        """连接视图模型信号"""
+        self.view_model.connection_status_changed.connect(self._update_connection_status)
+        self.view_model.pose_error.connect(self._on_pose_error)
+
+    def _update_connection_status(self, connected):
+        """更新连接状态"""
+        self.send_button.setEnabled(connected)
+
+    def _on_send_relative_pose(self):
+        """发送相对姿态命令"""
+        euler = self.euler_grid.get_float_values()
+        pos = self.pos_grid.get_float_values()
+        run_mode = self.get_run_mode() if self.get_run_mode else 0x08
+        contour_params = self.get_contour() if self.get_contour else None
+        self.view_model.send_relative_pose_command(euler, pos, run_mode, contour_params)
+
+    def _on_pose_error(self, message):
+        """显示姿态控制错误"""
+        QMessageBox.warning(self, "姿态控制错误", message)
+
+
