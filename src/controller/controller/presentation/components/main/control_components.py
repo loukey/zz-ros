@@ -1,9 +1,9 @@
 """
 Control and angle components for Main tab
 """
-from PyQt5.QtWidgets import (QWidget, QLabel, QLineEdit, QPushButton, QRadioButton, 
+from PyQt5.QtWidgets import (QWidget, QLabel, QLineEdit, QPushButton, QRadioButton,
                            QVBoxLayout, QHBoxLayout, QGridLayout, QButtonGroup, QComboBox,
-                           QGroupBox, QFrame)
+                           QGroupBox, QFrame, QMessageBox)
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QDoubleValidator
 from ..base_component import (BaseComponent, default_font, LabeledComboBox, 
@@ -203,5 +203,97 @@ class AngleControlFrame(BaseComponent):
         zero_angles = [0.0, -pi/2, 0.0, pi/2, 0.0, 0.0]
         zero_strings = [f"{angle:.4f}" for angle in zero_angles]
         self.angle_grid.set_values(zero_strings)
+
+
+class PoseControlFrame(BaseComponent):
+    """姿态控制框架 - 通过欧拉角+位置控制机械臂"""
+
+    def __init__(self, parent=None, view_model=None,
+                 get_contour=None, get_run_mode=None):
+        self.get_contour = get_contour
+        self.get_run_mode = get_run_mode
+        super().__init__(parent, view_model)
+
+    def setup_ui(self):
+        """设置UI"""
+        group_box = QGroupBox("姿态控制")
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.addWidget(group_box)
+
+        layout = QVBoxLayout(group_box)
+        layout.setContentsMargins(8, 6, 8, 6)
+        layout.setSpacing(6)
+
+        # 欧拉角输入 (xyz内旋，弧度)
+        euler_labels = ["欧拉角X", "欧拉角Y", "欧拉角Z"]
+        self.euler_grid = InputGrid(
+            labels=euler_labels,
+            rows=1, cols=3,
+            default_value="0.0",
+            validator=QDoubleValidator()
+        )
+        layout.addWidget(self.euler_grid)
+
+        # 位置输入 (xyz，米)
+        pos_labels = ["位置X", "位置Y", "位置Z"]
+        self.pos_grid = InputGrid(
+            labels=pos_labels,
+            rows=1, cols=3,
+            default_value="0.0",
+            validator=QDoubleValidator()
+        )
+        layout.addWidget(self.pos_grid)
+
+        # 按钮区域
+        button_layout = QHBoxLayout()
+        button_layout.setSpacing(6)
+
+        self.get_pose_button = QPushButton("获取当前位姿")
+        self.get_pose_button.setFont(default_font)
+        self.get_pose_button.clicked.connect(self._on_get_pose)
+        self.get_pose_button.setEnabled(False)
+        button_layout.addWidget(self.get_pose_button)
+
+        self.send_pose_button = QPushButton("发送姿态")
+        self.send_pose_button.setFont(default_font)
+        self.send_pose_button.clicked.connect(self._on_send_pose)
+        self.send_pose_button.setEnabled(False)
+        button_layout.addWidget(self.send_pose_button)
+
+        layout.addLayout(button_layout)
+
+    def connect_signals(self):
+        """连接视图模型信号"""
+        self.view_model.connection_status_changed.connect(self._update_connection_status)
+        self.view_model.pose_error.connect(self._on_pose_error)
+
+    def _update_connection_status(self, connected):
+        """更新连接状态"""
+        self.get_pose_button.setEnabled(connected)
+        self.send_pose_button.setEnabled(connected)
+
+    def _on_get_pose(self):
+        """获取当前位姿并填入输入栏"""
+        try:
+            euler, pos = self.view_model.get_current_pose()
+            euler_strings = [f"{v:.6f}" for v in euler]
+            pos_strings = [f"{v:.6f}" for v in pos]
+            self.euler_grid.set_values(euler_strings)
+            self.pos_grid.set_values(pos_strings)
+        except Exception as e:
+            QMessageBox.warning(self, "获取位姿失败", str(e))
+
+    def _on_send_pose(self):
+        """发送姿态命令"""
+        euler = self.euler_grid.get_float_values()
+        pos = self.pos_grid.get_float_values()
+        run_mode = self.get_run_mode() if self.get_run_mode else 0x08
+        contour_params = self.get_contour() if self.get_contour else None
+        self.view_model.send_pose_command(euler, pos, run_mode, contour_params)
+
+    def _on_pose_error(self, message):
+        """显示姿态控制错误"""
+        QMessageBox.warning(self, "姿态控制错误", message)
 
 
